@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: pickong-backend
+
+server:
+  port: 8080
+
+# 상태 확인: GET /actuator/health
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+# API 문서: /swagger-ui.html (스펙 JSON: /v3/api-docs)
+springdoc:
+  paths-to-match: /api/**

@@ -1,0 +1,5 @@
+# build
+target/
+
+# 로컬 설정 (비밀값은 커밋하지 않습니다)
+application-local.yml
