@@ -1,0 +1,37 @@
+# 프론트 전용 규칙. OS · IDE · 로그 등 공통 규칙은 저장소 루트의 .gitignore에 있습니다.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+*.pem
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# 환경변수 예시 파일은 공유합니다
+!.env.local.example
