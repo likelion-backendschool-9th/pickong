@@ -28,8 +28,19 @@
 | 구조 검사 | ESLint + `eslint-plugin-boundaries` (제안) | 계층 의존 규칙을 리뷰가 아닌 lint로 강제 |
 | 백엔드 (추후) | Spring Boot + PostgreSQL/PostGIS | REST API, springdoc(OpenAPI) 권장 |
 
-**디자인 방향:** 기획서 톤 유지. 크림 배경 · 오렌지 포인트 · 짙은 브라운 텍스트, 둥근 모서리, 마스코트(핀을 안은 콩).
-현재 **확정된 디자인 토큰 값은 없습니다.** 토큰 **이름**만 먼저 정하고(`--color-bg`, `--color-primary`, `--color-ink` 등) 값은 디자인 확정 시 `globals.css` 한 곳만 수정합니다. 컴포넌트에 hex 값을 직접 쓰지 않습니다.
+**디자인 방향 (확정):** 흰색 바탕의 평면적인 모바일 웹 UI. 사진이 주요 콘텐츠이고, 주요 액션과 선택 상태에만 라임 계열을 씁니다. 폰트는 Noto Sans KR, 기준 화면 390 × 844 (360~480px 유동, 데스크톱은 가운데 열).
+색상 값은 `app/globals.css`의 `@theme` 한 곳에서만 정의하고, 컴포넌트에는 토큰 이름만 씁니다 (hex 직접 사용 금지).
+
+| 토큰 | 값 | 역할 |
+| --- | --- | --- |
+| `bg` | `#FFFFFF` | 메인 배경 · 바텀시트 · 헤더 · 하단 내비게이션 |
+| `soft` | `#F7FCEB` | 라임 화이트: 설명 영역 · 안내 카드 · 위치 확인 배경 · 입력창 |
+| `selected` | `#F1FAD9` | 라임 크림: 체크박스 선택 배경 · 선택된 칩 · 작은 선택 요소 |
+| `primary` | `#84CC16` | 메인 라임그린: 주요 CTA · 브랜드 포인트 · 핀 |
+| `primary-deep` | `#4D7C0F` | 딥 그린: 체크 표시 · 연한 라임 위 강조 텍스트 · 선택 아이콘 |
+| `on-primary` | `#1A2E05` | 라임그린 위 텍스트 (흰색은 대비 부족) |
+| `ink` / `ink-sub` / `ink-faint` / `line` | 중립색 | 본문 / 부가 설명 / 메타 / 구분선 |
+| `warning` · `danger` (+ `-soft`) | 앰버 · 레드 | 경고 · 오류. 일반 선택 상태(라임)와 섞지 않음 |
 
 ### 핵심 사용자 흐름
 
@@ -109,6 +120,7 @@
 ```
 pickong/
 ├── BLUEPRINT.md
+├── .gitignore · .editorconfig              # 저장소 공통 설정
 └── frontend/
     ├── public/
     │   ├── images/                         # logo.svg, mascot.png
@@ -487,6 +499,7 @@ feature A가 feature B를 import하지 않습니다. **조합은 위 계층에�
 | 서버 전용 코드 | `*.server.ts` 파일은 `import 'server-only'`로 시작. **`index.ts`에서 다시 export하지 않음.** 서버 전용 export가 필요한 슬라이스는 별도 `server.ts` 진입점을 둠 |
 
 `index.ts`에는 **밖에서 실제로 쓰는 것만** export합니다. DTO와 mapper는 export하지 않습니다.
+예외: ※2 방향(post·collection → user·place, plan → place)의 엔티티가 응답 안에 포함된 다른 엔티티를 변환할 때 필요한 DTO 타입과 mapper(`PlaceDto`·`toPlace`, `UserDto`·`toUser` 등)는 export합니다. 중첩 객체 변환을 엔티티마다 따로 구현하지 않기 위해서입니다.
 
 ### 규칙 강제 방법
 
@@ -1051,7 +1064,9 @@ entities/plan/model/            # React import 금지. 입력 → 출력만 있�
 | `/notifications` | 알림 | 로그인 | Server | 3차 |
 | `/settings`, `/settings/profile` | 설정 · 프로필 편집 | 로그인 | 폼(Client) | 1차 |
 
-**하단 탭 (모바일 우선):** 피드 · 탐색 · ➕(작성/가져오기) · 지도 · 일정. 프로필은 헤더 오른쪽 아바타에서 들어갑니다.
+**하단 탭 (모바일 우선, 확정 디자인 기준):** 홈(`/feed`) · 내 지도(`/map`, `/collections`) · ➕ · 일정(`/plans`) · 프로필(`/users/[username]`).
+➕는 게시물 올리기(`/posts/new`) · 장소 직접 추가(`/places/new`) · AI 링크로 가져오기(`/import`) 세 갈래로 분기합니다. 탐색은 홈의 ‘추천’ 탭과 통합 검색(`/search`)이 대신합니다.
+하단 탭이 있는 화면은 `app/(main)/(tabs)`, 뒤로가기 중심의 세부 작업 화면은 `app/(main)/(sub)`에 둡니다 (URL에는 영향 없음).
 
 ---
 
@@ -1117,11 +1132,17 @@ interface Collection {
 }
 
 // entities/post/model.ts
+// 사진마다 장소를 하나씩 연결할 수 있습니다 (없을 수도 있음). 같은 장소가 여러 사진에 연결될 수 있습니다.
+interface PostPhoto {
+  url: string;
+  placeId: Id | null;
+}
+
 interface Post {
   id: Id;
   author: User;
-  place: Place;
-  imageUrls: string[];
+  photos: PostPhoto[];
+  places: Place[];                // 사진에 연결된 장소 (중복 제거, 사진 순서)
   content: string;
   visibility: Visibility;
   isSponsored: boolean;
@@ -1144,6 +1165,9 @@ interface ImportCandidate {
 }
 
 // entities/plan/model/types.ts
+// ※ 확정 디자인(예약 고정형 플래너) 반영: 실제 구현은 PlanStop 대신
+//   PlanItem { kind: 'RESERVATION' | 'FREE'; reservation: { type, startTime, endTime, people, reservationNumber, link, memo } | null }
+//   을 사용하고, Plan에 region · startPlace · endTime · memo가 추가되었습니다. 최신 정의는 코드(types.ts)가 기준입니다.
 interface Plan {
   id: Id;
   title: string;
