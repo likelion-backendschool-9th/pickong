@@ -119,8 +119,10 @@
 
 ```
 pickong/
+├── README.md                               # 저장소 안내 · 실행 방법
 ├── BLUEPRINT.md
-├── .gitignore · .editorconfig              # 저장소 공통 설정
+├── .gitignore · .editorconfig              # 프론트·백엔드 공통 설정
+├── backend/                                # Spring Boot (이 문서의 범위 밖)
 └── frontend/
     ├── public/
     │   ├── images/                         # logo.svg, mascot.png
