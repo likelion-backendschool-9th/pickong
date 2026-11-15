@@ -1,0 +1,117 @@
+import type { CommentRow, PostRow } from "./types.ts";
+
+const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+
+export const posts: PostRow[] = [
+  {
+    id: "post-1",
+    authorId: "u-jimin",
+    photos: [
+      { url: "/images/photos/cafe.jpg", placeId: "p-onyu" },
+      { url: "/images/photos/shop-people.jpg", placeId: "p-momo" },
+      { url: "/images/photos/shop.jpg", placeId: "p-momo" },
+      { url: "/images/photos/park.jpg", placeId: "p-forest" },
+      { url: "/images/photos/street.jpg", placeId: null },
+    ],
+    content: "주말엔 성수 한 바퀴, 커피부터 산책까지!\n사진마다 오늘의 장소를 연결해 두었어요.",
+    visibility: "PUBLIC",
+    likeCount: 128,
+    likedByMe: false,
+    bookmarkedByMe: false,
+    createdAt: ago(120),
+  },
+  {
+    id: "post-2",
+    authorId: "u-minsu",
+    photos: [
+      { url: "/images/photos/park.jpg", placeId: "p-forest-view" },
+      { url: "/images/photos/cafe.jpg", placeId: "p-salt" },
+    ],
+    content: "서울숲 단풍 보고 소금빵으로 마무리.",
+    visibility: "PUBLIC",
+    likeCount: 54,
+    likedByMe: true,
+    bookmarkedByMe: false,
+    createdAt: ago(60 * 5),
+  },
+  {
+    id: "post-3",
+    authorId: "u-haeun",
+    photos: [
+      { url: "/images/photos/shop.jpg", placeId: "p-book" },
+      { url: "/images/photos/street.jpg", placeId: "p-yeonmu" },
+    ],
+    content: "책방 오후에서 한참 머물다가 연무장길까지 걸었어요.",
+    visibility: "PUBLIC",
+    likeCount: 87,
+    likedByMe: false,
+    bookmarkedByMe: true,
+    createdAt: ago(60 * 26),
+  },
+  {
+    id: "post-4",
+    authorId: "u-yujin",
+    photos: [
+      { url: "/images/photos/street.jpg", placeId: "p-hanok" },
+      { url: "/images/photos/cafe.jpg", placeId: "p-baram" },
+    ],
+    content: "골목 사진 찍기 좋은 날.",
+    visibility: "PUBLIC",
+    likeCount: 301,
+    likedByMe: false,
+    bookmarkedByMe: false,
+    createdAt: ago(60 * 30),
+  },
+  {
+    id: "post-5",
+    authorId: "u-seoyeon",
+    photos: [
+      { url: "/images/photos/park.jpg", placeId: "p-forest" },
+      { url: "/images/photos/cafe.jpg", placeId: "p-onyu" },
+    ],
+    content: "11월의 서울숲 산책 기록.",
+    visibility: "PUBLIC",
+    likeCount: 42,
+    likedByMe: false,
+    bookmarkedByMe: false,
+    createdAt: ago(60 * 24 * 8),
+  },
+  {
+    id: "post-6",
+    authorId: "u-seoyeon",
+    photos: [{ url: "/images/photos/shop.jpg", placeId: "p-book" }],
+    content: "좋아하는 책방.",
+    visibility: "FOLLOWERS",
+    likeCount: 19,
+    likedByMe: false,
+    bookmarkedByMe: false,
+    createdAt: ago(60 * 24 * 15),
+  },
+];
+
+export const comments: CommentRow[] = [
+  {
+    id: "cm-1",
+    postId: "post-1",
+    authorId: "u-haeun",
+    parentId: null,
+    content: "창가 자리 사진 너무 좋아요. 몇 시쯤 가셨어요?",
+    createdAt: ago(90),
+  },
+  {
+    id: "cm-2",
+    postId: "post-1",
+    authorId: "u-jimin",
+    parentId: "cm-1",
+    content: "오전 11시쯤이요! 햇빛이 제일 좋아요.",
+    createdAt: ago(80),
+  },
+  {
+    id: "cm-3",
+    postId: "post-1",
+    authorId: "u-minsu",
+    parentId: null,
+    content: "모모 저도 가봤는데 컵이 예뻐요.",
+    createdAt: ago(40),
+  },
+];
