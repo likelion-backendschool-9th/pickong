@@ -4,7 +4,7 @@ import { Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CollectionCard, useUserCollections } from "@/entities/collection";
-import { useVisitRecords } from "@/entities/plan";
+import { useMyVisitRecords } from "@/entities/plan";
 import { PostGrid, useUserPosts } from "@/entities/post";
 import { useUser } from "@/entities/user";
 import { FollowButton } from "@/features/follow-user";
@@ -15,18 +15,29 @@ import { ButtonLink } from "@/shared/ui/Button";
 import { Tabs } from "@/shared/ui/controls";
 import { Avatar, EmptyState, ErrorState, Skeleton, Thumb } from "@/shared/ui/display";
 import { TopBar } from "@/shared/ui/layout";
+import { VisitMap } from "./VisitMap";
 
-type Tab = "posts" | "collections" | "visits";
+type Tab = "posts" | "collections" | "map" | "visits";
+
+const BASE_TABS: { value: Tab; label: string }[] = [
+  { value: "posts", label: "게시물" },
+  { value: "collections", label: "컬렉션" },
+  { value: "map", label: "방문 지도" },
+];
+/** 방문 기록은 본인 프로필에만 보입니다. */
+const MY_TABS: { value: Tab; label: string }[] = [...BASE_TABS, { value: "visits", label: "방문 기록" }];
 
 export function ProfileScreen({ username }: { username: string }) {
   const { data: user, isPending, isError, error } = useUser(username);
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const tab = (["posts", "collections", "visits"].includes(params.get("tab") ?? "") ? params.get("tab") : "posts") as Tab;
 
   if (isPending) return <Skeleton className="h-dvh rounded-none" />;
   if (isError) return <ErrorState message={errorMessage(error)} />;
+
+  const tabs = user.isMe ? MY_TABS : BASE_TABS;
+  const tab = tabs.find((t) => t.value === params.get("tab"))?.value ?? "posts";
 
   return (
     <div>
@@ -78,11 +89,7 @@ export function ProfileScreen({ username }: { username: string }) {
 
       <div className="mt-5 border-b border-line px-5">
         <Tabs
-          items={[
-            { value: "posts", label: "게시물" },
-            { value: "collections", label: "컬렉션" },
-            { value: "visits", label: "방문 기록" },
-          ]}
+          items={tabs}
           value={tab}
           onChange={(t) => router.replace(`${pathname}?tab=${t}`, { scroll: false })}
         />
@@ -90,7 +97,8 @@ export function ProfileScreen({ username }: { username: string }) {
 
       {tab === "posts" && <PostsTab username={username} />}
       {tab === "collections" && <CollectionsTab username={username} isMe={user.isMe} nickname={user.nickname} />}
-      {tab === "visits" && <VisitsTab username={username} />}
+      {tab === "map" && <VisitMap user={user} />}
+      {tab === "visits" && user.isMe && <VisitsTab />}
     </div>
   );
 }
@@ -120,8 +128,9 @@ function CollectionsTab({ username, isMe, nickname }: { username: string; isMe: 
   );
 }
 
-function VisitsTab({ username }: { username: string }) {
-  const { data, isPending } = useVisitRecords(username);
+/** 내 방문 기록: 일정을 마치고 실제로 다녀온 장소 (본인만 볼 수 있음) */
+function VisitsTab() {
+  const { data, isPending } = useMyVisitRecords();
   if (isPending) return <Skeleton className="m-5 h-40" />;
   if (!data?.length) return <EmptyState title="아직 방문 기록이 없어요" description="일정을 마치고 방문 기록을 남겨 보세요." />;
   return (
