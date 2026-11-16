@@ -67,7 +67,7 @@ export function MyMapView({
         </span>
       </div>
       <MapView
-        className="h-[calc(100dvh-260px)] min-h-[440px]"
+        className="h-[calc(100dvh-345px)] min-h-[360px]"
         markers={[
           ...pois.map((p) => ({ id: POI + p.id, position: p.location, title: p.name, tone: "poi" as const })),
           ...saved.map((s, i) => ({

@@ -60,3 +60,49 @@ export function BottomCta({ children, className }: { children: ReactNode; classN
 export function Screen({ children, className }: { children: ReactNode; className?: string }) {
   return <div className={cn("flex min-h-dvh flex-col", className)}>{children}</div>;
 }
+
+/**
+ * 탭 화면 상단 제목: 작은 영문 라벨(MY MAP 등) + 큰 제목.
+ * - variant "ko": 한글 기능 제목 (IBM Plex Sans KR Medium 29px)
+ * - variant "latin": 영문 닉네임 (Inter Semi Bold 28px)
+ * titleAddon은 제목 바로 오른쪽(예: 계정 화살표), right는 오른쪽 끝(아이콘 버튼 등)에 놓입니다.
+ */
+export function PageHeader({
+  label,
+  title,
+  variant = "ko",
+  titleAddon,
+  right,
+  className,
+}: {
+  label: string;
+  title: ReactNode;
+  variant?: "ko" | "latin";
+  titleAddon?: ReactNode;
+  right?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex items-end gap-2 px-5 pt-3 pb-1", className)}>
+      <div className="min-w-0 flex-1">
+        <p className="font-latin text-[9px] leading-3 font-semibold tracking-[1.5px] text-primary-deep uppercase" aria-hidden>
+          {label}
+        </p>
+        <div className="mt-1 flex items-center gap-1">
+          <h1
+            className={cn(
+              "truncate text-ink",
+              variant === "ko"
+                ? "font-title text-[29px] leading-10 font-medium tracking-[-1.1px]"
+                : "font-latin text-[28px] leading-10 font-semibold tracking-[-1px]",
+            )}
+          >
+            {title}
+          </h1>
+          {titleAddon}
+        </div>
+      </div>
+      {right && <div className="flex shrink-0 items-center pb-1">{right}</div>}
+    </div>
+  );
+}

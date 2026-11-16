@@ -1,3 +1,4 @@
+import { Search } from "lucide-react";
 import { forwardRef, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from "react";
 import { cn } from "@/shared/lib/cn";
 
@@ -71,3 +72,24 @@ export function SelectTrigger({
     </button>
   );
 }
+
+/** 화면 상단 검색창: 연회색 배경 · 높이 46px · 모서리 13px, 왼쪽 돋보기 */
+export const SearchInput = forwardRef<HTMLInputElement, Omit<InputHTMLAttributes<HTMLInputElement>, "type">>(function SearchInput(
+  { className, ...rest },
+  ref,
+) {
+  return (
+    <div className="relative">
+      <Search size={18} className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-ink-sub" aria-hidden />
+      <input
+        ref={ref}
+        type="search"
+        className={cn(
+          "h-[46px] w-full rounded-[13px] border border-transparent bg-fill pr-4 pl-11 text-[15px] text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-line focus:bg-bg",
+          className,
+        )}
+        {...rest}
+      />
+    </div>
+  );
+});

@@ -1,6 +1,6 @@
 "use client";
 
-import { List, Map as MapIcon, Menu } from "lucide-react";
+import { ChevronDown, List, Map as MapIcon, Menu } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -14,7 +14,7 @@ import { routes } from "@/shared/config/routes";
 import { Button, ButtonLink } from "@/shared/ui/Button";
 import { Chip, Tabs } from "@/shared/ui/controls";
 import { Avatar, EmptyState, ErrorState, Skeleton } from "@/shared/ui/display";
-import { TopBar } from "@/shared/ui/layout";
+import { PageHeader, TopBar } from "@/shared/ui/layout";
 import { SideSheet } from "@/shared/ui/SideSheet";
 import { SettingsMenu } from "../../../../_components/SettingsMenu";
 import {
@@ -62,24 +62,41 @@ export function ProfileScreen({ username }: { username: string }) {
 
   return (
     <div>
-      <TopBar
-        title={user.isMe ? "내 프로필" : user.nickname}
-        hideBack={user.isMe}
-        right={
-          user.isMe && (
-            <button
-              type="button"
-              onClick={() => setMenuOpen(true)}
-              aria-label="메뉴"
-              aria-haspopup="dialog"
-              aria-expanded={menuOpen}
-              className="inline-flex size-11 items-center justify-center rounded-full active:bg-fill"
-            >
-              <Menu size={23} strokeWidth={1.6} />
-            </button>
-          )
-        }
-      />
+      {user.isMe ? (
+        // 내 프로필: 영문 라벨 + 아이디(Inter) 제목. 아이디 옆 ⌄와 오른쪽 ≡은 계정 메뉴를 엽니다.
+        <header className="sticky top-0 z-30 bg-bg">
+          <PageHeader
+            label="Profile"
+            variant="latin"
+            title={user.username}
+            titleAddon={
+              <button
+                type="button"
+                onClick={() => setMenuOpen(true)}
+                aria-label="계정 메뉴 열기"
+                aria-haspopup="dialog"
+                className="inline-flex size-7 items-center justify-center rounded-full text-ink-sub active:bg-fill"
+              >
+                <ChevronDown size={18} strokeWidth={2} />
+              </button>
+            }
+            right={
+              <button
+                type="button"
+                onClick={() => setMenuOpen(true)}
+                aria-label="메뉴"
+                aria-haspopup="dialog"
+                aria-expanded={menuOpen}
+                className="inline-flex size-10 items-center justify-center rounded-full text-ink active:bg-fill"
+              >
+                <Menu size={23} strokeWidth={1.7} />
+              </button>
+            }
+          />
+        </header>
+      ) : (
+        <TopBar title={user.nickname} />
+      )}
       <section className="px-5 pt-2">
         <div className="flex items-center gap-4">
           <Avatar src={user.profileImageUrl} name={user.nickname} size={72} />

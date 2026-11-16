@@ -10,7 +10,7 @@ import { errorMessage } from "@/shared/api/errors";
 import { routes } from "@/shared/config/routes";
 import { HOME_RESELECT_EVENT } from "@/shared/lib/events";
 import { ButtonLink } from "@/shared/ui/Button";
-import { Chip, Tabs } from "@/shared/ui/controls";
+import { Tabs } from "@/shared/ui/controls";
 import { EmptyState, ErrorState, Skeleton } from "@/shared/ui/display";
 import { PullToRefresh } from "@/shared/ui/PullToRefresh";
 import { FeedMap } from "./FeedMap";
@@ -29,19 +29,23 @@ export function FeedScreen() {
   return (
     <div>
       <header className="sticky top-0 z-30 bg-bg">
-        <div className="flex h-[52px] items-center px-4">
-          <h1 className="text-[24px] font-bold tracking-tight">찜콩</h1>
-          <div className="ml-auto flex">
-            <Link href={routes.search()} aria-label="검색" className="inline-flex size-11 items-center justify-center rounded-full active:bg-fill">
-              <Search size={22} strokeWidth={1.6} />
+        <div className="flex h-14 items-center pr-3 pl-5">
+          {/* 워드마크: Noto Sans KR Black 30px, 자간 -2.1px + 연두 점 */}
+          <h1 className="flex items-end text-[30px] leading-[45px] font-black tracking-[-2.1px] text-ink">
+            찜콩
+            <span className="mb-[11px] ml-[3px] size-[6px] rounded-full bg-primary" aria-hidden />
+          </h1>
+          <div className="ml-auto flex items-center gap-1">
+            <Link href={routes.search()} aria-label="검색" className="inline-flex size-10 items-center justify-center rounded-full text-ink active:bg-fill">
+              <Search size={21} strokeWidth={1.8} />
             </Link>
-            <Link href={routes.notifications()} aria-label="알림" className="relative inline-flex size-11 items-center justify-center rounded-full active:bg-fill">
-              <Bell size={22} strokeWidth={1.6} />
-              <span className="absolute top-2.5 right-2.5 size-2 rounded-full bg-primary" aria-label="새 알림" />
+            <Link href={routes.notifications()} aria-label="알림, 새 알림 있음" className="relative inline-flex size-10 items-center justify-center rounded-full text-ink active:bg-fill">
+              <Bell size={21} strokeWidth={1.8} />
+              <span className="absolute top-[9px] right-[10px] size-[6px] rounded-full bg-primary" aria-hidden />
             </Link>
           </div>
         </div>
-        <div className="flex items-center border-b border-line px-4">
+        <div className="flex items-center border-b border-line px-5">
           <Tabs
             items={[
               { value: "following", label: "팔로잉" },
@@ -50,14 +54,15 @@ export function FeedScreen() {
             value={tab}
             onChange={setTab}
           />
-          <Chip
-            className="ml-auto"
-            selected={mode === "map"}
+          <button
+            type="button"
             onClick={() => setMode(mode === "map" ? "list" : "map")}
-            icon={mode === "map" ? <List size={14} /> : <MapIcon size={14} />}
+            aria-pressed={mode === "map"}
+            className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-full bg-accent-soft px-3.5 text-[13px] font-bold text-primary-deep active:brightness-95"
           >
+            {mode === "map" ? <List size={15} /> : <MapIcon size={15} />}
             {mode === "map" ? "목록" : "지도"}
-          </Chip>
+          </button>
         </div>
       </header>
 
