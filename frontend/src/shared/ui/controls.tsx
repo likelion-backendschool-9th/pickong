@@ -209,7 +209,20 @@ export function Stepper({ value, onChange, step = 10, min = 10, max = 600, forma
 /* ── Switch (켬/끔) ───────────────────────────────── */
 
 /** 작은 켬/끔 스위치. 라벨을 누르거나 스위치를 눌러 바꿉니다. */
-export function Switch({ checked, onChange, label, className }: { checked: boolean; onChange: (v: boolean) => void; label: string; className?: string }) {
+export function Switch({
+  checked,
+  onChange,
+  label,
+  hideLabel = false,
+  className,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  /** 라벨을 화면에서 숨기고 화면 낭독기에만 읽힘 (옆에 설명이 따로 있을 때) */
+  hideLabel?: boolean;
+  className?: string;
+}) {
   return (
     <button
       type="button"
@@ -218,7 +231,7 @@ export function Switch({ checked, onChange, label, className }: { checked: boole
       onClick={() => onChange(!checked)}
       className={cn("inline-flex h-8 items-center gap-2 text-[13px] text-ink-sub", className)}
     >
-      {label}
+      <span className={hideLabel ? "sr-only" : undefined}>{label}</span>
       <span className={cn("relative h-[18px] w-8 rounded-full transition-colors", checked ? "bg-primary-deep" : "bg-line")} aria-hidden>
         <span
           className={cn(

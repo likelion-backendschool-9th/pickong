@@ -45,7 +45,7 @@ interface MapProps {
   /** 화면에 보이는 범위가 바뀔 때 알림 (처음 맞춤 · 이동 · 확대/축소) */
   onBoundsChange?: (bounds: LatLngBounds) => void;
   /** 이 위치로 지도를 옮깁니다 (검색 결과 선택 등). key가 바뀔 때마다 한 번 이동 */
-  focus?: { key: string; position: LatLng } | null;
+  focus?: { key: string; position: LatLng; keepZoom?: boolean } | null;
   /** 중앙 고정 핀 표시 (좌표 직접 지정용) */
   crosshair?: boolean;
   caption?: string;
@@ -98,10 +98,14 @@ export function MapView({
   }, []);
 
   // 외부에서 위치를 지정하면 그곳으로 이동 (렌더 중 상태 보정: key가 바뀐 경우에만)
+  // keepZoom이면 지금 축척 그대로 옮기고, 아니면 장소가 잘 보이도록 조금 확대합니다.
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
   if (focus && focus.key !== focusedKey) {
     setFocusedKey(focus.key);
-    setView((v) => ({ center: focus.position, mpp: Math.min(v?.mpp ?? 3, 2.6) }));
+    setView((v) => {
+      const mpp = v?.mpp ?? fitView(pins, size).mpp;
+      return { center: focus.position, mpp: focus.keepZoom ? mpp : Math.min(mpp, 2.6) };
+    });
   }
 
   // 마커 구성이 바뀌면 전체가 보이도록 다시 맞춥니다.
