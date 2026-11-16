@@ -3,6 +3,59 @@
 이 문서는 이 저장소에서 작업하는 AI 에이전트와 팀원이 공통으로 따르는 개발 규칙입니다.
 코드 작성, 브랜치 생성, 커밋, PR 작성 시 아래 규칙을 반드시 따릅니다.
 
+## 설계 문서: BLUEPRINT.md
+
+프론트엔드(`frontend/`) 코드를 작성하거나 수정하기 전에 저장소 루트의 `BLUEPRINT.md`를 먼저 읽고, 그 내용을 따릅니다.
+`BLUEPRINT.md`는 찜콩(Pickong) 프론트엔드의 기술 스택, 폴더 구조, 계층 의존 규칙, 상태 관리 및 API 연동 규칙, 라우트 맵, 엔티티 모델을 정의한 설계 문서입니다.
+
+### 적용 범위와 우선순위
+
+- 폴더 구조, 코드 배치, 의존 방향, Server/Client Component 구분, 상태 관리, API 연동 방식은 `BLUEPRINT.md`를 기준으로 합니다.
+- 브랜치, 커밋, PR, 리뷰, 금지 사항은 이 문서의 1~10장을 따릅니다. 프론트엔드와 백엔드 모두에 적용됩니다.
+- `backend/`(Spring Boot)는 `BLUEPRINT.md`의 범위 밖이므로 이 문서의 규칙을 따릅니다.
+- `BLUEPRINT.md`와 실제 코드가 다를 때는 임의로 한쪽에 맞추지 않고 팀원에게 확인합니다. 구조나 규칙을 바꾸는 경우에는 `BLUEPRINT.md`도 같은 PR에서 함께 수정합니다.
+- 다만 `BLUEPRINT.md` 부록 C의 `Plan` 관련 타입은 최신 정의가 코드(`types.ts`)에 있다고 명시되어 있으므로, 해당 부분은 코드를 기준으로 합니다.
+
+### 프론트엔드 핵심 규칙 요약
+
+자세한 내용과 예외는 `BLUEPRINT.md`를 확인합니다.
+
+1. **계층 의존 방향:** `app → widgets → features → entities → shared` 순서로, 위 계층만 아래 계층을 import합니다.
+2. **feature 간 import 금지:** 조합이 필요하면 widget이나 페이지(`app/`)에서 합니다.
+3. **새 코드는 가장 좁은 범위에서 시작합니다.** 페이지 `_components` → 공통 부모 라우트 → `features`/`widgets`/`entities` → `shared` 순서로, 두 번째 사용처가 실제로 생겼을 때만 올립니다. 빈 계층 폴더나 슬라이스를 미리 만들지 않습니다.
+4. **슬라이스 밖에서는 `index.ts`로만 import합니다.** (`widgets/*`, `features/*`, `entities/*`) 내부 경로 import는 금지합니다.
+5. **형제 라우트의 `_` 폴더를 import하지 않습니다.** 공통 부모로 옮깁니다.
+6. **`page.tsx`와 `layout.tsx`는 항상 Server Component**이며 `'use client'`를 붙이지 않습니다. Client Component는 트리의 말단에 둡니다.
+7. **서버 전용 코드는 `*.server.ts` + `import 'server-only'`**로 작성하고 `index.ts`에서 다시 export하지 않습니다.
+8. **데이터를 가져오는 라우트에는 `loading.tsx`, 동적 라우트에는 `not-found.tsx`를 둡니다.**
+9. **컴포넌트에서 `fetch`를 직접 호출하지 않습니다.** `entities/*/api` 또는 페이지 `_api`를 사용합니다.
+10. **DTO는 `api/` 폴더 밖으로 내보내지 않습니다.** 컴포넌트는 도메인 모델만 받고, 변환은 `mapper.ts`에서 합니다.
+11. **TanStack Query는 클라이언트에서 다시 조회·변경되는 데이터에만** 사용합니다. 변경(mutation)도 TanStack Query로 통일하며, Server Actions는 사용하지 않습니다.
+12. **Zustand store는 초기에 만들지 않습니다.** 필요하면 `BLUEPRINT.md` 8.2의 세 조건을 PR 설명에 적습니다.
+13. **필터, 탭, 검색어처럼 공유 가능한 화면 상태는 URL(`searchParams`)에 둡니다.**
+14. **계산·검증 로직은 React를 import하지 않는 순수 함수로 작성하고, 바로 옆에 테스트를 둡니다.**
+15. **단순 UI에는 UseCase, Port, Adapter 같은 추상화를 만들지 않습니다.**
+16. **`kakao.maps`는 `shared/map/kakao/` 밖에서 사용하지 않습니다.**
+17. **색상은 `app/globals.css`의 `@theme` 토큰 이름으로만 사용하고, hex 값을 컴포넌트에 직접 쓰지 않습니다.**
+18. **Mock 분기(`USE_MOCK`)를 코드에 넣지 않습니다.** mock과 실제 API 전환은 환경변수로만 합니다.
+
+### 이름 규칙
+
+| 대상 | 규칙 | 예 |
+| --- | --- | --- |
+| 슬라이스 폴더 | kebab-case | `save-place`, `post-card` |
+| 컴포넌트 파일 | PascalCase | `SavePlaceButton.tsx` |
+| 그 외 파일 | camelCase | `businessHours.ts`, `useSavePlace.ts` |
+| 테스트 | 대상 파일 옆 `*.test.ts(x)` | `timeline.test.ts` |
+| 서버 전용 | `*.server.ts` | `session.server.ts` |
+
+### 작업 전 확인
+
+- 새 파일을 만들기 전에 `BLUEPRINT.md` 6장의 승격 사다리와 판단 순서로 위치를 정합니다.
+- 새 라우트를 추가할 때는 `BLUEPRINT.md` 부록 B의 라우트 맵(접근 권한, 렌더링 방식)을 확인합니다.
+- 엔티티 모델을 만들거나 수정할 때는 `BLUEPRINT.md` 부록 C를 확인합니다.
+- 프론트엔드 변경은 ESLint(계층 의존 규칙 포함)와 테스트를 통과해야 PR을 올릴 수 있습니다.
+
 ## 요약
 
 - PR 전 `./gradlew build`(테스트 포함)를 통과시킵니다.
@@ -295,6 +348,11 @@ revert: 좌석 예약 기능 변경 취소
 - 관련 요구사항이 있으면 본문 끝에 `Refs: REQ-○○○`를 붙일 수 있습니다.
 - 비밀번호, 토큰, `application-secret.yml`, `.env` 파일은 절대 커밋하지 않습니다.
 - 빌드 결과물(`build/`, `out/`)과 IDE 설정(`.idea/`)은 `.gitignore`에 등록합니다.
+- **AI가 커밋을 작성할 때 contributor(공동 작성자)를 포함하지 않습니다.**
+  - 커밋 메시지에 `Co-authored-by:`, `Co-Authored-By:` 등의 trailer를 추가하지 않습니다. (예: `Co-Authored-By: Claude <noreply@anthropic.com>`)
+  - "Generated with ...", "Created by AI" 같은 AI 생성 표시 문구도 커밋 메시지와 PR 본문에 넣지 않습니다.
+  - 커밋의 author는 사용자의 Git 설정(`user.name`, `user.email`)을 그대로 따르며, AI 에이전트의 이름이나 이메일로 변경하지 않습니다.
+  - 커밋 메시지는 4장의 형식(`타입: 작업 내용`, 본문과 `Refs:`는 선택)만 따릅니다.
 
 ### 커밋 분리 기준
 
@@ -417,6 +475,7 @@ git merge origin/dev
 - DB 비밀번호, JWT 시크릿 키, `application-secret.yml`, `.env` 커밋 금지
 - 팀원 공유 없이 엔티티 구조, API URI, 공통 응답 형식 변경 금지
 - 시스템 설계 명세 페이지와 실제 코드가 다르게 방치되는 것 금지
+- AI가 작성한 커밋에 `Co-authored-by:` 등 contributor(공동 작성자) trailer나 AI 생성 표시 문구 포함 금지
 
 ---
 
