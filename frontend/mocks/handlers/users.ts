@@ -82,27 +82,6 @@ export const userRoutes: Route[] = [
     },
   },
   {
-    /** 방문 기록: 본인만 볼 수 있으므로 내 계정 경로로만 제공합니다. */
-    method: "GET",
-    path: "/api/me/visits",
-    handler: () => {
-      return db.plans
-        .filter((p) => p.ownerId === ME_ID && p.status === "DONE")
-        .map((p) => {
-          const visited = p.items.filter((i) => i.visited).map((i) => placeDto(findPlace(i.placeId)!));
-          return {
-            planId: p.id,
-            title: p.title,
-            date: p.date,
-            region: p.region,
-            visitedCount: visited.length,
-            places: visited,
-            coverImageUrl: visited.find((pl) => pl.imageUrl)?.imageUrl ?? null,
-          };
-        });
-    },
-  },
-  {
     method: "GET",
     path: "/api/users/:username/followers",
     handler: ({ params }) => {

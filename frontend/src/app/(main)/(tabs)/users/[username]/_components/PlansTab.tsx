@@ -9,24 +9,24 @@ import { formatShortDate } from "@/shared/lib/date";
 import { ButtonLink } from "@/shared/ui/Button";
 import { EmptyState, ErrorState, SectionTitle, Skeleton } from "@/shared/ui/display";
 
-/** 일정 홈: 곧 떠나는 하루 + 지난 일정 */
-export function PlansScreen() {
+/**
+ * 내 프로필 일정 탭: 곧 떠나는 하루 + 지난 일정(방문 기록).
+ * 일정은 본인만 볼 수 있어서 내 프로필에만 있습니다.
+ */
+export function PlansTab() {
   const { data: plans, isPending, isError, error, refetch } = usePlans();
   const upcoming = plans?.filter((p) => p.status === "UPCOMING") ?? [];
   const past = plans?.filter((p) => p.status === "DONE").reverse() ?? [];
 
   return (
-    <div className="px-5">
-      <header className="flex h-[52px] items-center">
-        <h1 className="text-[20px] font-bold">일정</h1>
-      </header>
+    <div className="px-5 pt-4">
       {isPending ? (
         <Skeleton className="mt-2 h-40" />
       ) : isError ? (
         <ErrorState message={errorMessage(error)} onRetry={() => refetch()} />
       ) : (
         <>
-          <h2 className="mt-2 text-[22px] font-bold">곧 떠나는 하루</h2>
+          <h2 className="text-[20px] font-bold">곧 떠나는 하루</h2>
           <p className="mt-1 text-[13px] text-ink-sub">확정 예약은 고정하고, 나머지 일정만 조정해요.</p>
           {upcoming.length === 0 ? (
             <EmptyState title="예정된 일정이 없어요" description="저장한 장소로 하루 동선을 만들어 보세요." />
@@ -43,7 +43,7 @@ export function PlansScreen() {
 
           {past.length > 0 && (
             <>
-              <SectionTitle className="mt-8 mb-1">지난 일정</SectionTitle>
+              <SectionTitle className="mt-8 mb-1">지난 일정 · 방문 기록</SectionTitle>
               <ul className="divide-y divide-line">
                 {past.map((p) => (
                   <li key={p.id}>

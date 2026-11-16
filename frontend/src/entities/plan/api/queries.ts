@@ -7,14 +7,11 @@ export const planKeys = {
   all: ["plans"] as const,
   list: () => [...planKeys.all, "list"] as const,
   detail: (id: string) => [...planKeys.all, "detail", id] as const,
-  visits: () => [...planKeys.all, "visits"] as const,
   travel: (fromId: string, toId: string) => ["travel-time", fromId, toId] as const,
 };
 
 export const usePlans = () => useQuery({ queryKey: planKeys.list(), queryFn: planApi.list });
 export const usePlan = (id: string) => useQuery({ queryKey: planKeys.detail(id), queryFn: () => planApi.get(id) });
-/** 내 방문 기록. 다른 사람의 방문 기록은 볼 수 없습니다. */
-export const useMyVisitRecords = () => useQuery({ queryKey: planKeys.visits(), queryFn: planApi.myVisits });
 
 /**
  * 구간별 이동 시간. 같은 구간은 캐시를 재사용하고, 새 구간만 계산을 요청합니다.

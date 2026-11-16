@@ -1,7 +1,7 @@
 import { http } from "@/shared/api/http";
 import type { PlanItem } from "../model/types";
-import type { PlanDto, TravelTimeDto, VisitRecordDto } from "./dto";
-import { toPlan, toPlanItemInput, toVisitRecord } from "./mapper";
+import type { PlanDto, TravelTimeDto } from "./dto";
+import { toPlan, toPlanItemInput } from "./mapper";
 
 export interface CreatePlanInput {
   title: string;
@@ -25,6 +25,4 @@ export const planApi = {
     toPlan(await http.post<PlanDto>(`/plans/${id}/visits`, { visitedItemIds })),
   travelTime: (fromId: string, toId: string) =>
     http.get<TravelTimeDto>("/travel-time", { query: { from: fromId, to: toId } }),
-  /** 내 방문 기록 (본인만 볼 수 있음) */
-  myVisits: async () => (await http.get<VisitRecordDto[]>("/me/visits")).map(toVisitRecord),
 };

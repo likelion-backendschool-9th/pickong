@@ -30,13 +30,3 @@ export interface TravelTimeDto {
   distanceMeters: number;
   mode: "WALK" | "TRANSIT";
 }
-
-export interface VisitRecordDto {
-  planId: string;
-  title: string;
-  date: string;
-  region: string;
-  visitedCount: number;
-  places: PlaceDto[];
-  coverImageUrl: string | null;
-}

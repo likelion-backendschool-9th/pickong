@@ -3,7 +3,6 @@ export { buildTimeline, estimateLeg } from "./model/timeline";
 export { canDrag, insertAt, insertReservation, moveItem, removeItem, setStay } from "./model/reorder";
 export { suggestForGap, suggestOrder, type GapSuggestion } from "./model/suggest";
 export { arrangeInitial } from "./model/arrange";
-export type { VisitRecord } from "./api/mapper";
 export { planApi, type CreatePlanInput } from "./api/planApi";
 export {
   planKeys,
@@ -13,6 +12,5 @@ export {
   useRecordVisits,
   useTravelLegs,
   useUpdatePlanItems,
-  useMyVisitRecords,
 } from "./api/queries";
 export { RESERVATION_TYPE_LABEL, ReservationCard } from "./ui/ReservationCard";

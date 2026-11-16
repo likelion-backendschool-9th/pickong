@@ -1,0 +1,49 @@
+import type { Place } from "@/entities/place";
+import type { UserSummary } from "@/entities/user";
+
+/** 메시지에 붙은 공유 카드. 볼 수 없는 게시물 · 사라진 장소는 null */
+export type MessageAttachment =
+  | { type: "POST"; post: { id: string; imageUrl: string | null; authorNickname: string; content: string } | null }
+  | { type: "PLACE"; place: Place | null }
+  | { type: "IMAGE"; url: string };
+
+/** 보낼 때 첨부 (사진은 URL, 장소는 id) */
+export type OutgoingAttachment = { type: "IMAGE"; url: string } | { type: "PLACE"; placeId: string };
+
+export interface Message {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  isMine: boolean;
+  text: string;
+  attachment: MessageAttachment | null;
+  createdAt: string;
+}
+
+/** 1:1 대화방 */
+export interface Conversation {
+  id: string;
+  partner: UserSummary;
+  lastMessage: Message | null;
+  unreadCount: number;
+  updatedAt: string;
+}
+
+const norm = (s: string) => s.replace(/\s+/g, "").toLowerCase();
+
+/** 대화 검색: 상대 닉네임 · 아이디 · 마지막 메시지 (띄어쓰기 · 대소문자 무시) */
+export function matchesConversation(c: Conversation, query: string): boolean {
+  const q = norm(query);
+  if (!q) return true;
+  return norm(c.partner.nickname + c.partner.username + messagePreview(c.lastMessage)).includes(q);
+}
+
+/** 대화 목록 미리보기 문구 */
+export function messagePreview(m: Message | null): string {
+  if (!m) return "";
+  if (m.text) return m.text;
+  if (m.attachment?.type === "POST") return "게시물을 공유했어요";
+  if (m.attachment?.type === "PLACE") return "장소를 공유했어요";
+  if (m.attachment?.type === "IMAGE") return "사진을 보냈어요";
+  return "";
+}

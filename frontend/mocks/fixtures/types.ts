@@ -139,3 +139,25 @@ export interface NotificationRow {
   createdAt: string;
   read: boolean;
 }
+
+/** DM 대화방 (1:1). lastReadAt: 사용자별로 마지막으로 읽은 시각 */
+export interface ConversationRow {
+  id: string;
+  memberIds: [string, string];
+  lastReadAt: Record<string, string>;
+}
+
+export type MessageAttachmentRow =
+  | { type: "POST"; refId: string }
+  | { type: "PLACE"; refId: string }
+  /** 사진: 업로드 API 전까지는 브라우저 임시 URL (새로고침하면 사라짐) */
+  | { type: "IMAGE"; url: string };
+
+export interface MessageRow {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  text: string;
+  attachment: MessageAttachmentRow | null;
+  createdAt: string;
+}

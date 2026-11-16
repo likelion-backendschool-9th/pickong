@@ -3,6 +3,7 @@
  * 서버를 다시 시작하면 fixtures 상태로 초기화됩니다.
  */
 import { collections, savedPlaces } from "./fixtures/collections.ts";
+import { conversations, messages } from "./fixtures/messages.ts";
 import { places } from "./fixtures/places.ts";
 import { notifications, plans } from "./fixtures/plans.ts";
 import { comments, posts } from "./fixtures/posts.ts";
@@ -28,6 +29,8 @@ export const db = {
   collections: clone(collections),
   plans: clone(plans),
   notifications: clone(notifications),
+  conversations: clone(conversations),
+  messages: clone(messages),
 };
 
 export { ME_ID };

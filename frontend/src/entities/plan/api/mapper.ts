@@ -1,16 +1,6 @@
-import { toPlace, type Place } from "@/entities/place";
+import { toPlace } from "@/entities/place";
 import type { Plan, PlanItem } from "../model/types";
-import type { PlanDto, PlanItemDto, VisitRecordDto } from "./dto";
-
-export interface VisitRecord {
-  planId: string;
-  title: string;
-  date: string;
-  region: string;
-  visitedCount: number;
-  places: Place[];
-  coverImageUrl: string | null;
-}
+import type { PlanDto, PlanItemDto } from "./dto";
 
 const toPlanItem = (dto: PlanItemDto): PlanItem => ({
   id: dto.id,
@@ -33,8 +23,6 @@ export const toPlan = (dto: PlanDto): Plan => ({
   status: dto.status,
   items: dto.items.map(toPlanItem),
 });
-
-export const toVisitRecord = (dto: VisitRecordDto): VisitRecord => ({ ...dto, places: dto.places.map(toPlace) });
 
 /** 저장 요청 본문: 장소는 id만 보냅니다. */
 export const toPlanItemInput = (item: PlanItem) => ({
