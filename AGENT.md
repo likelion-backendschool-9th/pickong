@@ -25,7 +25,7 @@
 | DB 네이밍 | 테이블·컬럼 snake_case, 엔티티·필드 camelCase |
 | 설정 파일 | `application.yml` (YAML 들여쓰기 2칸) |
 
-- 가능하면 레포지토리 루트에 `.editorconfig`를 두고, VS Code의 저장 시 자동 포맷(Actions on Save)을 팀 전원이 켭니다.
+- 가능하면 레포지토리 루트에 `.editorconfig`를 두고, IntelliJ의 저장 시 자동 포맷(Actions on Save)을 팀 전원이 켭니다.
 - 엔티티를 컨트롤러에서 직접 반환하지 않고 DTO를 사용합니다.
 
 ---
