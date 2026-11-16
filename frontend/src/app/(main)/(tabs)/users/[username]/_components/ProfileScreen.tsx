@@ -1,8 +1,9 @@
 "use client";
 
-import { Settings } from "lucide-react";
+import { Menu } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
 import { CollectionCard, useUserCollections } from "@/entities/collection";
 import { useMyVisitRecords } from "@/entities/plan";
 import { PostGrid, useUserPosts } from "@/entities/post";
@@ -11,10 +12,12 @@ import { FollowButton } from "@/features/follow-user";
 import { errorMessage } from "@/shared/api/errors";
 import { routes } from "@/shared/config/routes";
 import { formatShortDate } from "@/shared/lib/date";
-import { ButtonLink } from "@/shared/ui/Button";
+import { Button, ButtonLink } from "@/shared/ui/Button";
 import { Tabs } from "@/shared/ui/controls";
 import { Avatar, EmptyState, ErrorState, Skeleton, Thumb } from "@/shared/ui/display";
 import { TopBar } from "@/shared/ui/layout";
+import { SideSheet } from "@/shared/ui/SideSheet";
+import { SettingsMenu } from "../../../../_components/SettingsMenu";
 import {
   matchesVisibility,
   parseVisibilityFilter,
@@ -39,6 +42,7 @@ export function ProfileScreen({ username }: { username: string }) {
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   if (isPending) return <Skeleton className="h-dvh rounded-none" />;
   if (isError) return <ErrorState message={errorMessage(error)} />;
@@ -58,9 +62,16 @@ export function ProfileScreen({ username }: { username: string }) {
         hideBack={user.isMe}
         right={
           user.isMe && (
-            <Link href={routes.settings()} aria-label="계정 설정" className="inline-flex size-11 items-center justify-center rounded-full active:bg-fill">
-              <Settings size={21} strokeWidth={1.6} />
-            </Link>
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              aria-label="메뉴"
+              aria-haspopup="dialog"
+              aria-expanded={menuOpen}
+              className="inline-flex size-11 items-center justify-center rounded-full active:bg-fill"
+            >
+              <Menu size={23} strokeWidth={1.6} />
+            </button>
           )
         }
       />
@@ -89,9 +100,9 @@ export function ProfileScreen({ username }: { username: string }) {
               <ButtonLink href={routes.editProfile()} variant="secondary" size="md">
                 프로필 편집
               </ButtonLink>
-              <ButtonLink href={routes.settings()} variant="secondary" size="md">
+              <Button variant="secondary" size="md" onClick={() => setMenuOpen(true)}>
                 계정 설정
-              </ButtonLink>
+              </Button>
             </div>
           ) : (
             <FollowButton user={user} size="md" block />
@@ -113,6 +124,12 @@ export function ProfileScreen({ username }: { username: string }) {
       {tab === "collections" && <CollectionsTab username={username} isMe={user.isMe} nickname={user.nickname} vis={vis} />}
       {tab === "map" && <VisitMap user={user} />}
       {tab === "visits" && user.isMe && <VisitsTab />}
+
+      {user.isMe && (
+        <SideSheet open={menuOpen} onClose={() => setMenuOpen(false)} title={`${user.nickname}님의 계정`}>
+          <SettingsMenu onNavigate={() => setMenuOpen(false)} />
+        </SideSheet>
+      )}
     </div>
   );
 }
