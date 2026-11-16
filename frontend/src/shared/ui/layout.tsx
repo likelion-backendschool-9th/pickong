@@ -66,6 +66,7 @@ export function Screen({ children, className }: { children: ReactNode; className
  * - variant "ko": 한글 기능 제목 (IBM Plex Sans KR Medium 29px)
  * - variant "latin": 영문 닉네임 (Inter Semi Bold 28px)
  * titleAddon은 제목 바로 오른쪽(예: 계정 화살표), right는 오른쪽 끝(아이콘 버튼 등)에 놓입니다.
+ * compact: 지도처럼 화면을 넓게 써야 하는 곳에서 여백과 제목 크기를 줄입니다 (한글 제목 26px).
  */
 export function PageHeader({
   label,
@@ -73,27 +74,31 @@ export function PageHeader({
   variant = "ko",
   titleAddon,
   right,
+  compact = false,
   className,
 }: {
   label: string;
   title: ReactNode;
   variant?: "ko" | "latin";
+  compact?: boolean;
   titleAddon?: ReactNode;
   right?: ReactNode;
   className?: string;
 }) {
   return (
-    <div className={cn("flex items-end gap-2 px-5 pt-3 pb-1", className)}>
+    <div className={cn("flex items-end gap-2 px-5", compact ? "pt-2" : "pt-3 pb-1", className)}>
       <div className="min-w-0 flex-1">
         <p className="font-latin text-[9px] leading-3 font-semibold tracking-[1.5px] text-primary-deep uppercase" aria-hidden>
           {label}
         </p>
-        <div className="mt-1 flex items-center gap-1">
+        <div className={cn("flex items-center gap-1", compact ? "mt-0.5" : "mt-1")}>
           <h1
             className={cn(
               "truncate text-ink",
               variant === "ko"
-                ? "font-title text-[29px] leading-10 font-medium tracking-[-1.1px]"
+                ? compact
+                  ? "font-title text-[26px] leading-9 font-medium tracking-[-1px]"
+                  : "font-title text-[29px] leading-10 font-medium tracking-[-1.1px]"
                 : "font-latin text-[28px] leading-10 font-semibold tracking-[-1px]",
             )}
           >
@@ -102,7 +107,7 @@ export function PageHeader({
           {titleAddon}
         </div>
       </div>
-      {right && <div className="flex shrink-0 items-center pb-1">{right}</div>}
+      {right && <div className="flex shrink-0 items-center pb-0.5">{right}</div>}
     </div>
   );
 }
