@@ -52,7 +52,7 @@
 | --- | --- |
 | 발견 | 피드, 탐색, 공개 컬렉션, 외부 링크 가져오기 |
 | 저장 | 게시물·장소·컬렉션의 "찜" 버튼, 링크 추출 결과 일괄 저장 |
-| 계획 | 일정 편집 (순서·체류 시간·이동 시간·영업시간 점검) |
+| 계획 | 일정 편집 (순서 정하기 · 예약 있는 곳만 고정 시간) |
 | 방문 | 방문 예정/완료 표시 |
 | 공유 | 게시물 작성, 컬렉션·일정 공개 |
 
@@ -829,64 +829,44 @@ shared/map/
 
 ### 9.3 일정 편집
 
+> 처음 설계(시간표 계산 · 체류 시간 · 이동 시간 · 영업시간 점검)는 사용하기 답답하다는 피드백으로 걷어 냈습니다.
+> 지금은 **순서만 정하고, 시간이 정해진 곳(영화 · 식당 예약 등)에만 고정 시간을 적는** 단순한 편집입니다.
+
 ```
-app/(main)/plans/[planId]/
-├── page.tsx                    # Server: getPlan(id) + 포함된 장소 정보 조회, 없으면 notFound()
-├── loading.tsx
-├── not-found.tsx
+app/(main)/(tabs)/plans/[planId]/
+├── page.tsx
 ├── _components/
-│   ├── PlanEditor.tsx          # 'use client' usePlanEditor로 상태 관리, 하위 컴포넌트 배치
-│   ├── PlanTimeline.tsx        # 드래그 앤 드롭 목록 (드래그 라이브러리는 여기서만 사용)
-│   ├── StopItem.tsx            # 도착·출발 시각, 체류 시간 입력, 고정 토글, 경고 표시
-│   ├── SavedPlacePickerSheet.tsx  # 내 지도에서 장소 선택
-│   ├── RouteMap.tsx            # shared/map으로 경로 표시
-│   ├── TravelTimeBadge.tsx     # 이동 시간 (추정치면 "추정" 표시)
-│   └── PlanCheckPanel.tsx      # (2차) 경고 목록
-├── _hooks/
-│   ├── usePlanEditor.ts        # useReducer(planEditorReducer) + 계산 결과 useMemo + 저장 mutation
-│   └── useTravelTimes.ts       # useQuery(planQueries.travelTimes(placeIds))
-└── _lib/
-    ├── planEditorReducer.ts    # 편집 화면 상태: 선택, 변경 여부, 되돌리기 → entities/plan 함수 호출
-    └── planEditorReducer.test.ts
+│   ├── PlanEditor.tsx          # 상태별 화면: 계획 중(편집) · 계획 완료(보기) · 다녀옴
+│   ├── PlanList.tsx            # 드래그 앤 드롭 목록 (드래그 라이브러리는 여기서만 사용), 장소 사이 이동 어림값
+│   ├── PlanMap.tsx             # 순서대로 번호 핀 + 경로 선
+│   └── sheets.tsx              # 장소 눌렀을 때 고정 시간 설정 · 일정에서 빼기, 장소 추가(저장한 곳 + 검색)
+└── _hooks/
+    └── usePlanEditor.ts        # 화면에 먼저 반영하고 뒤에서 저장 (낙관적 업데이트)
 
 entities/plan/model/            # React import 금지. 입력 → 출력만 있는 순수 함수
-├── types.ts
-├── reorder.ts      moveStop(stops, from, to): PlanStop[]
-│                   · 고정된(예약 확정) 일정은 끌어서 옮길 수 없음 → 원래 배열 반환
-│                   · 이동 후 order 다시 매김
-├── timeline.ts     buildTimeline({ dayStart, stops, travelMinutes }): TimelineEntry[]
-│                   · 도착 = 이전 출발 + 이동 시간, 출발 = 도착 + 체류 시간
-│                   · 고정 일정은 정해진 시각에 시작. 그보다 늦게 도착하면 경고, 일찍 도착하면 대기 시간
-├── validate.ts     validatePlan(timeline, places, date): Map<stopId, PlanWarning[]>
-│                   · 휴무일(CLOSED_DAY), 영업시간 밖(OUTSIDE_HOURS),
-│                     이동 시간 부족(NOT_ENOUGH_TRAVEL_TIME), 영업시간 정보 없음(HOURS_UNKNOWN → "확인 필요")
-│                   · 영업시간 판정은 entities/place/businessHours.ts 사용
-├── optimize.ts     (2차) optimizeOrder — 고정 일정 사이 구간만 재정렬
+├── types.ts        Plan { status: 'PLANNING' | 'UPCOMING' | 'DONE', items: PlanItem[] }
+│                   PlanItem { place, fixedTime: 'HH:mm' | null, visited }
+├── reorder.ts      moveItem · removeItem · setFixedTime · appendItem
+│                   fixedTimeOrderIssue: 고정 시간이 목록 순서와 어긋난 곳 (막지 않고 안내만)
+├── share.ts        planShareText: 공유할 일정 문구 (일정은 본인만 열 수 있어 링크 대신 글)
 └── *.test.ts
 ```
 
 **흐름:**
-1. `page.tsx`(Server)가 일정과 장소 정보를 가져와 `<PlanEditor initialPlan={plan} />`로 전달합니다.
-2. 드래그가 끝나면 `dispatch({ type: 'move', from, to })` → reducer가 `moveStop()`을 호출합니다.
-3. `usePlanEditor`가 `buildTimeline()`과 `validatePlan()` 결과를 `useMemo`로 계산합니다. **시간표 재계산은 별도 상태가 아니라 항상 현재 순서에서 다시 계산한 값**이므로 어긋날 일이 없습니다.
-4. 이동 시간은 `useTravelTimes`가 백엔드에서 가져옵니다. 받기 전에는 `shared/lib/geo.ts`의 직선거리 기반 추정치를 쓰고 "추정"으로 표시합니다.
-5. 저장은 `useMutation(updatePlan)`, 성공하면 `planKeys.detail(id)`를 무효화합니다.
+1. 일정 만들기: 날짜 · 지역 → 갈 곳 고르기(저장한 곳 + 검색). 새 일정은 ‘계획 중’으로 만들어집니다.
+2. 계획 중: 핸들을 끌어 순서를 바꾸고, 장소를 누르면 고정 시간을 적거나 일정에서 뺍니다. 다 정하면 ‘계획 완료’.
+3. 계획 완료: 보기 전용. ‘계획 수정’으로 다시 계획 중이 되고, ‘방문 기록하기’로 이어집니다.
+4. 방문 기록: 다녀온 곳 체크(전체 선택 가능) + 일정에 없었지만 들른 곳 추가 → 일정이 ‘다녀옴’이 되고 내 지도에서 ‘방문 완료’.
+5. 내 프로필 일정 탭의 예정 카드에는 공유 버튼과 ⋯ 메뉴(수정하기 · 삭제하기)가 있습니다.
 
-**클린 아키텍처에서 가져온 것과 가져오지 않은 것:**
-- 가져온 것: 핵심 규칙(순서·시간표·검증)을 React와 외부 API에서 떼어낸 순수 함수로 둠. 규칙은 화면을 모르고, 화면이 규칙을 호출함.
-- 가져오지 않은 것: UseCase 클래스, Port/Adapter 인터페이스, DI 컨테이너. 외부 의존(이동 시간)은 **인터페이스 대신 데이터로 넘깁니다.** `buildTimeline`은 `travelMinutes`라는 값만 받고, 그 값을 어디서 가져왔는지 모릅니다.
-
-**`entities/plan/model`에 두는 이유:** 이 계산은 편집 화면 전용 코드가 아니라 일정이라는 도메인의 규칙입니다. 기획서 2차의 "일정 공유" 화면도 같은 시간표를 보여줘야 하고, 3차 AI 일정 추천 결과도 같은 규칙으로 검증해야 합니다. 반면 선택 상태·되돌리기 같은 **편집 화면 상태**는 이 페이지에서만 쓰므로 `_lib/planEditorReducer.ts`에 둡니다.
-
-| 수정 상황 | 바뀌는 파일 |
+| API | 내용 |
 | --- | --- |
-| 드래그 라이브러리 교체 | `PlanTimeline.tsx`, `StopItem.tsx` (규칙 코드는 그대로) |
-| 기본 체류 시간 · 고정 일정 규칙 변경 | `entities/plan/model/` + 테스트 |
-| 공휴일 휴무 규칙 추가 | `entities/place/businessHours.ts` (장소 상세에도 같이 반영) |
-| 되돌리기(undo) 추가 | `_lib/planEditorReducer.ts` |
-| 이동 시간 API 변경 | `entities/plan/api/` |
+| `POST /api/plans` | `{ title, date, region, memo, items: [{ placeId, fixedTime }] }` → 계획 중 |
+| `PUT /api/plans/:id` | `{ items }` 순서 · 고정 시간 저장, `{ status: 'UPCOMING' \| 'PLANNING' }` 계획 완료 · 다시 수정 |
+| `DELETE /api/plans/:id` | 삭제 |
+| `POST /api/plans/:id/visits` | `{ visitedItemIds, extraPlaceIds }` 방문 기록 + 추가로 들른 곳 |
 
-**테스트:** `entities/plan/model/*.test.ts`가 가장 중요합니다 (브라우저 없이 빠르게 실행). 그다음 `planEditorReducer.test.ts`, 마지막으로 MSW를 붙인 `PlanEditor` 컴포넌트 테스트 몇 개.
+**테스트:** `entities/plan/model/*.test.ts` (순서 변경 · 고정 시간 순서 안내 · 공유 문구).
 
 ---
 
@@ -965,14 +945,17 @@ entities/plan/model/            # React import 금지. 입력 → 출력만 있�
 
 ### A.1 인증·프로필 (1차 MVP)
 - [껍데기] 회원가입 / 로그인 / 로그아웃
-- [껍데기] 프로필 페이지: 게시물 · 컬렉션 · 방문 지도 탭 (본인 프로필에는 방문 기록 탭 추가)
-  - 방문 지도: 그 사용자가 게시물에 연결한 장소 (`GET /api/users/:username/places`, 내가 볼 수 있는 게시물만). 저장한 장소 전체를 다루는 ‘내 지도’와 별개
-  - 방문 기록: 완료한 일정에서 실제로 다녀온 장소. 본인만 조회 (`GET /api/me/visits`)
+- [껍데기] 프로필 페이지: 게시물 · 컬렉션 · 방문 탭 (본인 프로필에는 일정 탭 추가)
+  - 방문: 그 사용자가 게시물에 연결한 장소를 기록(목록) ↔ 지도로 전환해서 봄 (`GET /api/users/:username/posts`, `GET /api/users/:username/places`, 내가 볼 수 있는 게시물만). 저장한 장소 전체를 다루는 ‘내 지도’와 별개
+  - 일정: 곧 떠나는 하루 + 지난 일정(방문 기록). 본인만 조회. `/plans`는 내 프로필 일정 탭으로 이동
+- [껍데기] DM (1:1 메시지): 대화 목록(`/messages`, 대화 · 사람 검색) · 대화방(`/messages/[conversationId]`), 게시물 · 장소 공유 카드, 입력창 + 버튼으로 사진 · 장소 첨부, 프로필의 ‘메시지’ 버튼이나 검색으로 시작
+  - API: `GET/POST /api/conversations`, `GET /api/conversations/:id`, `GET/POST /api/conversations/:id/messages` (목록 조회 시 읽음 처리, 보낼 때 `attachment: { type: "IMAGE", url } | { type: "PLACE", placeId }`). 사진은 업로드 API 연결 전까지 브라우저 임시 URL
+  - 실시간 연결 전까지 열린 대화방은 5초마다 새 메시지를 확인
 - [껍데기] 팔로우 / 언팔로우, 팔로워·팔로잉 목록
 - 프로필 편집 (사진, 소개)
 
 ### A.2 위치 기반 소셜 피드 (1차 MVP)
-- [껍데기] 팔로잉 피드 (무한 스크롤) · 위에서 당겨서 새로고침
+- [껍데기] 팔로잉 피드 (무한 스크롤) · 위에서 당겨서 새로고침 · 피드에서 하단바 홈을 다시 누르면 맨 위로 + 새로고침. 목록 · 지도 전환은 `?view=map`에 남겨 홈 버튼은 언제나 피드 목록으로
 - [껍데기] 피드 지도: 지금 탭(팔로잉 · 추천)과 같은 기준의 게시물 장소를 지도에 표시하고, 지도 화면에 보이는 지역의 게시물을 아래 목록에 모두 표시 (`GET /api/feed/places?tab=`)
 - [껍데기] 게시물 작성: 사진 업로드 + 후기 + **장소 태그(필수 요소)**
 - [껍데기] 게시물 공개 범위: 공개 / 팔로워 공개 / 비공개
@@ -984,8 +967,12 @@ entities/plan/model/            # React import 금지. 입력 → 출력만 있�
 ### A.3 나만의 지도와 장소 컬렉션
 - [껍데기] 장소 검색 및 저장 (1차)
 - [껍데기] 저장한 장소를 개인 지도에 핀으로 표시 (1차)
+- [껍데기] 내 지도는 일반 지도처럼 주변 장소를 함께 보여 주고, 저장한 곳만 초록 핀으로 구분 (`GET /api/places?bbox=서,남,동,북`). 저장하지 않은 장소를 누르면 바로 찜콩
+- [껍데기] 내 지도 검색: 기본은 일반 장소 검색(결과를 누르면 지도에서 보여 줌), ‘저장한 곳만’ 체크 시 저장 장소 안에서만 검색
+  - 카카오 지도 연결 후에는 지도 자체의 장소 표시 · 키워드 검색을 쓰고, 저장 핀만 올립니다
 - [껍데기] 지역별 · 주제별 컬렉션 생성 (예: 성수동 숨겨진 카페, 제주도 노을 명소) (1차)
 - [껍데기] 지도 · 컬렉션 공개 범위 설정 (1차)
+- [껍데기] 카테고리 칩 편집: 보이기/숨기기 · 순서 바꾸기, 계정에 저장 (`GET/PUT /api/me/map-categories`). 카테고리는 장소의 종류라 이름 변경 · 새 카테고리 추가는 하지 않고, 나만의 분류는 컬렉션으로 거름
 - 카테고리별 핀 색상 · 아이콘 구분
 - 장소별 개인 메모 · 사진
 - 지도 화면 범위 기반 조회, 핀 클러스터링
@@ -1018,15 +1005,18 @@ entities/plan/model/            # React import 금지. 입력 → 출력만 있�
 ### A.6 방문 일정 및 동선 관리
 - [껍데기] 날짜별 일정 생성 (1차, 기본 수동 생성)
 - [껍데기] 내 지도에서 방문 희망 장소 선택
-- [껍데기] 방문 순서 · 예상 체류 시간 지정 (드래그로 순서 변경)
-- 예약 확정 일정 고정 (2차)
+- [껍데기] 방문 순서 지정 (드래그로 순서 변경) · 시간이 정해진 곳만 고정 시간 (체류 시간 · 시간표는 두지 않음)
+- [껍데기] 계획 완료 · 다시 수정, 일정 공유(문구) · 삭제
+- [껍데기] 방문 기록: 전체 선택, 일정에 없었지만 들른 곳 추가
 - 장소별 영업시간 · 휴무일 확인 (2차)
 - 장소 간 이동 시간 · 거리 표시 (2차)
 - 기본 동선 추천 및 최적화 (2차)
 - 일정 공유 (2차)
 - 방문 완료 기록, 종료된 일정 보관 · 재사용
 
-### A.7 일정 자동 점검 (2차~)
+### A.7 일정 자동 점검 (보류)
+> 일정 편집을 단순하게 바꾸면서 보류했습니다. 다시 넣는다면 막지 않고 안내만 하는 방식으로 검토합니다.
+
 - 선택 날짜의 정기 휴무일 확인
 - 영업시간과 방문 예정 시간 충돌 감지
 - 일정 간 이동 시간 부족 감지
@@ -1061,15 +1051,17 @@ entities/plan/model/            # React import 금지. 입력 → 출력만 있�
 | `/collections/new` | 컬렉션 생성 | 로그인 | 폼(Client) | 껍데기 |
 | `/collections/[collectionId]` | 컬렉션 상세 (공유 링크) | 공개 | Server + 지도·찜(Client) | 껍데기 |
 | `/import` | AI 외부 링크 가져오기 | 로그인 | 단계별 흐름(Client) | 껍데기 |
-| `/plans` | 일정 목록 | 로그인 | Server | 껍데기 |
+| `/plans` | 일정 목록 → 내 프로필 일정 탭(`/users/[username]?tab=plans`)으로 이동 | 로그인 | Client 이동 | 껍데기 |
 | `/plans/new` | 일정 생성 (날짜·제목 → 상세로 이동) | 로그인 | 폼(Client) | 껍데기 |
 | `/plans/[planId]` | 일정 상세 · 편집 · 점검 | 로그인 | Server 조회 + 편집기(Client) | 껍데기 |
 | `/users/[username]` | 프로필 | 공개 | Server + 팔로우(Client) | 껍데기 |
 | `/users/[username]/followers`, `/following` | 팔로워 · 팔로잉 | 공개 | Server + 팔로우(Client) | 1차 |
+| `/messages` | DM 대화 목록 | 로그인 | Client (주기적 갱신) | 껍데기 |
+| `/messages/[conversationId]` | DM 대화방 | 로그인 | Client (주기적 갱신) | 껍데기 |
 | `/notifications` | 알림 | 로그인 | Server | 3차 |
 | `/settings`, `/settings/profile` | 설정 · 프로필 편집 | 로그인 | 폼(Client) | 1차 |
 
-**하단 탭 (모바일 우선, 확정 디자인 기준):** 홈(`/feed`) · 내 지도(`/map`, `/collections`) · ➕ · 일정(`/plans`) · 프로필(`/users/[username]`).
+**하단 탭 (모바일 우선):** 홈(`/feed`) · 내 지도(`/map`, `/collections`) · ➕ · DM(`/messages`) · 프로필(`/users/[username]`, 일정 탭 포함).
 ➕는 게시물 올리기(`/posts/new`) · 장소 직접 추가(`/places/new`) · AI 링크로 가져오기(`/import`) 세 갈래로 분기합니다. 탐색은 홈의 ‘추천’ 탭과 통합 검색(`/search`)이 대신합니다.
 하단 탭이 있는 화면은 `app/(main)/(tabs)`, 뒤로가기 중심의 세부 작업 화면은 `app/(main)/(sub)`에 둡니다 (URL에는 영향 없음).
 
@@ -1170,9 +1162,10 @@ interface ImportCandidate {
 }
 
 // entities/plan/model/types.ts
-// ※ 확정 디자인(예약 고정형 플래너) 반영: 실제 구현은 PlanStop 대신
-//   PlanItem { kind: 'RESERVATION' | 'FREE'; reservation: { type, startTime, endTime, people, reservationNumber, link, memo } | null }
-//   을 사용하고, Plan에 region · startPlace · endTime · memo가 추가되었습니다. 최신 정의는 코드(types.ts)가 기준입니다.
+// ※ 일정 단순화 반영: 아래 처음 설계 대신 실제 구현은
+//   Plan { id, title, date, region, memo, status: 'PLANNING' | 'UPCOMING' | 'DONE', items: PlanItem[] }
+//   PlanItem { id, place, fixedTime: string | null, visited } 입니다 (체류 시간 · 시간표 · 경고 없음).
+//   최신 정의는 코드(types.ts)가 기준입니다.
 interface Plan {
   id: Id;
   title: string;

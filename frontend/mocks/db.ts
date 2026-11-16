@@ -3,6 +3,7 @@
  * 서버를 다시 시작하면 fixtures 상태로 초기화됩니다.
  */
 import { collections, savedPlaces } from "./fixtures/collections.ts";
+import { conversations, messages } from "./fixtures/messages.ts";
 import { places } from "./fixtures/places.ts";
 import { notifications, plans } from "./fixtures/plans.ts";
 import { comments, posts } from "./fixtures/posts.ts";
@@ -28,6 +29,10 @@ export const db = {
   collections: clone(collections),
   plans: clone(plans),
   notifications: clone(notifications),
+  conversations: clone(conversations),
+  messages: clone(messages),
+  /** 사용자별 내 지도 카테고리 칩 설정 (보이는 것만, 순서대로). 없으면 기본값 */
+  mapCategories: {} as Record<string, string[]>,
 };
 
 export { ME_ID };
@@ -143,18 +148,13 @@ export function planDto(p: PlanRow) {
     title: p.title,
     date: p.date,
     region: p.region,
-    startPlace: placeDto(findPlace(p.startPlaceId)!),
-    startTime: p.startTime,
-    endTime: p.endTime,
     memo: p.memo,
     status: p.status,
     items: p.items.map((it) => ({
       id: it.id,
-      kind: it.kind,
       place: placeDto(findPlace(it.placeId)!),
-      stayMinutes: it.stayMinutes,
+      fixedTime: it.fixedTime,
       visited: it.visited,
-      reservation: it.reservation,
     })),
   };
 }

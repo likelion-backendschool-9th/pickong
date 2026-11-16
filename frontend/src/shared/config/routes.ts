@@ -13,11 +13,15 @@ export const routes = {
   collection: (id: string) => `/collections/${id}`,
   editCollection: (id: string) => `/collections/${id}/edit`,
   importLink: () => "/import",
+  /** 일정 목록은 내 프로필의 일정 탭에 있습니다. username을 모르면 /plans가 내 프로필로 보냅니다. */
   plans: () => "/plans",
+  myPlans: (username: string) => `/users/${username}?tab=plans`,
   newPlan: (placeIds?: string[]) =>
     placeIds?.length ? `/plans/new?places=${placeIds.join(",")}` : "/plans/new",
   plan: (id: string) => `/plans/${id}`,
   planVisits: (id: string) => `/plans/${id}/visits`,
+  messages: () => "/messages",
+  conversation: (id: string) => `/messages/${id}`,
   user: (username: string) => `/users/${username}`,
   follows: (username: string, tab: "followers" | "following") => `/users/${username}/follows?tab=${tab}`,
   settings: () => "/settings",

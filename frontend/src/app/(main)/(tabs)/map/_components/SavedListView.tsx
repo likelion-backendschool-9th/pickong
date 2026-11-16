@@ -69,7 +69,9 @@ export function SavedListView({
       </div>
       <p className="px-4 pt-2 text-[12px] text-ink-faint">최근 저장순 · {saved.length}곳</p>
 
-      {saved.length === 0 ? (
+      {total === 0 ? (
+        <EmptyState title="아직 저장한 장소가 없어요" description="위에서 장소를 검색하거나 지도에서 골라 찜콩해 보세요." />
+      ) : saved.length === 0 ? (
         <EmptyState title="조건에 맞는 장소가 없어요" description="필터를 바꾸거나 검색어를 지워 보세요." />
       ) : (
         <ul className="divide-y divide-line px-4 pb-24">

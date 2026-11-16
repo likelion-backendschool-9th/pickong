@@ -37,7 +37,8 @@ npm run dev        # mock API(localhost:4000) + Next.js(localhost:3000)를 함�
 | 전체 장소 저장 시 중복 제거 · 새로 저장/기존 연결 구분 | 첫 게시물 → 장소 찜콩 → 전체 장소 |
 | 링크 접근 실패 → 텍스트 입력 | `/import`에서 주소에 `private` 포함 |
 | 위치 불명확 후보는 자동 저장하지 않음 | `/import`에서 아무 공개 링크 → ‘노을 전망대’ |
-| 영업 종료 · 예약 지연 경고와 해결 | `/plans/plan-1`에서 ‘전시 공간 결’을 영화관 B 뒤로 옮기기, 또는 카페 온유 체류 시간 늘리기 |
+| 일정 순서 · 고정 시간 · 계획 완료 | `/plans/plan-1`(계획 중)에서 장소를 끌어 옮기고, 장소를 눌러 고정 시간 적기 → ‘계획 완료’ |
+| 방문 기록 · 다른 곳 추가 | 계획 완료 후 ‘방문 기록하기’ → 전체 선택 · ‘다른 곳 추가’ |
 
 ## 폴더
 
@@ -45,7 +46,7 @@ npm run dev        # mock API(localhost:4000) + Next.js(localhost:3000)를 함�
 mocks/          개발용 mock API 서버 (앱 번들에 포함되지 않음)
 src/
   app/          라우트 + 페이지 전용 코드 (_components, _lib, _api)
-    (main)/(tabs)/   하단 내비게이션이 있는 화면: 홈 · 내 지도 · 컬렉션 · 일정 · 프로필
+    (main)/(tabs)/   하단 내비게이션이 있는 화면: 홈 · 내 지도 · 컬렉션 · DM · 프로필(일정 탭 포함)
     (main)/(sub)/    뒤로가기 중심의 세부 작업 화면
   widgets/      post-card
   features/     save-place · like-post · bookmark-post · follow-user · place-search · create-custom-place
@@ -56,6 +57,6 @@ src/
 ## 아직 연결하지 않은 것
 
 - 로그인 · 회원가입 · `proxy.ts` 접근 제어 (mock은 항상 ‘서연’ 계정으로 응답)
-- 카카오 지도 SDK: 지금은 `shared/map`의 개념 지도 일러스트. 화면은 `MapView` props만 쓰므로 `shared/map` 안에서 교체합니다.
+- 카카오 지도 SDK: 지금은 `shared/map`의 개념 지도 일러스트. 화면은 `MapView` props만 쓰므로 `shared/map` 안에서 교체합니다. 내 지도의 ‘주변 장소’ 점은 mock의 예시 장소(`g-1` ~ `g-12`)이고, 연결 후에는 카카오 지도의 장소 표시로 바뀝니다.
 - 사진 업로드 API: 기기에서 고른 사진은 브라우저 임시 URL이라 새로고침하면 사라집니다.
-- 이동 시간 · 영업시간 · 추천은 예시 데이터와 계산식입니다. 실제 길찾기·장소 데이터 연동 전입니다.
+- 일정의 장소 사이 이동 시간은 직선거리로 어림한 참고값입니다. 영업시간은 예시 데이터입니다.

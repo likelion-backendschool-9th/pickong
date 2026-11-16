@@ -1,20 +1,19 @@
 "use client";
 
-import { Menu } from "lucide-react";
+import { List, Map as MapIcon, Menu } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { CollectionCard, useUserCollections } from "@/entities/collection";
-import { useMyVisitRecords } from "@/entities/plan";
-import { PostGrid, useUserPosts } from "@/entities/post";
-import { useUser } from "@/entities/user";
+import { useStartConversation } from "@/entities/conversation";
+import { PostGrid, PostPlaceRow, useUserPosts } from "@/entities/post";
+import { useUser, type User } from "@/entities/user";
 import { FollowButton } from "@/features/follow-user";
 import { errorMessage } from "@/shared/api/errors";
 import { routes } from "@/shared/config/routes";
-import { formatShortDate } from "@/shared/lib/date";
 import { Button, ButtonLink } from "@/shared/ui/Button";
-import { Tabs } from "@/shared/ui/controls";
-import { Avatar, EmptyState, ErrorState, Skeleton, Thumb } from "@/shared/ui/display";
+import { Chip, Tabs } from "@/shared/ui/controls";
+import { Avatar, EmptyState, ErrorState, Skeleton } from "@/shared/ui/display";
 import { TopBar } from "@/shared/ui/layout";
 import { SideSheet } from "@/shared/ui/SideSheet";
 import { SettingsMenu } from "../../../../_components/SettingsMenu";
@@ -25,17 +24,18 @@ import {
   visibilityFilterLabel,
   type VisibilityFilterValue,
 } from "./VisibilityFilter";
+import { PlansTab } from "./PlansTab";
 import { VisitMap } from "./VisitMap";
 
-type Tab = "posts" | "collections" | "map" | "visits";
+type Tab = "posts" | "collections" | "visits" | "plans";
 
 const BASE_TABS: { value: Tab; label: string }[] = [
   { value: "posts", label: "게시물" },
   { value: "collections", label: "컬렉션" },
-  { value: "map", label: "방문 지도" },
+  { value: "visits", label: "방문" },
 ];
-/** 방문 기록은 본인 프로필에만 보입니다. */
-const MY_TABS: { value: Tab; label: string }[] = [...BASE_TABS, { value: "visits", label: "방문 기록" }];
+/** 일정(지난 일정 · 방문 기록 포함)은 본인만 볼 수 있어서 내 프로필에만 있습니다. */
+const MY_TABS: { value: Tab; label: string }[] = [...BASE_TABS, { value: "plans", label: "일정" }];
 
 export function ProfileScreen({ username }: { username: string }) {
   const { data: user, isPending, isError, error } = useUser(username);
@@ -43,6 +43,7 @@ export function ProfileScreen({ username }: { username: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const startConversation = useStartConversation();
 
   if (isPending) return <Skeleton className="h-dvh rounded-none" />;
   if (isError) return <ErrorState message={errorMessage(error)} />;
@@ -54,6 +55,10 @@ export function ProfileScreen({ username }: { username: string }) {
   const vis = showFilter ? parseVisibilityFilter(params.get("vis")) : "ALL";
   const setVis = (v: VisibilityFilterValue) =>
     router.replace(`${pathname}?tab=${tab}${v === "ALL" ? "" : `&vis=${v}`}`, { scroll: false });
+  /** 방문 탭: 기록(목록) ↔ 지도 */
+  const visitView = params.get("view") === "map" ? "map" : "list";
+  const setVisitView = (v: "list" | "map") =>
+    router.replace(`${pathname}?tab=visits${v === "map" ? "&view=map" : ""}`, { scroll: false });
 
   return (
     <div>
@@ -105,7 +110,19 @@ export function ProfileScreen({ username }: { username: string }) {
               </Button>
             </div>
           ) : (
-            <FollowButton user={user} size="md" block />
+            <div className="grid grid-cols-2 gap-2">
+              <FollowButton user={user} size="md" block />
+              <Button
+                variant="secondary"
+                size="md"
+                disabled={startConversation.isPending}
+                onClick={() =>
+                  startConversation.mutate(user.username, { onSuccess: (c) => router.push(routes.conversation(c.id)) })
+                }
+              >
+                메시지
+              </Button>
+            </div>
           )}
         </div>
       </section>
@@ -118,12 +135,22 @@ export function ProfileScreen({ username }: { username: string }) {
           className="min-w-0 flex-1"
         />
         {showFilter && <VisibilityFilter value={vis} onChange={setVis} />}
+        {tab === "visits" && (
+          <Chip
+            className="shrink-0"
+            selected={visitView === "map"}
+            onClick={() => setVisitView(visitView === "map" ? "list" : "map")}
+            icon={visitView === "map" ? <List size={14} /> : <MapIcon size={14} />}
+          >
+            {visitView === "map" ? "기록" : "지도"}
+          </Chip>
+        )}
       </div>
 
       {tab === "posts" && <PostsTab username={username} isMe={user.isMe} vis={vis} />}
       {tab === "collections" && <CollectionsTab username={username} isMe={user.isMe} nickname={user.nickname} vis={vis} />}
-      {tab === "map" && <VisitMap user={user} />}
-      {tab === "visits" && user.isMe && <VisitsTab />}
+      {tab === "visits" && (visitView === "map" ? <VisitMap user={user} /> : <VisitList user={user} />)}
+      {tab === "plans" && user.isMe && <PlansTab />}
 
       {user.isMe && (
         <SideSheet open={menuOpen} onClose={() => setMenuOpen(false)} title={`${user.nickname}님의 계정`}>
@@ -183,29 +210,35 @@ function CollectionsTab({
   );
 }
 
-/** 내 방문 기록: 일정을 마치고 실제로 다녀온 장소 (본인만 볼 수 있음) */
-function VisitsTab() {
-  const { data, isPending } = useMyVisitRecords();
+/**
+ * 방문 탭의 기록(목록) 보기: 장소를 연결한 게시물을 최신순으로 보여 줍니다.
+ * 지도 보기(VisitMap)와 같은 데이터(게시물에 연결된 장소)입니다.
+ */
+function VisitList({ user }: { user: User }) {
+  const { data, isPending } = useUserPosts(user.username);
   if (isPending) return <Skeleton className="m-5 h-40" />;
-  if (!data?.length) return <EmptyState title="아직 방문 기록이 없어요" description="일정을 마치고 방문 기록을 남겨 보세요." />;
+  const posts = (data ?? []).filter((p) => p.places.length > 0);
+  if (!posts.length) {
+    return (
+      <EmptyState
+        title="아직 방문 기록이 없어요"
+        description={user.isMe ? "게시물 사진에 장소를 연결하면 여기에 쌓여요." : undefined}
+      />
+    );
+  }
+  const placeCount = new Set(posts.flatMap((p) => p.places.map((pl) => pl.id))).size;
   return (
-    <ul className="divide-y divide-line px-5">
-      {data.map((v) => (
-        <li key={v.planId}>
-          <Link href={routes.plan(v.planId)} className="flex items-center gap-4 py-3">
-            <Thumb src={v.coverImageUrl} alt="" className="size-[72px] rounded-card" />
-            <div className="min-w-0">
-              <p className="text-[15px] font-bold">
-                {formatShortDate(v.date)} {v.title}
-              </p>
-              <p className="mt-0.5 text-[12px] text-ink-sub">
-                {v.region} · {v.visitedCount}곳 방문 · {v.places.map((p) => p.name).join(", ")}
-              </p>
-              <p className="mt-1 text-[12px] font-bold text-primary-deep">기록 보기 →</p>
-            </div>
-          </Link>
-        </li>
-      ))}
-    </ul>
+    <div>
+      <p className="px-5 pt-3 pb-1 text-[13px] text-ink-sub">
+        게시물에 남긴 장소 <b className="text-ink">{placeCount}</b>곳 · 게시물 <b className="text-ink">{posts.length}</b>개
+      </p>
+      <ul className="divide-y divide-line">
+        {posts.map((post) => (
+          <li key={post.id}>
+            <PostPlaceRow post={post} showAuthor={false} />
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

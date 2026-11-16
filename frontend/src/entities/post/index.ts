@@ -14,3 +14,4 @@ export {
   useUserPosts,
 } from "./api/queries";
 export { PostGrid } from "./ui/PostGrid";
+export { PostPlaceRow } from "./ui/PostPlaceRow";

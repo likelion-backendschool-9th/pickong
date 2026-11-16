@@ -7,7 +7,17 @@ export const userKeys = {
   detail: (username: string) => [...userKeys.all, "detail", username] as const,
   followers: (username: string) => [...userKeys.all, "followers", username] as const,
   following: (username: string) => [...userKeys.all, "following", username] as const,
+  search: (q: string) => [...userKeys.all, "search", q] as const,
 };
+
+/** 사용자 검색. 검색어가 비어 있으면 요청하지 않습니다. */
+export const useUserSearch = (q: string) =>
+  useQuery({
+    queryKey: userKeys.search(q),
+    queryFn: ({ signal }) => userApi.search(q, signal),
+    enabled: q.trim().length > 0,
+    staleTime: 60_000,
+  });
 
 export const useMe = () => useQuery({ queryKey: userKeys.me(), queryFn: userApi.me, staleTime: 5 * 60_000 });
 

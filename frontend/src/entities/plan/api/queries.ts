@@ -1,36 +1,15 @@
-import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { legEndpoints } from "../model/timeline";
-import type { Leg, Plan, PlanItem } from "../model/types";
-import { planApi } from "./planApi";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { Plan, PlanItem, PlanStatus } from "../model/types";
+import { planApi, type RecordVisitsInput } from "./planApi";
 
 export const planKeys = {
   all: ["plans"] as const,
   list: () => [...planKeys.all, "list"] as const,
   detail: (id: string) => [...planKeys.all, "detail", id] as const,
-  visits: () => [...planKeys.all, "visits"] as const,
-  travel: (fromId: string, toId: string) => ["travel-time", fromId, toId] as const,
 };
 
 export const usePlans = () => useQuery({ queryKey: planKeys.list(), queryFn: planApi.list });
 export const usePlan = (id: string) => useQuery({ queryKey: planKeys.detail(id), queryFn: () => planApi.get(id) });
-/** 내 방문 기록. 다른 사람의 방문 기록은 볼 수 없습니다. */
-export const useMyVisitRecords = () => useQuery({ queryKey: planKeys.visits(), queryFn: planApi.myVisits });
-
-/**
- * 구간별 이동 시간. 같은 구간은 캐시를 재사용하고, 새 구간만 계산을 요청합니다.
- * 계산 중인 구간은 undefined → 시간표에서 추정치(임시값)로 표시됩니다.
- */
-export function useTravelLegs(plan: Pick<Plan, "startPlace"> | undefined, items: PlanItem[]): (Leg | undefined)[] {
-  const pairs = plan ? items.map((_, i) => legEndpoints(plan, items, i)) : [];
-  const results = useQueries({
-    queries: pairs.map(({ from, to }) => ({
-      queryKey: planKeys.travel(from.id, to.id),
-      queryFn: () => planApi.travelTime(from.id, to.id),
-      staleTime: Infinity,
-    })),
-  });
-  return results.map((r) => (r.data ? { minutes: r.data.minutes, isEstimate: false, mode: r.data.mode } : undefined));
-}
 
 export function useCreatePlan() {
   const qc = useQueryClient();
@@ -55,10 +34,33 @@ export function useUpdatePlanItems(planId: string) {
   });
 }
 
+export function useDeletePlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: planApi.remove,
+    onSuccess: (_r, id) => {
+      qc.removeQueries({ queryKey: planKeys.detail(id) });
+      return qc.invalidateQueries({ queryKey: planKeys.list() });
+    },
+  });
+}
+
+/** 계획 완료 · 다시 수정 */
+export function useSetPlanStatus(planId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (status: Exclude<PlanStatus, "DONE">) => planApi.setStatus(planId, status),
+    onSuccess: (plan) => {
+      qc.setQueryData(planKeys.detail(planId), plan);
+      return qc.invalidateQueries({ queryKey: planKeys.list() });
+    },
+  });
+}
+
 export function useRecordVisits(planId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (visitedItemIds: string[]) => planApi.recordVisits(planId, visitedItemIds),
+    mutationFn: (input: RecordVisitsInput) => planApi.recordVisits(planId, input),
     onSuccess: (plan) => {
       qc.setQueryData(planKeys.detail(planId), plan);
       return Promise.all([

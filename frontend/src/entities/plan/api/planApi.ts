@@ -1,30 +1,34 @@
 import { http } from "@/shared/api/http";
-import type { PlanItem } from "../model/types";
-import type { PlanDto, TravelTimeDto, VisitRecordDto } from "./dto";
-import { toPlan, toPlanItemInput, toVisitRecord } from "./mapper";
+import type { PlanItem, PlanStatus } from "../model/types";
+import type { PlanDto } from "./dto";
+import { toPlan, toPlanItemInput } from "./mapper";
 
 export interface CreatePlanInput {
   title: string;
   date: string;
   region: string;
-  startPlaceId: string;
-  startTime: string;
-  endTime: string;
   memo: string;
   items: PlanItem[];
+}
+
+export interface RecordVisitsInput {
+  /** 일정에 있던 곳 중 다녀온 곳 */
+  visitedItemIds: string[];
+  /** 일정에 없었지만 다녀온 곳 (일정 끝에 추가되고 방문 완료로 기록) */
+  extraPlaceIds: string[];
 }
 
 export const planApi = {
   list: async () => (await http.get<PlanDto[]>("/plans")).map(toPlan),
   get: async (id: string) => toPlan(await http.get<PlanDto>(`/plans/${id}`)),
+  /** 새 일정은 ‘계획 중’으로 만들어집니다. */
   create: async ({ items, ...rest }: CreatePlanInput) =>
     toPlan(await http.post<PlanDto>("/plans", { ...rest, items: items.map(toPlanItemInput) })),
   updateItems: async (id: string, items: PlanItem[]) =>
     toPlan(await http.put<PlanDto>(`/plans/${id}`, { items: items.map(toPlanItemInput) })),
-  recordVisits: async (id: string, visitedItemIds: string[]) =>
-    toPlan(await http.post<PlanDto>(`/plans/${id}/visits`, { visitedItemIds })),
-  travelTime: (fromId: string, toId: string) =>
-    http.get<TravelTimeDto>("/travel-time", { query: { from: fromId, to: toId } }),
-  /** 내 방문 기록 (본인만 볼 수 있음) */
-  myVisits: async () => (await http.get<VisitRecordDto[]>("/me/visits")).map(toVisitRecord),
+  /** 계획 완료(UPCOMING) · 다시 수정(PLANNING) */
+  setStatus: async (id: string, status: Exclude<PlanStatus, "DONE">) =>
+    toPlan(await http.put<PlanDto>(`/plans/${id}`, { status })),
+  remove: (id: string) => http.delete<void>(`/plans/${id}`),
+  recordVisits: async (id: string, input: RecordVisitsInput) => toPlan(await http.post<PlanDto>(`/plans/${id}/visits`, input)),
 };

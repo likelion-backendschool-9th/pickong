@@ -17,7 +17,7 @@ export function NotificationsScreen() {
   const { data, isPending } = useNotifications();
   const [filter, setFilter] = useState<Filter>("all");
   const list = (data ?? []).filter((n) =>
-    filter === "all" ? true : filter === "plan" ? n.type === "PLAN_CONFLICT" : n.type !== "PLAN_CONFLICT",
+    filter === "all" ? true : filter === "plan" ? n.type === "PLAN_REMINDER" : n.type !== "PLAN_REMINDER",
   );
 
   return (

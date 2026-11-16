@@ -8,6 +8,7 @@
 import { createServer } from "node:http";
 import { discoverRoutes } from "./handlers/discover.ts";
 import { importRoutes } from "./handlers/imports.ts";
+import { messageRoutes } from "./handlers/messages.ts";
 import { placeRoutes } from "./handlers/places.ts";
 import { planRoutes } from "./handlers/plans.ts";
 import { postRoutes } from "./handlers/posts.ts";
@@ -23,6 +24,7 @@ const handle = createRouter([
   ...importRoutes,
   ...planRoutes,
   ...discoverRoutes,
+  ...messageRoutes,
 ]);
 
 createServer(handle).listen(PORT, () => {

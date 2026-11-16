@@ -1,16 +1,13 @@
 "use client";
 
 import { X } from "lucide-react";
-import Link from "next/link";
 import { useMemo, useState } from "react";
-import { categoryLabel, type Place } from "@/entities/place";
-import { useFeed, useFeedPlaces, type FeedTab, type Post } from "@/entities/post";
+import { categoryLabel } from "@/entities/place";
+import { PostPlaceRow, useFeed, useFeedPlaces, type FeedTab } from "@/entities/post";
 import { SavePlaceButton } from "@/features/save-place";
-import { routes } from "@/shared/config/routes";
-import { formatRelative } from "@/shared/lib/date";
 import { inBounds, type LatLngBounds } from "@/shared/lib/geo";
 import { MapView } from "@/shared/map";
-import { Avatar, EmptyState, Skeleton, Thumb } from "@/shared/ui/display";
+import { EmptyState, Skeleton, Thumb } from "@/shared/ui/display";
 
 const TAB_LABEL: Record<FeedTab, string> = { following: "팔로잉", recommended: "추천" };
 
@@ -100,31 +97,12 @@ export function FeedMap({ tab }: { tab: FeedTab }) {
           <ul className="divide-y divide-line">
             {visiblePosts.map(({ post, places: here }) => (
               <li key={post.id}>
-                <MapPostRow post={post} places={here} />
+                <PostPlaceRow post={post} places={here} />
               </li>
             ))}
           </ul>
         )}
       </section>
     </div>
-  );
-}
-
-/** 지도 아래 게시물 한 줄: 이 지역 장소가 연결된 사진 · 작성자 · 장소 · 본문 첫 줄 */
-function MapPostRow({ post, places }: { post: Post; places: Place[] }) {
-  const photo = post.photos.find((ph) => ph.placeId && places.some((p) => p.id === ph.placeId)) ?? post.photos[0];
-  return (
-    <Link href={routes.post(post.id)} className="flex gap-3 px-4 py-3 active:bg-fill">
-      <Thumb src={photo.url} alt="" className="size-[72px] rounded-card" />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <Avatar src={post.author.profileImageUrl} name={post.author.nickname} size={20} />
-          <span className="truncate text-[13px] font-bold">{post.author.nickname}</span>
-          <span className="shrink-0 text-[12px] text-ink-faint">· {formatRelative(post.createdAt)}</span>
-        </div>
-        <p className="mt-1 truncate text-[12px] font-bold text-primary-deep">{places.map((p) => p.name).join(" · ")}</p>
-        <p className="mt-0.5 truncate text-[13px] text-ink-sub">{post.content.split("\n")[0]}</p>
-      </div>
-    </Link>
   );
 }

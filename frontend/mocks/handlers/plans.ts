@@ -1,28 +1,51 @@
-import { db, distanceMeters, findPlace, ME_ID, nextId, planDto } from "../db.ts";
+import { db, findPlace, ME_ID, nextId, planDto } from "../db.ts";
 import type { PlanItemRow, PlanRow } from "../fixtures/types.ts";
-import { HttpError, notFound, sleep, type Route } from "../router.ts";
+import { HttpError, notFound, type Route } from "../router.ts";
 
 const planOr404 = (id: string) => {
   const plan = db.plans.find((p) => p.id === id && p.ownerId === ME_ID);
   return plan ?? notFound("일정");
 };
 
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** 고정 시간은 HH:mm 또는 null */
+function parseFixedTime(raw: unknown): string | null {
+  if (raw === null || raw === undefined || raw === "") return null;
+  if (typeof raw !== "string" || !TIME_RE.test(raw)) throw new HttpError(400, "BAD_TIME", "고정 시간 형식이 올바르지 않아요.");
+  return raw;
+}
+
 function parseItems(raw: unknown, previous: PlanItemRow[] = []): PlanItemRow[] {
   if (!Array.isArray(raw)) throw new HttpError(400, "BAD_ITEMS", "일정 항목 형식이 올바르지 않아요.");
   return raw.map((it) => {
-    if (!findPlace(it.placeId)) throw new HttpError(400, "BAD_PLACE", "장소를 찾을 수 없어요.");
+    if (!findPlace(it?.placeId)) throw new HttpError(400, "BAD_PLACE", "장소를 찾을 수 없어요.");
     const before = previous.find((p) => p.id === it.id);
-    // 확정 예약 시간은 일정 편집으로 바뀌지 않도록 서버에서도 기존 값을 유지합니다.
-    const reservation =
-      it.kind === "RESERVATION" ? (before?.reservation && !it.reservationEdited ? before.reservation : it.reservation) : null;
     return {
       id: before ? before.id : nextId("pi"),
-      kind: it.kind === "RESERVATION" ? "RESERVATION" : "FREE",
       placeId: it.placeId,
-      stayMinutes: Math.max(10, Math.min(600, Number(it.stayMinutes) || 60)),
+      fixedTime: parseFixedTime(it.fixedTime),
       visited: !!it.visited,
-      reservation,
     };
+  });
+}
+
+/** 방문 완료로 표시: 내 지도에 있으면 상태만 바꾸고, 없으면 ‘방문 완료’로 저장합니다. */
+function markVisited(placeId: string) {
+  const saved = db.savedPlaces.find((s) => s.ownerId === ME_ID && s.placeId === placeId);
+  if (saved) {
+    saved.visitStatus = "VISITED";
+    return;
+  }
+  db.savedPlaces.push({
+    id: nextId("sp"),
+    ownerId: ME_ID,
+    placeId,
+    collectionIds: [],
+    visitStatus: "VISITED",
+    memo: "",
+    savedAt: new Date().toISOString(),
+    source: { type: "SEARCH", refId: null, label: "일정 방문 기록에서 추가" },
   });
 }
 
@@ -38,9 +61,10 @@ export const planRoutes: Route[] = [
         .map(planDto),
   },
   {
+    /** 새 일정은 ‘계획 중’으로 시작합니다. */
     method: "POST",
     path: "/api/plans",
-    delay: 500,
+    delay: 400,
     handler: ({ body }) => {
       if (!body?.title || !body?.date) throw new HttpError(400, "REQUIRED", "제목과 날짜를 입력해 주세요.");
       const plan: PlanRow = {
@@ -49,11 +73,8 @@ export const planRoutes: Route[] = [
         title: String(body.title),
         date: String(body.date),
         region: String(body.region ?? ""),
-        startPlaceId: findPlace(body.startPlaceId) ? body.startPlaceId : "p-seongsu-st",
-        startTime: body.startTime ?? "10:00",
-        endTime: body.endTime ?? "20:00",
         memo: String(body.memo ?? ""),
-        status: "UPCOMING",
+        status: "PLANNING",
         items: parseItems(body.items ?? []),
       };
       db.plans.push(plan);
@@ -62,13 +83,22 @@ export const planRoutes: Route[] = [
   },
   { method: "GET", path: "/api/plans/:id", handler: ({ params }) => planDto(planOr404(params.id)) },
   {
+    /** 항목 저장 · 계획 완료(status: UPCOMING) · 다시 수정(status: PLANNING) */
     method: "PUT",
     path: "/api/plans/:id",
     handler: ({ params, body }) => {
       const plan = planOr404(params.id);
-      if (body?.items) plan.items = parseItems(body.items, plan.items);
+      if (body?.items) {
+        if (plan.status === "DONE") throw new HttpError(409, "PLAN_DONE", "다녀온 일정은 수정할 수 없어요.");
+        plan.items = parseItems(body.items, plan.items);
+      }
       if (typeof body?.title === "string") plan.title = body.title;
-      if (typeof body?.endTime === "string") plan.endTime = body.endTime;
+      if (body?.status !== undefined) {
+        if (body.status !== "PLANNING" && body.status !== "UPCOMING") throw new HttpError(400, "BAD_STATUS", "일정 상태를 확인해 주세요.");
+        if (plan.status === "DONE") throw new HttpError(409, "PLAN_DONE", "다녀온 일정은 수정할 수 없어요.");
+        if (body.status === "UPCOMING" && plan.items.length === 0) throw new HttpError(400, "EMPTY_PLAN", "장소를 1곳 이상 넣어 주세요.");
+        plan.status = body.status;
+      }
       return planDto(plan);
     },
   },
@@ -82,39 +112,29 @@ export const planRoutes: Route[] = [
     },
   },
   {
-    /** 방문 기록: 방문한 장소는 내 지도에서도 '방문 완료'로 바뀝니다. */
+    /**
+     * 방문 기록: 체크한 곳과 일정에 없었지만 다녀온 곳(extraPlaceIds)을 함께 기록합니다.
+     * 추가한 곳은 일정 끝에 붙고, 다녀온 곳은 내 지도에서 ‘방문 완료’가 됩니다.
+     */
     method: "POST",
     path: "/api/plans/:id/visits",
     handler: ({ params, body }) => {
       const plan = planOr404(params.id);
-      const visited: string[] = body?.visitedItemIds ?? [];
+      const visited: string[] = Array.isArray(body?.visitedItemIds) ? body.visitedItemIds : [];
+      const extras: string[] = Array.isArray(body?.extraPlaceIds) ? body.extraPlaceIds : [];
+      for (const placeId of extras) {
+        if (!findPlace(placeId)) throw new HttpError(400, "BAD_PLACE", "추가한 장소를 찾을 수 없어요.");
+      }
       for (const item of plan.items) {
         item.visited = visited.includes(item.id);
-        if (item.visited) {
-          const saved = db.savedPlaces.find((s) => s.ownerId === ME_ID && s.placeId === item.placeId);
-          if (saved) saved.visitStatus = "VISITED";
-        }
+        if (item.visited) markVisited(item.placeId);
+      }
+      for (const placeId of extras) {
+        plan.items.push({ id: nextId("pi"), placeId, fixedTime: null, visited: true });
+        markVisited(placeId);
       }
       plan.status = "DONE";
       return planDto(plan);
-    },
-  },
-  {
-    /**
-     * 이동 시간 (예시 계산). 실제로는 길찾기 API 결과로 바뀝니다.
-     * 계산 중 상태를 확인할 수 있도록 일부러 지연합니다.
-     */
-    method: "GET",
-    path: "/api/travel-time",
-    delay: 0,
-    handler: async ({ query }) => {
-      const from = findPlace(query.get("from") ?? "") ?? notFound("출발 장소");
-      const to = findPlace(query.get("to") ?? "") ?? notFound("도착 장소");
-      await sleep(500 + Math.random() * 500);
-      const meters = Math.round(distanceMeters(from, to) * 1.3);
-      const walk = meters <= 2000;
-      const minutes = walk ? Math.max(3, Math.round(meters / 75)) : Math.round(12 + meters / 333);
-      return { fromId: from.id, toId: to.id, minutes, distanceMeters: meters, mode: walk ? "WALK" : "TRANSIT" };
     },
   },
 ];

@@ -2,20 +2,29 @@
 
 import { Bell, List, Map as MapIcon, Search } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useFeed, type FeedTab } from "@/entities/post";
 import { PostCard } from "@/widgets/post-card";
 import { errorMessage } from "@/shared/api/errors";
 import { routes } from "@/shared/config/routes";
+import { HOME_RESELECT_EVENT } from "@/shared/lib/events";
 import { ButtonLink } from "@/shared/ui/Button";
 import { Chip, Tabs } from "@/shared/ui/controls";
 import { EmptyState, ErrorState, Skeleton } from "@/shared/ui/display";
 import { PullToRefresh } from "@/shared/ui/PullToRefresh";
 import { FeedMap } from "./FeedMap";
 
+/**
+ * 홈 피드. 목록 · 지도 전환은 주소(?view=map)에 남기므로, 하단바 홈(/feed)을 누르면 언제나 피드 목록으로 돌아옵니다.
+ */
 export function FeedScreen() {
   const [tab, setTab] = useState<FeedTab>("following");
-  const [mode, setMode] = useState<"list" | "map">("list");
+  const params = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const mode = params.get("view") === "map" ? "map" : "list";
+  const setMode = (m: "list" | "map") => router.replace(m === "map" ? `${pathname}?view=map` : pathname, { scroll: false });
 
   return (
     <div>
@@ -59,6 +68,22 @@ export function FeedScreen() {
 
 function FeedList({ tab }: { tab: FeedTab }) {
   const { data: posts, isPending, isError, error, refetch } = useFeed(tab);
+  const [refreshSignal, setRefreshSignal] = useState(0);
+
+  // 피드에서 홈 버튼을 다시 누르면: 맨 위로 올라간 뒤 당겨서 새로고침한 것처럼 새로고침
+  useEffect(() => {
+    const onReselect = () => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      const started = Date.now();
+      const wait = () => {
+        if (window.scrollY <= 1 || Date.now() - started > 800) setRefreshSignal((n) => n + 1);
+        else requestAnimationFrame(wait);
+      };
+      requestAnimationFrame(wait);
+    };
+    window.addEventListener(HOME_RESELECT_EVENT, onReselect);
+    return () => window.removeEventListener(HOME_RESELECT_EVENT, onReselect);
+  }, []);
 
   if (isPending) {
     return (
@@ -74,7 +99,7 @@ function FeedList({ tab }: { tab: FeedTab }) {
   }
   // 위에서 당겼다 놓으면 피드를 다시 불러옵니다 (오류 · 빈 화면에서도 가능)
   return (
-    <PullToRefresh onRefresh={() => refetch()}>
+    <PullToRefresh onRefresh={() => refetch()} refreshSignal={refreshSignal}>
       {isError ? (
         <ErrorState message={errorMessage(error)} onRetry={() => refetch()} />
       ) : posts.length === 0 ? (

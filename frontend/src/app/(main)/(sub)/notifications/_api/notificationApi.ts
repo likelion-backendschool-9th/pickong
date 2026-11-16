@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { toUser, type User, type UserDto } from "@/entities/user";
 import { http } from "@/shared/api/http";
 
-export type NotificationType = "FOLLOW" | "COMMENT" | "LIKE" | "COLLECTION_SAVE" | "PLAN_CONFLICT";
+export type NotificationType = "FOLLOW" | "COMMENT" | "LIKE" | "COLLECTION_SAVE" | "PLAN_REMINDER";
 
 export interface AppNotification {
   id: string;

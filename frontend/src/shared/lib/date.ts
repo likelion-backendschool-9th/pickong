@@ -45,3 +45,16 @@ export function todayYmd(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+
+/** ISO 시각 → "오후 3:05" (메시지 시각) */
+export function formatClock(iso: string): string {
+  const d = new Date(iso);
+  const h = d.getHours();
+  return `${h < 12 ? "오전" : "오후"} ${h % 12 === 0 ? 12 : h % 12}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/** ISO 시각 → 로컬 날짜 "YYYY-MM-DD" (같은 날 묶기용) */
+export function localYmd(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}

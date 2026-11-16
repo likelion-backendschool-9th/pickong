@@ -5,12 +5,14 @@ import { useState, type ReactNode } from "react";
 import { categoryLabel, usePlaceSearch, type Place } from "@/entities/place";
 import { Spinner } from "@/shared/ui/display";
 import { Input } from "@/shared/ui/form";
-import { useDebounced } from "./useDebounced";
+import { useDebounced } from "@/shared/lib/useDebounced";
 
 interface PlaceSearchPanelProps {
   onSelect: (place: Place) => void;
   /** 검색어가 없을 때 보여줄 최근 사용 장소 */
   recent?: { place: Place; note: string }[];
+  /** 최근 사용 장소 목록의 제목 */
+  recentTitle?: string;
   placeholder?: string;
   /** 결과 하단 보조 행동 (예: 지도에서 직접 지정) */
   footer?: ReactNode;
@@ -22,6 +24,7 @@ interface PlaceSearchPanelProps {
 export function PlaceSearchPanel({
   onSelect,
   recent = [],
+  recentTitle = "최근 사용한 장소",
   placeholder = "장소 이름이나 지역 검색",
   footer,
   autoFocus,
@@ -50,7 +53,7 @@ export function PlaceSearchPanel({
       <div className="mt-4">
         {!debounced && recent.length > 0 && (
           <>
-            <h3 className="mb-1 text-[13px] font-bold">최근 사용한 장소</h3>
+            <h3 className="mb-1 text-[13px] font-bold">{recentTitle}</h3>
             {recent.map(({ place, note }) => (
               <ResultRow key={place.id} place={place} meta={note} onClick={() => onSelect(place)} />
             ))}

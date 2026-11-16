@@ -1,12 +1,11 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
-import { usePlaceSearch, type Place } from "@/entities/place";
-import { arrangeInitial, useCreatePlan, type PlanItem } from "@/entities/plan";
+import { useEffect, useRef, useState } from "react";
+import { useSavedPlaces, type Place } from "@/entities/place";
+import { useCreatePlan } from "@/entities/plan";
 import { routes } from "@/shared/config/routes";
-import { CandidatesStep, type Candidate } from "./CandidatesStep";
-import { ReservationsStep } from "./ReservationsStep";
+import { CandidatesStep } from "./CandidatesStep";
 import { SetupStep, type PlanBasics } from "./SetupStep";
 
 function nextSaturday(): string {
@@ -15,69 +14,46 @@ function nextSaturday(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/** 일정 생성: 날짜·지역 설정 → 외부 확정 예약 등록 → 방문 후보 선택 → 하루 타임라인 */
+/**
+ * 일정 만들기: 날짜 · 지역 → 갈 곳 고르기 → (일정 화면에서) 순서 · 고정 시간 정하고 ‘계획 완료’.
+ * 체류 시간 · 출발 시간은 정하지 않고, 영화 · 식당 예약처럼 시간이 정해진 곳만 고정 시간을 적습니다.
+ */
 export function NewPlanFlow() {
   const router = useRouter();
   const params = useSearchParams();
-  const preselected = (params.get("places") ?? "").split(",").filter(Boolean);
-  const [step, setStep] = useState<"setup" | "reservations" | "candidates">("setup");
-  const [basics, setBasics] = useState<PlanBasics>({
-    title: "",
-    date: nextSaturday(),
-    region: "성수동",
-    startPlace: null,
-    startTime: "10:00",
-    endTime: "20:00",
-    memo: "",
-  });
-  const [reservations, setReservations] = useState<PlanItem[]>([]);
-  const [candidates, setCandidates] = useState<Candidate[]>(preselected.map((placeId) => ({ placeId, stay: 60 })));
+  const [step, setStep] = useState<"setup" | "places">("setup");
+  const [basics, setBasics] = useState<PlanBasics>({ title: "", date: nextSaturday(), region: "", memo: "" });
+  const [selected, setSelected] = useState<Place[]>([]);
   const create = useCreatePlan();
 
-  // 출발 위치 기본값: 성수역 (예시)
-  const { data: stations } = usePlaceSearch("성수역");
-  const effective: PlanBasics = { ...basics, startPlace: basics.startPlace ?? stations?.[0] ?? null };
+  // 내 지도에서 고른 장소로 시작한 경우 (?places=a,b)
+  const { data: saved } = useSavedPlaces();
+  const preselectedDone = useRef(false);
+  useEffect(() => {
+    const ids = (params.get("places") ?? "").split(",").filter(Boolean);
+    if (preselectedDone.current || !saved || ids.length === 0) return;
+    preselectedDone.current = true;
+    setSelected(ids.flatMap((id) => saved.find((s) => s.place.id === id)?.place ?? []));
+  }, [params, saved]);
 
-  const submit = (places: Place[]) => {
-    const startPlace = effective.startPlace!;
-    const free: PlanItem[] = candidates.flatMap((c, i) => {
-      const place = places.find((p) => p.id === c.placeId);
-      return place ? [{ id: `tmp-f${i}`, kind: "FREE" as const, place, stayMinutes: c.stay, visited: false, reservation: null }] : [];
-    });
-    const items = arrangeInitial({ ...effective, startPlace }, reservations, free);
+  const submit = () =>
     create.mutate(
       {
-        title: basics.title.trim() || `${basics.region}에서 보내는 하루`,
+        title: basics.title.trim() || `${basics.region || "서울"}에서 보내는 하루`,
         date: basics.date,
         region: basics.region,
-        startPlaceId: startPlace.id,
-        startTime: basics.startTime,
-        endTime: basics.endTime,
         memo: basics.memo,
-        items,
+        items: selected.map((place, i) => ({ id: `tmp-${i}`, place, fixedTime: null, visited: false })),
       },
       { onSuccess: (plan) => router.replace(routes.plan(plan.id)) },
     );
-  };
 
-  if (step === "setup") return <SetupStep value={effective} onChange={setBasics} onNext={() => setStep("reservations")} />;
-  if (step === "reservations")
-    return (
-      <ReservationsStep
-        date={basics.date}
-        reservations={reservations}
-        onChange={setReservations}
-        onBack={() => setStep("setup")}
-        onNext={() => setStep("candidates")}
-      />
-    );
+  if (step === "setup") return <SetupStep value={basics} onChange={setBasics} onNext={() => setStep("places")} />;
   return (
     <CandidatesStep
-      basics={effective}
-      reservations={reservations}
-      selected={candidates}
-      onChange={setCandidates}
-      onBack={() => setStep("reservations")}
+      selected={selected}
+      onChange={setSelected}
+      onBack={() => setStep("setup")}
       onSubmit={submit}
       submitting={create.isPending}
       error={create.error}
