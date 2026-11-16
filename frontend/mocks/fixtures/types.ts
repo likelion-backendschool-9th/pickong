@@ -27,6 +27,8 @@ export interface UserRow {
   postCount: number;
   followerCount: number;
   followingCount: number;
+  /** 유료 컬렉션을 판매할 수 있는 크리에이터 */
+  isCreator?: boolean;
 }
 
 export interface BusinessHoursDto {
@@ -94,6 +96,19 @@ export interface CollectionRow {
   visibility: Visibility;
   pinColor: "LIME" | "GREEN" | "BROWN";
   createdAt: string;
+  /** 유료 컬렉션 가격(원). 없으면 무료. 크리에이터의 전체 공개 컬렉션만 유료로 설정할 수 있습니다. */
+  price?: number | null;
+}
+
+/** 유료 컬렉션 구매 기록 (단건 구매 · 한 번 사면 계속 열람) */
+export interface PurchaseRow {
+  id: string;
+  userId: string;
+  collectionId: string;
+  amount: number;
+  /** 지금은 테스트 결제만. PG 연결 후 실제 결제 수단이 들어갑니다. */
+  method: "TEST";
+  purchasedAt: string;
 }
 
 export interface ReservationDto {

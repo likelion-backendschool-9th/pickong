@@ -13,6 +13,7 @@ export const toUser = (dto: UserDto): User => ({
   followingCount: dto.followingCount,
   isFollowing: dto.isFollowing,
   isMe: dto.isMe,
+  isCreator: dto.isCreator ?? false,
 });
 
 export const toUserSummary = (dto: UserSummaryDto): UserSummary => ({

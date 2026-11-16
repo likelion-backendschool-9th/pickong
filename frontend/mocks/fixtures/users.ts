@@ -13,6 +13,7 @@ export const users: UserRow[] = [
     postCount: 24,
     followerCount: 328,
     followingCount: 162,
+    isCreator: true,
   },
   {
     id: "u-jimin",
@@ -24,6 +25,7 @@ export const users: UserRow[] = [
     postCount: 41,
     followerCount: 1204,
     followingCount: 210,
+    isCreator: true,
   },
   {
     id: "u-minsu",

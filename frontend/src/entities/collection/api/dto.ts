@@ -13,8 +13,12 @@ export interface CollectionDto {
   pinColor: PinColor;
   placeCount: number;
   isMine: boolean;
+  price: number | null;
+  isPurchased: boolean;
+  isLocked: boolean;
 }
 
 export interface CollectionDetailDto extends CollectionDto {
   places: (PlaceDto & { savedByMe: boolean })[];
+  lockedPlaceCount: number;
 }

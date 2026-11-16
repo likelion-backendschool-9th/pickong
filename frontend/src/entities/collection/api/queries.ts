@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { collectionApi, type CollectionInput } from "./collectionApi";
+import { collectionApi, type CollectionInput, type PaymentMethod } from "./collectionApi";
 
 export const collectionKeys = {
   all: ["collections"] as const,
@@ -44,5 +44,17 @@ export function useDeleteCollection() {
         qc.invalidateQueries({ queryKey: collectionKeys.all }),
         qc.invalidateQueries({ queryKey: ["saved-places"] }),
       ]),
+  });
+}
+
+/** 유료 컬렉션 구매: 성공하면 전체 장소가 담긴 상세로 바로 바꾸고 목록의 잠금 표시도 갱신합니다. */
+export function usePurchaseCollection(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { method: PaymentMethod; amount: number }) => collectionApi.purchase(id, input),
+    onSuccess: (detail) => {
+      qc.setQueryData(collectionKeys.detail(id), detail);
+      return qc.invalidateQueries({ queryKey: collectionKeys.all, predicate: (q) => q.queryKey[2] !== id });
+    },
   });
 }

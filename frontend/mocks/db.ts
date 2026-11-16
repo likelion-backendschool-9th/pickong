@@ -9,6 +9,7 @@ import { notifications, plans } from "./fixtures/plans.ts";
 import { comments, posts } from "./fixtures/posts.ts";
 import type {
   CollectionRow,
+  PurchaseRow,
   PlaceRow,
   PlanRow,
   PostRow,
@@ -31,6 +32,8 @@ export const db = {
   notifications: clone(notifications),
   conversations: clone(conversations),
   messages: clone(messages),
+  /** 유료 컬렉션 구매 기록 */
+  purchases: [] as PurchaseRow[],
   /** 사용자별 내 지도 카테고리 칩 설정 (보이는 것만, 순서대로). 없으면 기본값 */
   mapCategories: {} as Record<string, string[]>,
 };
@@ -68,6 +71,7 @@ export function userDto(u: UserRow) {
     followerCount: db.follows.filter(([, b]) => b === u.id).length,
     followingCount: db.follows.filter(([a]) => a === u.id).length,
     isFollowing: isFollowing(ME_ID, u.id),
+    isCreator: !!u.isCreator,
     isMe: u.id === ME_ID,
   };
 }
@@ -119,6 +123,12 @@ export function savedPlaceDto(s: SavedPlaceRow) {
   };
 }
 
+export const hasPurchased = (collectionId: string, userId = ME_ID) =>
+  db.purchases.some((p) => p.userId === userId && p.collectionId === collectionId);
+
+export const isLockedCollection = (c: CollectionRow, viewerId = ME_ID) =>
+  !!c.price && c.ownerId !== viewerId && !hasPurchased(c.id, viewerId);
+
 export function collectionPlaceIds(c: CollectionRow) {
   return db.savedPlaces
     .filter((s) => s.ownerId === c.ownerId && s.collectionIds.includes(c.id))
@@ -139,6 +149,10 @@ export function collectionDto(c: CollectionRow) {
     pinColor: c.pinColor,
     placeCount: placeIds.length,
     isMine: c.ownerId === ME_ID,
+    price: c.price ?? null,
+    isPurchased: hasPurchased(c.id),
+    // 유료인데 내 것도 아니고 사지도 않았으면 잠김 (장소 목록은 미리보기만)
+    isLocked: isLockedCollection(c),
   };
 }
 
