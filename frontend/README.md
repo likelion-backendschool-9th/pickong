@@ -22,6 +22,45 @@ npm run dev        # mock API(localhost:4000) + Next.js(localhost:3000)를 함�
 | `npm run typecheck` | TypeScript 검사 |
 | `npm run build` | 프로덕션 빌드 |
 
+## Docker 빌드 및 실행
+
+저장소 루트에서 실행합니다. Dockerfile은 Node.js 24 기반의 두 단계로 구성됩니다.
+`builder`에서 `npm ci`, 단위 테스트, 프로덕션 빌드를 수행하고, `runner`에서 standalone 서버를 일반 사용자로 실행합니다.
+
+```bash
+# 1차: 테스트 및 빌드만 확인
+docker build --target builder -t pickong-frontend:build ./frontend
+
+# 2차: 실행 이미지 생성 및 서버 실행 (앞 단계의 빌드 캐시 사용)
+docker build -t pickong-frontend ./frontend
+docker run --rm -p 3000:3000 pickong-frontend
+```
+
+화면은 http://localhost:3000 에서 확인합니다. mock 서버는 이미지에서 실행하지 않습니다.
+API 요청을 사용하려면 백엔드가 같은 Docker 네트워크에서 접근 가능해야 합니다.
+
+추후 루트 `compose.yml`에는 다음과 같이 연결할 수 있습니다 (현재는 설정 예시).
+
+```yaml
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: runner
+      args:
+        API_BASE_URL: http://backend:8080
+    ports:
+      - "3000:3000"
+```
+
+`backend`는 추후 Compose에 정의할 백엔드 서비스 이름이며, `8080`은 컨테이너 내부 포트입니다.
+`API_BASE_URL`은 rewrites에 사용되어 **빌드 시 고정**됩니다. 주소를 바꾸면 `build.args`를 수정하고
+`docker compose up --build`로 다시 빌드해야 합니다. 실행 시 `environment`만 바꿔서는 반영되지 않습니다.
+Docker Desktop에서 호스트의 mock 서버에 연결하려면 빌드할 때
+`--build-arg API_BASE_URL=http://host.docker.internal:4000`을 지정합니다.
+로컬 `.env*` 파일은 이미지에 복사하지 않습니다.
+
 ## Mock API → 실제 백엔드
 
 - 화면은 항상 `/api/*`로 요청하고, `next.config.ts`의 rewrites가 `API_BASE_URL`(기본 `http://localhost:4000`)로 전달합니다.
