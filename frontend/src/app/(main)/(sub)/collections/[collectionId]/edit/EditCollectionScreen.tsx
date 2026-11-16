@@ -11,7 +11,7 @@ import { Button } from "@/shared/ui/Button";
 import { ErrorState, Notice, SectionTitle, Skeleton } from "@/shared/ui/display";
 import { BottomCta, Screen, TopBar } from "@/shared/ui/layout";
 import { useToast } from "@/shared/ui/Toast";
-import { CollectionForm, type CollectionFormValue } from "../../_components/CollectionForm";
+import { CollectionForm, priceError, type CollectionFormValue } from "../../_components/CollectionForm";
 
 export function EditCollectionScreen({ id }: { id: string }) {
   const { data, isPending, isError, error } = useCollection(id);
@@ -30,6 +30,7 @@ function EditForm({ collection }: { collection: CollectionDetail }) {
     description: collection.description,
     visibility: collection.visibility,
     pinColor: collection.pinColor,
+    price: collection.price,
   });
   const [removed, setRemoved] = useState<string[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -81,7 +82,7 @@ function EditForm({ collection }: { collection: CollectionDetail }) {
         {update.isError && <Notice tone="danger" className="mt-4">{errorMessage(update.error)}</Notice>}
       </div>
       <BottomCta>
-        <Button block onClick={save} loading={update.isPending} disabled={!value.title.trim()}>
+        <Button block onClick={save} loading={update.isPending} disabled={!value.title.trim() || !!priceError(value.price)}>
           변경 내용 저장
         </Button>
       </BottomCta>

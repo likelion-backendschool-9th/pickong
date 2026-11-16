@@ -13,7 +13,7 @@ import { errorMessage } from "@/shared/api/errors";
 import { routes } from "@/shared/config/routes";
 import { Button, ButtonLink } from "@/shared/ui/Button";
 import { Chip, Tabs } from "@/shared/ui/controls";
-import { Avatar, EmptyState, ErrorState, Skeleton } from "@/shared/ui/display";
+import { Avatar, Badge, EmptyState, ErrorState, Skeleton } from "@/shared/ui/display";
 import { PageHeader, TopBar } from "@/shared/ui/layout";
 import { SideSheet } from "@/shared/ui/SideSheet";
 import { SettingsMenu } from "../../../../_components/SettingsMenu";
@@ -101,7 +101,10 @@ export function ProfileScreen({ username }: { username: string }) {
         <div className="flex items-center gap-4">
           <Avatar src={user.profileImageUrl} name={user.nickname} size={72} />
           <div className="min-w-0 flex-1">
-            <h2 className="text-[20px] font-bold">{user.nickname}</h2>
+            <div className="flex items-center gap-1.5">
+              <h2 className="truncate text-[20px] font-bold">{user.nickname}</h2>
+              {user.isCreator && <Badge>크리에이터</Badge>}
+            </div>
             <div className="mt-1 flex gap-3 text-[13px]">
               <span>
                 게시물 <b>{user.postCount}</b>
