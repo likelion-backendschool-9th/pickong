@@ -10,6 +10,7 @@ export interface UserDto {
   followingCount: number;
   isFollowing: boolean;
   isMe: boolean;
+  isCreator: boolean;
 }
 
 export interface UserSummaryDto {

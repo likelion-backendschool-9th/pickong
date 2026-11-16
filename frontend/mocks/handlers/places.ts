@@ -6,6 +6,8 @@ import {
   distanceMeters,
   findPlace,
   findUser,
+  hasPurchased,
+  isLockedCollection,
   ME_ID,
   nextId,
   placeDto,
@@ -27,6 +29,27 @@ const collectionOr404 = (id: string) => {
   if (!c || !canView(c.ownerId, c.visibility)) return notFound("컬렉션");
   return c;
 };
+
+/** 유료 컬렉션 미리보기로 보여 줄 장소 수 */
+const PREVIEW_COUNT = 2;
+const PRICE_MIN = 500;
+const PRICE_MAX = 50000;
+
+/**
+ * 가격 검사: 크리에이터의 전체 공개 컬렉션만 유료로 설정할 수 있습니다.
+ * 없음/0이면 무료(null). 500~50,000원, 100원 단위.
+ */
+function parsePrice(raw: unknown, visibility: string): number | null {
+  if (raw === undefined || raw === null || raw === 0 || raw === "") return null;
+  const me = db.users.find((u) => u.id === ME_ID);
+  if (!me?.isCreator) throw new HttpError(403, "NOT_CREATOR", "크리에이터만 유료 컬렉션을 만들 수 있어요.");
+  if (visibility !== "PUBLIC") throw new HttpError(400, "PAID_MUST_BE_PUBLIC", "유료 컬렉션은 전체 공개로만 판매할 수 있어요.");
+  const price = Number(raw);
+  if (!Number.isInteger(price) || price < PRICE_MIN || price > PRICE_MAX || price % 100 !== 0) {
+    throw new HttpError(400, "BAD_PRICE", `가격은 ${PRICE_MIN.toLocaleString()}원 ~ ${PRICE_MAX.toLocaleString()}원, 100원 단위로 정해 주세요.`);
+  }
+  return price;
+}
 
 const myCollectionOr404 = (id: string) => {
   const c = collectionOr404(id);
@@ -237,6 +260,7 @@ export const placeRoutes: Route[] = [
         visibility: body.visibility ?? "PRIVATE",
         pinColor: body.pinColor ?? "LIME",
         createdAt: new Date().toISOString(),
+        price: parsePrice(body.price, body.visibility ?? "PRIVATE"),
       };
       db.collections.push(row);
       return collectionDto(row);
@@ -248,9 +272,13 @@ export const placeRoutes: Route[] = [
     handler: ({ params }) => {
       const c = collectionOr404(params.id);
       const mine = new Set(mySaved().map((s) => s.placeId));
+      const ids = collectionPlaceIds(c);
+      // 잠긴 유료 컬렉션은 앞의 몇 곳만 미리보기로 보내고, 나머지는 개수만 알려 줍니다.
+      const visible = isLockedCollection(c) ? ids.slice(0, PREVIEW_COUNT) : ids;
       return {
         ...collectionDto(c),
-        places: collectionPlaceIds(c).map((id) => ({ ...placeDto(findPlace(id)!), savedByMe: mine.has(id) })),
+        places: visible.map((id) => ({ ...placeDto(findPlace(id)!), savedByMe: mine.has(id) })),
+        lockedPlaceCount: ids.length - visible.length,
       };
     },
   },
@@ -263,12 +291,39 @@ export const placeRoutes: Route[] = [
       if (typeof body?.description === "string") c.description = body.description;
       if (body?.visibility) c.visibility = body.visibility;
       if (body?.pinColor) c.pinColor = body.pinColor;
+      // 가격: 보내면 다시 검사하고, 공개 범위를 전체 공개가 아니게 바꾸면 무료로 돌립니다.
+      if (body?.price !== undefined) c.price = parsePrice(body.price, c.visibility);
+      else if (c.price && c.visibility !== "PUBLIC") c.price = null;
       // 컬렉션에서 빼기: 저장한 장소 자체는 지우지 않습니다.
       const remove: string[] = body?.removePlaceIds ?? [];
       for (const s of mySaved()) {
         if (remove.includes(s.placeId)) s.collectionIds = s.collectionIds.filter((id) => id !== c.id);
       }
       return collectionDto(c);
+    },
+  },
+  {
+    /**
+     * 유료 컬렉션 구매 (단건). 지금은 테스트 결제만 받습니다.
+     * PG 연결 후에는 결제창 승인 결과(paymentKey 등)를 받아 서버에서 결제 승인 API로 확인한 뒤 기록합니다.
+     */
+    method: "POST",
+    path: "/api/collections/:id/purchase",
+    delay: 700,
+    handler: ({ params, body }) => {
+      const c = collectionOr404(params.id);
+      if (!c.price) throw new HttpError(400, "NOT_FOR_SALE", "판매 중인 컬렉션이 아니에요.");
+      if (c.ownerId === ME_ID) throw new HttpError(400, "OWN_COLLECTION", "내 컬렉션은 구매할 수 없어요.");
+      if (hasPurchased(c.id)) throw new HttpError(409, "ALREADY_PURCHASED", "이미 구매한 컬렉션이에요.");
+      if (body?.method !== "TEST") throw new HttpError(400, "BAD_METHOD", "지금은 테스트 결제만 가능해요.");
+      if (Number(body?.amount) !== c.price) throw new HttpError(409, "PRICE_CHANGED", "가격이 바뀌었어요. 다시 확인해 주세요.");
+      db.purchases.push({ id: nextId("pur"), userId: ME_ID, collectionId: c.id, amount: c.price, method: "TEST", purchasedAt: new Date().toISOString() });
+      const mine = new Set(mySaved().map((s) => s.placeId));
+      return {
+        ...collectionDto(c),
+        places: collectionPlaceIds(c).map((id) => ({ ...placeDto(findPlace(id)!), savedByMe: mine.has(id) })),
+        lockedPlaceCount: 0,
+      };
     },
   },
   {

@@ -8,12 +8,12 @@ import { routes } from "@/shared/config/routes";
 import { Button } from "@/shared/ui/Button";
 import { Notice } from "@/shared/ui/display";
 import { BottomCta, Screen, TopBar } from "@/shared/ui/layout";
-import { CollectionForm, type CollectionFormValue } from "../_components/CollectionForm";
+import { CollectionForm, priceError, type CollectionFormValue } from "../_components/CollectionForm";
 
 export default function NewCollectionPage() {
   const router = useRouter();
   const create = useCreateCollection();
-  const [value, setValue] = useState<CollectionFormValue>({ title: "", description: "", visibility: "PRIVATE", pinColor: "LIME" });
+  const [value, setValue] = useState<CollectionFormValue>({ title: "", description: "", visibility: "PRIVATE", pinColor: "LIME", price: null });
 
   return (
     <Screen>
@@ -25,7 +25,7 @@ export default function NewCollectionPage() {
       <BottomCta>
         <Button
           block
-          disabled={!value.title.trim()}
+          disabled={!value.title.trim() || !!priceError(value.price)}
           loading={create.isPending}
           onClick={() => create.mutate(value, { onSuccess: (c) => router.replace(routes.collection(c.id)) })}
         >

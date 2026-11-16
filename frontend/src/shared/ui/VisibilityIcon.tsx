@@ -4,8 +4,8 @@ import { visibilityLabel, type Visibility } from "@/shared/config/visibility";
 
 type IconProps = Omit<LucideProps, "ref">;
 
-/** 닫힌 자물쇠: 몸통을 채워 작은 크기에서도 잠긴 모양으로 보이게 합니다. */
-function ClosedLock({ size = 24, strokeWidth = 2, className, ...props }: IconProps) {
+/** 닫힌 자물쇠: 몸통을 채워 작은 크기에서도 잠긴 모양으로 보이게 합니다 (비공개 · 유료 잠금 등). */
+export function ClosedLock({ size = 24, strokeWidth = 2, className, ...props }: IconProps) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"

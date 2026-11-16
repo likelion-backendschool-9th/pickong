@@ -53,6 +53,18 @@ export const collections: CollectionRow[] = [
     pinColor: "GREEN",
     createdAt: ago(18),
   },
+  {
+    // 유료 컬렉션 예시: 크리에이터 지민의 큐레이션 (미리보기 2곳 · 구매 후 전체)
+    id: "c-jimin-hidden",
+    ownerId: "u-jimin",
+    title: "성수 숨은 카페 지도",
+    description: "3년 동안 다니며 고른 조용한 카페만 모았어요. 자리 · 콘센트 · 디저트 메모 포함.",
+    coverImageUrl: "/images/photos/cafe.jpg",
+    visibility: "PUBLIC",
+    pinColor: "BROWN",
+    createdAt: ago(5),
+    price: 1900,
+  },
 ];
 
 const saved = (
@@ -98,9 +110,13 @@ export const savedPlaces: SavedPlaceRow[] = [
     source: { type: "POST", refId: "post-4", label: "유진님의 게시물에서 발견" },
   }),
 
-  saved("sp-101", "u-jimin", "p-onyu", ["c-jimin-seongsu"]),
+  saved("sp-101", "u-jimin", "p-onyu", ["c-jimin-seongsu", "c-jimin-hidden"]),
   saved("sp-102", "u-jimin", "p-momo", ["c-jimin-seongsu"]),
-  saved("sp-103", "u-jimin", "p-salt", ["c-jimin-seongsu"]),
+  saved("sp-103", "u-jimin", "p-salt", ["c-jimin-seongsu", "c-jimin-hidden"]),
   saved("sp-104", "u-jimin", "p-forest", ["c-jimin-photo"]),
   saved("sp-105", "u-jimin", "p-forest-view", ["c-jimin-photo"]),
+  saved("sp-106", "u-jimin", "g-1", ["c-jimin-hidden"]),
+  saved("sp-107", "u-jimin", "g-6", ["c-jimin-hidden"]),
+  saved("sp-108", "u-jimin", "g-3", ["c-jimin-hidden"]),
+  saved("sp-109", "u-jimin", "g-9", ["c-jimin-hidden"]),
 ];
