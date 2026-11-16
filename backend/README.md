@@ -1,15 +1,18 @@
 # 찜콩 백엔드
 
-Spring Boot 4.1 · Java 21 · Maven. 지금은 실행 가능한 기본 틀만 있고, API는 아직 없습니다.
+Spring Boot 4.1 · Java 21 · Gradle. 지금은 실행 가능한 기본 틀만 있고, API는 아직 없습니다.
 
 ## 실행
 
 ```bash
-./mvnw spring-boot:run   # http://localhost:8080
-./mvnw test
+./gradlew bootRun   # http://localhost:8080
+./gradlew test
+./gradlew build     # 컴파일 + 테스트 + jar 생성 (build/libs/)
 ```
 
-Maven을 따로 설치하지 않아도 `./mvnw`가 필요한 버전을 내려받습니다. JDK 21이 필요합니다.
+Gradle을 따로 설치하지 않아도 `./gradlew`가 필요한 버전(9.8.2)을 내려받습니다. Windows에서는 `gradlew.bat`을 씁니다. JDK 21이 필요합니다.
+
+의존성은 `build.gradle`의 `dependencies`에 추가합니다. 버전은 Spring Boot가 관리하므로 Boot가 관리하지 않는 라이브러리만 버전을 적습니다.
 
 | 주소 | 내용 |
 | --- | --- |

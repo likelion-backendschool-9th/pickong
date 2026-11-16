@@ -11,10 +11,10 @@ indent_size = 2
 [*.java]
 indent_size = 4
 
-[*.{xml,cmd}]
+[*.gradle]
 indent_size = 4
 
-[*.cmd]
+[*.bat]
 end_of_line = crlf
 
 [*.md]
