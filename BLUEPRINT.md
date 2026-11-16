@@ -949,7 +949,7 @@ entities/plan/model/            # React import 금지. 입력 → 출력만 있�
   - 방문: 그 사용자가 게시물에 연결한 장소를 기록(목록) ↔ 지도로 전환해서 봄 (`GET /api/users/:username/posts`, `GET /api/users/:username/places`, 내가 볼 수 있는 게시물만). 저장한 장소 전체를 다루는 ‘내 지도’와 별개
   - 일정: 곧 떠나는 하루 + 지난 일정(방문 기록). 본인만 조회. `/plans`는 내 프로필 일정 탭으로 이동
 - [껍데기] DM (1:1 메시지): 대화 목록(`/messages`, 대화 · 사람 검색) · 대화방(`/messages/[conversationId]`), 게시물 · 장소 공유 카드, 입력창 + 버튼으로 사진 · 장소 첨부, 프로필의 ‘메시지’ 버튼이나 검색으로 시작
-  - API: `GET/POST /api/conversations`, `GET /api/conversations/:id`, `GET/POST /api/conversations/:id/messages` (목록 조회 시 읽음 처리, 보낼 때 `attachment: { type: "IMAGE", url } | { type: "PLACE", placeId }`). 사진은 업로드 API 연결 전까지 브라우저 임시 URL
+  - API: `GET/POST /api/conversations`, `GET /api/conversations/unread-count`(하단바 배지), `GET /api/conversations/:id`, `GET/POST /api/conversations/:id/messages` (목록 조회 시 읽음 처리, 보낼 때 `attachment: { type: "IMAGE", url } | { type: "PLACE", placeId }`). 사진은 업로드 API 연결 전까지 브라우저 임시 URL
   - 실시간 연결 전까지 열린 대화방은 5초마다 새 메시지를 확인
 - [껍데기] 팔로우 / 언팔로우, 팔로워·팔로잉 목록
 - 프로필 편집 (사진, 소개)

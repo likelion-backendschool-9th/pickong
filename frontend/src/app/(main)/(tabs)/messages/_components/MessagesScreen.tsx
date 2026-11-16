@@ -1,6 +1,6 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { SquarePen } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -18,8 +18,10 @@ import { cn } from "@/shared/lib/cn";
 import { formatRelative } from "@/shared/lib/date";
 import { useDebounced } from "@/shared/lib/useDebounced";
 import { Avatar, EmptyState, ErrorState, SectionTitle, Skeleton, Spinner } from "@/shared/ui/display";
-import { Input } from "@/shared/ui/form";
+import { SearchInput } from "@/shared/ui/form";
+import { PageHeader } from "@/shared/ui/layout";
 import { useToast } from "@/shared/ui/Toast";
+import { NewMessageSheet } from "./NewMessageSheet";
 
 /**
  * DM 대화 목록: 최근 메시지 순, 안 읽은 대화는 굵게 + 개수 배지.
@@ -28,6 +30,7 @@ import { useToast } from "@/shared/ui/Toast";
 export function MessagesScreen() {
   const { data, isPending, isError, error, refetch } = useConversations();
   const [query, setQuery] = useState("");
+  const [composing, setComposing] = useState(false);
   // 사용자 검색 요청은 입력을 멈추고 잠시 뒤에 보냅니다.
   const debounced = useDebounced(query.trim());
   const searching = query.trim().length > 0;
@@ -35,21 +38,23 @@ export function MessagesScreen() {
   return (
     <div>
       <header className="sticky top-0 z-30 bg-bg">
-        <div className="flex h-[52px] items-center px-5">
-          <h1 className="text-[20px] font-bold">메시지</h1>
-        </div>
-        <div className="px-4 pb-3">
-          <div className="relative">
-            <Search size={18} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-ink-faint" />
-            <Input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="이름 · 아이디 · 메시지 검색"
-              aria-label="대화와 사람 검색"
-              className="h-11 pl-10"
-            />
-          </div>
+        <PageHeader
+          label="Messages"
+          title="메시지"
+          right={
+            <button
+              type="button"
+              onClick={() => setComposing(true)}
+              aria-label="새 메시지"
+              aria-haspopup="dialog"
+              className="inline-flex size-10 items-center justify-center rounded-full text-ink active:bg-fill"
+            >
+              <SquarePen size={21} strokeWidth={1.8} />
+            </button>
+          }
+        />
+        <div className="px-5 pt-4 pb-3">
+          <SearchInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder="이름 · 아이디 · 메시지 검색" aria-label="대화와 사람 검색" />
         </div>
       </header>
 
@@ -71,6 +76,7 @@ export function MessagesScreen() {
       ) : (
         <ConversationList conversations={data} />
       )}
+      <NewMessageSheet open={composing} onClose={() => setComposing(false)} />
     </div>
   );
 }

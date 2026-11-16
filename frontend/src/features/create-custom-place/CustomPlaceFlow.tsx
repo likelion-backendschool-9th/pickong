@@ -21,16 +21,27 @@ interface CustomPlaceFlowProps {
   submitLabel?: string;
   /** 입력 단계 하단에 추가로 보여줄 내용 (예: 컬렉션 선택) */
   extra?: ReactNode;
+  /** 바깥에서 이미 위치를 골랐으면 지도 단계를 건너뛰고 바로 입력 단계로 */
+  location?: LatLng;
+  /** 위치를 바깥에서 고른 경우 ‘좌표 다시 선택’을 눌렀을 때 */
+  onRepick?: () => void;
 }
 
 /**
  * 미등록 장소 직접 추가: 지도에서 좌표 확정 → 이름·설명·사진·공개 범위 입력.
  * 개인 좌표로 만든 장소는 비공개가 기본값입니다.
  */
-export function CustomPlaceFlow({ onCreated, initialName = "", submitLabel = "내 지도에 저장", extra }: CustomPlaceFlowProps) {
-  const [step, setStep] = useState<"pick" | "form">("pick");
-  const [center, setCenter] = useState<LatLng>(DEFAULT_CENTER);
-  const [confirmed, setConfirmed] = useState<LatLng | null>(null);
+export function CustomPlaceFlow({
+  onCreated,
+  initialName = "",
+  submitLabel = "내 지도에 저장",
+  extra,
+  location,
+  onRepick,
+}: CustomPlaceFlowProps) {
+  const [step, setStep] = useState<"pick" | "form">(location ? "form" : "pick");
+  const [center, setCenter] = useState<LatLng>(location ?? DEFAULT_CENTER);
+  const [confirmed, setConfirmed] = useState<LatLng | null>(location ?? null);
 
   if (step === "pick" || !confirmed) {
     return (
@@ -69,7 +80,7 @@ export function CustomPlaceFlow({ onCreated, initialName = "", submitLabel = "�
   return (
     <DetailsForm
       location={confirmed}
-      onRepick={() => setStep("pick")}
+      onRepick={onRepick ?? (() => setStep("pick"))}
       onCreated={onCreated}
       initialName={initialName}
       submitLabel={submitLabel}

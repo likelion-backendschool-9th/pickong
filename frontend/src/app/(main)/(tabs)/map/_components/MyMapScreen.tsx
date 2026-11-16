@@ -1,6 +1,6 @@
 "use client";
 
-import { FolderHeart, List, Map as MapIcon, Search, SlidersHorizontal } from "lucide-react";
+import { Folder, List, Map as MapIcon, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -8,9 +8,10 @@ import { useMyCollections } from "@/entities/collection";
 import { CATEGORY_LABEL, FILTER_CATEGORIES, useMapCategories, useSavedPlaces, type Place, type PlaceCategory } from "@/entities/place";
 import { errorMessage } from "@/shared/api/errors";
 import { routes } from "@/shared/config/routes";
-import { CheckMark, Chip } from "@/shared/ui/controls";
+import { Chip, Switch } from "@/shared/ui/controls";
 import { ErrorState, Skeleton } from "@/shared/ui/display";
-import { Input } from "@/shared/ui/form";
+import { SearchInput } from "@/shared/ui/form";
+import { PageHeader } from "@/shared/ui/layout";
 import { EMPTY_FILTER, filterSavedPlaces, type SavedPlaceFilter } from "../_lib/filterSavedPlaces";
 import { CategoryChipEditor } from "./CategoryChipEditor";
 import { MyMapView } from "./MyMapView";
@@ -51,56 +52,50 @@ export function MyMapScreen() {
   return (
     <div>
       <header className="sticky top-0 z-30 bg-bg">
-        <div className="flex h-[52px] items-center px-4">
-          <h1 className="text-[20px] font-bold">내 지도</h1>
-          <Link href={routes.collections()} className="ml-auto inline-flex h-9 items-center gap-1 rounded-full px-3 text-[13px] font-bold text-primary-deep active:bg-soft">
-            <FolderHeart size={16} /> 컬렉션
-          </Link>
+        <PageHeader
+          label="My Map"
+          title="내 지도"
+          right={
+            <Link href={routes.collections()} className="inline-flex h-9 items-center gap-1.5 rounded-full px-2 text-[14px] font-bold text-primary-deep active:bg-accent-soft">
+              <Folder size={17} strokeWidth={1.9} /> 컬렉션
+            </Link>
+          }
+        />
+        <div className="px-5 pt-4">
+          <SearchInput
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPicked(null);
+            }}
+            placeholder={savedOnly ? "저장한 장소 검색" : "장소 · 지역 검색"}
+            aria-label={savedOnly ? "저장한 장소 검색" : "장소 검색"}
+          />
+          <Switch
+            label="저장한 곳만"
+            checked={savedOnly}
+            onChange={(v) => {
+              setSavedOnly(v);
+              setPicked(null);
+            }}
+            className="mt-1.5"
+          />
         </div>
-        <div className="px-4">
-          <div className="relative">
-            <Search size={18} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-ink-faint" />
-            <Input
-              type="search"
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setPicked(null);
-              }}
-              placeholder={savedOnly ? "저장한 장소 검색" : "장소 · 지역 검색"}
-              aria-label={savedOnly ? "저장한 장소 검색" : "장소 검색"}
-              className="h-11 pr-[104px] pl-10"
-            />
-            <button
-              type="button"
-              role="checkbox"
-              aria-checked={savedOnly}
-              onClick={() => {
-                setSavedOnly((v) => !v);
-                setPicked(null);
-              }}
-              className="absolute top-1/2 right-1.5 flex h-8 -translate-y-1/2 items-center gap-1.5 rounded-full px-2 text-[12px] font-bold text-ink-sub active:bg-fill"
-            >
-              <CheckMark checked={savedOnly} />
-              저장한 곳만
-            </button>
-          </div>
-        </div>
-        <div className="scrollbar-none flex gap-2 overflow-x-auto px-4 pt-3">
-          <Chip selected={filter.collectionId === "ALL"} onClick={() => set({ collectionId: "ALL" })}>
+        <div className="scrollbar-none flex gap-2 overflow-x-auto px-5 pt-1.5">
+          <Chip variant="solid" className="h-9 px-4 text-[14px]" selected={filter.collectionId === "ALL"} onClick={() => set({ collectionId: "ALL" })}>
             전체 {saved?.length ?? ""}
           </Chip>
           {collections.map((c) => (
-            <Chip key={c.id} selected={filter.collectionId === c.id} onClick={() => set({ collectionId: c.id })}>
+            <Chip key={c.id} variant="solid" className="h-9 px-4 text-[14px]" selected={filter.collectionId === c.id} onClick={() => set({ collectionId: c.id })}>
               {c.title}
             </Chip>
           ))}
-          <Chip selected={filter.collectionId === "NONE"} onClick={() => set({ collectionId: "NONE" })}>
+          <Chip variant="solid" className="h-9 px-4 text-[14px]" selected={filter.collectionId === "NONE"} onClick={() => set({ collectionId: "NONE" })}>
             컬렉션 없음
           </Chip>
         </div>
-        <div className="flex items-center gap-2 px-4 py-2.5">
-          <div className="scrollbar-none flex min-w-0 flex-1 gap-1.5 overflow-x-auto">
+        <div className="mt-2 flex items-center gap-2 border-b border-line pr-3 pl-5">
+          <div className="scrollbar-none flex min-w-0 flex-1 gap-5 overflow-x-auto">
             <CategoryChip active={filter.category === "ALL"} onClick={() => set({ category: "ALL" })}>전체</CategoryChip>
             {chipCategories.map((c) => (
               <CategoryChip key={c} active={filter.category === c} onClick={() => set({ category: c })}>
@@ -111,14 +106,19 @@ export function MyMapScreen() {
               type="button"
               onClick={() => setEditingChips(true)}
               aria-label="카테고리 칩 편집"
-              className="inline-flex h-7 shrink-0 items-center rounded-md px-2 text-ink-sub active:bg-fill"
+              className="inline-flex h-11 shrink-0 items-center px-1 text-ink-sub active:text-ink"
             >
               <SlidersHorizontal size={15} />
             </button>
           </div>
-          <Chip onClick={() => setView(view === "map" ? "list" : "map")} icon={view === "map" ? <List size={14} /> : <MapIcon size={14} />}>
+          <button
+            type="button"
+            onClick={() => setView(view === "map" ? "list" : "map")}
+            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-accent-soft px-3 text-[13px] font-bold text-primary-deep active:brightness-95"
+          >
+            {view === "map" ? <List size={14} /> : <MapIcon size={14} />}
             {view === "map" ? "목록" : "지도"}
-          </Chip>
+          </button>
         </div>
       </header>
 
@@ -132,7 +132,7 @@ export function MyMapScreen() {
           }}
         />
       ) : isPending ? (
-        <Skeleton className="h-[calc(100dvh-260px)] rounded-none" />
+        <Skeleton className="h-[calc(100dvh-345px)] rounded-none" />
       ) : isError ? (
         <ErrorState message={errorMessage(error)} onRetry={() => refetch()} />
       ) : view === "map" ? (
@@ -154,6 +154,7 @@ export function MyMapScreen() {
   );
 }
 
+/** 카테고리: 선택한 항목만 초록 글씨 + 밑줄 */
 function CategoryChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
@@ -162,11 +163,12 @@ function CategoryChip({ active, onClick, children }: { active: boolean; onClick:
       aria-pressed={active}
       className={
         active
-          ? "h-7 shrink-0 rounded-md bg-selected px-2.5 text-[12px] font-bold text-primary-deep"
-          : "h-7 shrink-0 rounded-md px-2.5 text-[12px] text-ink-sub active:bg-fill"
+          ? "relative h-11 shrink-0 text-[14px] font-bold text-primary-deep"
+          : "relative h-11 shrink-0 text-[14px] text-ink-sub active:text-ink"
       }
     >
       {children}
+      {active && <span className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-primary-deep" aria-hidden />}
     </button>
   );
 }

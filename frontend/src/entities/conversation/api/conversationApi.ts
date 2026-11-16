@@ -5,6 +5,7 @@ import { toConversation, toMessage } from "./mapper";
 
 export const conversationApi = {
   list: async () => (await http.get<ConversationDto[]>("/conversations")).map(toConversation),
+  unreadCount: async () => (await http.get<{ count: number }>("/conversations/unread-count")).count,
   get: async (id: string) => toConversation(await http.get<ConversationDto>(`/conversations/${id}`)),
   /** 상대와의 대화방을 열거나 새로 만듭니다. */
   start: async (username: string) => toConversation(await http.post<ConversationDto>("/conversations", { username })),

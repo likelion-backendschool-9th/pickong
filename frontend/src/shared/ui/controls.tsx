@@ -9,19 +9,25 @@ import { cn } from "@/shared/lib/cn";
 interface ChipProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   selected?: boolean;
   icon?: ReactNode;
+  /** solid: 선택 시 먹색 배경 + 흰 글씨, 나머지는 흰 배경 + 옅은 테두리 (내 지도 컬렉션 등) */
+  variant?: "default" | "solid";
 }
 
 /** 필터·칩. 선택 상태는 라임 크림 배경 + 딥 그린 텍스트 */
-export function Chip({ selected, icon, className, children, type = "button", ...rest }: ChipProps) {
+export function Chip({ selected, icon, className, children, type = "button", variant = "default", ...rest }: ChipProps) {
   return (
     <button
       type={type}
       aria-pressed={selected}
       className={cn(
         "inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-3 text-[13px] whitespace-nowrap transition-colors",
-        selected
-          ? "border-primary-deep/25 bg-selected font-bold text-primary-deep"
-          : "border-line bg-bg text-ink-sub active:bg-fill",
+        variant === "solid"
+          ? selected
+            ? "border-ink bg-ink font-bold text-white"
+            : "border-line bg-bg text-ink active:bg-fill"
+          : selected
+            ? "border-primary-deep/25 bg-selected font-bold text-primary-deep"
+            : "border-line bg-bg text-ink-sub active:bg-fill",
         className,
       )}
       {...rest}
@@ -148,11 +154,11 @@ export function Tabs<T extends string>({ items, value, onChange, className, size
             className={cn(
               "relative h-10 shrink-0",
               size === "md" ? "text-[15px]" : "text-[13px]",
-              active ? "font-bold text-ink" : "text-ink-faint",
+              active ? "font-bold text-ink" : "font-normal text-ink-sub",
             )}
           >
             {item.label}
-            {active && <span className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-primary" />}
+            {active && <span className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-primary-deep" />}
           </button>
         );
       })}
@@ -197,5 +203,30 @@ export function Stepper({ value, onChange, step = 10, min = 10, max = 600, forma
         <Plus size={16} />
       </button>
     </div>
+  );
+}
+
+/* ── Switch (켬/끔) ───────────────────────────────── */
+
+/** 작은 켬/끔 스위치. 라벨을 누르거나 스위치를 눌러 바꿉니다. */
+export function Switch({ checked, onChange, label, className }: { checked: boolean; onChange: (v: boolean) => void; label: string; className?: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={cn("inline-flex h-8 items-center gap-2 text-[13px] text-ink-sub", className)}
+    >
+      {label}
+      <span className={cn("relative h-[18px] w-8 rounded-full transition-colors", checked ? "bg-primary-deep" : "bg-line")} aria-hidden>
+        <span
+          className={cn(
+            "absolute top-[2px] left-[2px] size-[14px] rounded-full bg-white shadow-sm transition-transform",
+            checked && "translate-x-[14px]",
+          )}
+        />
+      </span>
+    </button>
   );
 }

@@ -3,6 +3,7 @@
 import { ChevronRight, MapPin, Search } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { categoryLabel, usePlaceSearch, type Place } from "@/entities/place";
+import { cn } from "@/shared/lib/cn";
 import { Spinner } from "@/shared/ui/display";
 import { Input } from "@/shared/ui/form";
 import { useDebounced } from "@/shared/lib/useDebounced";
@@ -18,6 +19,8 @@ interface PlaceSearchPanelProps {
   footer?: ReactNode;
   autoFocus?: boolean;
   initialQuery?: string;
+  /** 결과를 상위 4개 높이까지만 보여 주고 나머지는 스크롤 (아래 내용이 보이도록) */
+  compactResults?: boolean;
 }
 
 /** 장소 검색: 게시물 장소 연결 · 직접 추가 · 예약 장소 · 링크 후보 위치 수정에서 공통 사용 */
@@ -29,6 +32,7 @@ export function PlaceSearchPanel({
   footer,
   autoFocus,
   initialQuery = "",
+  compactResults = false,
 }: PlaceSearchPanelProps) {
   const [query, setQuery] = useState(initialQuery);
   const debounced = useDebounced(query.trim());
@@ -50,7 +54,7 @@ export function PlaceSearchPanel({
         {isFetching && <Spinner className="absolute top-1/2 right-3.5 size-4 -translate-y-1/2" />}
       </div>
 
-      <div className="mt-4">
+      <div className={cn(compactResults ? "mt-2 max-h-[232px] overflow-y-auto overscroll-contain" : "mt-4")}>
         {!debounced && recent.length > 0 && (
           <>
             <h3 className="mb-1 text-[13px] font-bold">{recentTitle}</h3>

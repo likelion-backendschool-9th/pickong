@@ -83,6 +83,14 @@ export const messageRoutes: Route[] = [
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
   },
   {
+    /** 안 읽은 메시지 수 (하단바 배지) */
+    method: "GET",
+    path: "/api/conversations/unread-count",
+    handler: () => ({
+      count: db.conversations.filter((c) => c.memberIds.includes(ME_ID)).reduce((sum, c) => sum + conversationDto(c).unreadCount, 0),
+    }),
+  },
+  {
     /** 대화 시작: 상대와의 대화방이 있으면 그대로, 없으면 새로 만듭니다. */
     method: "POST",
     path: "/api/conversations",

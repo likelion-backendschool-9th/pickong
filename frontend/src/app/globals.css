@@ -9,18 +9,19 @@
   --color-bg: #ffffff; /* 메인 배경: 화면·바텀시트·헤더·하단 내비게이션 */
   --color-soft: #f7fceb; /* 라임 화이트: 설명 영역·안내 카드·위치 확인 배경 */
   --color-selected: #f1fad9; /* 라임 크림: 체크박스 선택 배경·선택된 칩·작은 선택 요소 */
-  --color-fill: #f3f4f1; /* 중립 채움: 비활성·스켈레톤·입력창 */
+  --color-fill: #f5f6f3; /* 중립 채움: 검색창·비활성·스켈레톤 */
+  --color-accent-soft: #f0f6e7; /* 연한 초록: 보조 버튼 배경 (피드 지도 버튼 등) */
 
   /* 브랜드 */
-  --color-primary: #84cc16; /* 메인 라임그린: 주요 CTA·브랜드 포인트·선택된 핀 */
-  --color-primary-deep: #4d7c0f; /* 딥 그린: 체크 표시·연한 라임 위 강조 텍스트·선택 아이콘 */
+  --color-primary: #86cb16; /* 연두 포인트: 주요 CTA·브랜드 점·선택된 핀 */
+  --color-primary-deep: #517c26; /* 초록 강조: 영문 라벨·선택 탭 밑줄·강조 텍스트·선택 아이콘 */
   --color-on-primary: #1a2e05; /* 라임그린 위 텍스트 (흰색보다 대비가 충분함) */
 
   /* 텍스트·선 */
-  --color-ink: #1b1e18; /* 본문 */
+  --color-ink: #20251f; /* 주요 글자 · 선택된 컬렉션 */
   --color-ink-sub: #5d6357; /* 부가 설명 */
   --color-ink-faint: #9aa093; /* 메타·비활성 텍스트 */
-  --color-line: #e7eae3; /* 구분선·테두리 */
+  --color-line: #e9ece6; /* 구분선·테두리 */
 
   /* 의미 색상 — 일반 선택 상태(라임)와 구분 */
   --color-warning: #b45309;
@@ -35,6 +36,9 @@
   --color-map-water: #d7e6ee;
 
   --font-sans: var(--font-noto), system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
+  /* 화면 제목 타이포: 기능 제목(한글) · 영문(라벨 · 닉네임) */
+  --font-title: var(--font-plex), var(--font-noto), system-ui, sans-serif;
+  --font-latin: var(--font-inter), system-ui, sans-serif;
 
   --radius-card: 12px;
   --radius-control: 10px;
