@@ -7,7 +7,7 @@ export const users: UserRow[] = [
     id: "u-seoyeon",
     username: "seoyeon",
     nickname: "서연",
-    profileImageUrl: "/images/photos/street.jpg",
+    profileImageUrl: "/images/profiles/seoyeon.jpg",
     bio: "좋아하는 장소를 천천히 모아요.\n서울 · 카페와 산책을 좋아해요.",
     region: "서울",
     postCount: 24,
