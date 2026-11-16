@@ -8,6 +8,7 @@
 ```
 pickong/
 ├── README.md                    저장소 안내 (이 문서)
+├── AGENT.md                     공통 개발 규칙 (브랜치 · 커밋 · PR · 빌드)
 ├── BLUEPRINT.md                 프론트엔드 설계 문서
 ├── .gitignore                   공통 무시 규칙 (OS · IDE · 로그 · 환경변수)
 ├── .editorconfig                공통 에디터 설정 (인코딩 · 줄바꿈 · 들여쓰기)
@@ -26,12 +27,14 @@ pickong/
 │   ├── public/                  정적 파일 (예시 사진)
 │   └── README.md                프론트 실행 · mock 전환 · 폴더 설명
 │
-└── backend/                     Spring Boot 4.1 · Java 21 · Maven
+└── backend/                     Spring Boot 4.1 · Java 21 · Gradle
     ├── src/main/java/com/pickong/
     ├── src/main/resources/      application.yml
     ├── src/test/java/com/pickong/
-    ├── pom.xml
-    ├── mvnw                     Maven Wrapper (Maven 설치 없이 실행)
+    ├── build.gradle             의존성 · 빌드 설정
+    ├── settings.gradle          프로젝트 이름
+    ├── gradlew                  Gradle Wrapper (Gradle 설치 없이 실행, Windows는 gradlew.bat)
+    ├── gradle/wrapper/          Wrapper가 내려받을 Gradle 버전 (9.8.2)
     └── README.md                백엔드 실행 · 프론트와 맞출 API 계약
 ```
 
@@ -42,7 +45,7 @@ pickong/
 | 대상 | 명령 | 주소 |
 | --- | --- | --- |
 | 프론트 + mock API | `cd frontend && npm install && npm run dev` | http://localhost:3000 (mock: 4000) |
-| 백엔드 | `cd backend && ./mvnw spring-boot:run` | http://localhost:8080 |
+| 백엔드 | `cd backend && ./gradlew bootRun` | http://localhost:8080 |
 
 백엔드 API가 준비되기 전까지 프론트는 mock API로 동작합니다. 연결 방법은 [frontend/README.md](frontend/README.md)와 [backend/README.md](backend/README.md)에 있습니다.
 
