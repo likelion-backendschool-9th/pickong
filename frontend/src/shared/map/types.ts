@@ -1,6 +1,6 @@
-import type { LatLng } from "@/shared/lib/geo";
+import type { LatLng, LatLngBounds } from "@/shared/lib/geo";
 
-export type { LatLng };
+export type { LatLng, LatLngBounds };
 
 export type MarkerTone = "primary" | "muted" | "fixed";
 

@@ -52,7 +52,7 @@ export function FeedScreen() {
         </div>
       </header>
 
-      {mode === "map" ? <FeedMap /> : <FeedList tab={tab} />}
+      {mode === "map" ? <FeedMap tab={tab} /> : <FeedList tab={tab} />}
     </div>
   );
 }

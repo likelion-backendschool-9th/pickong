@@ -1,2 +1,2 @@
 export { MapView } from "./Map";
-export type { LatLng, MapMarker, MarkerTone } from "./types";
+export type { LatLng, LatLngBounds, MapMarker, MarkerTone } from "./types";

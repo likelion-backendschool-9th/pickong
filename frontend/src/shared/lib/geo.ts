@@ -3,6 +3,19 @@ export interface LatLng {
   lng: number;
 }
 
+/** 지도 화면에 보이는 범위 */
+export interface LatLngBounds {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+}
+
+/** 좌표가 범위 안에 있는지 */
+export function inBounds(p: LatLng, b: LatLngBounds): boolean {
+  return p.lat <= b.north && p.lat >= b.south && p.lng <= b.east && p.lng >= b.west;
+}
+
 /** 두 좌표 사이 직선거리 (m) */
 export function distanceMeters(a: LatLng, b: LatLng): number {
   const R = 6_371_000;

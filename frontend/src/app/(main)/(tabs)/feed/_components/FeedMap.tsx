@@ -1,57 +1,130 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
+import { X } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
-import { categoryLabel } from "@/entities/place";
-import { useFeedPlaces } from "@/entities/post";
+import { useMemo, useState } from "react";
+import { categoryLabel, type Place } from "@/entities/place";
+import { useFeed, useFeedPlaces, type FeedTab, type Post } from "@/entities/post";
 import { SavePlaceButton } from "@/features/save-place";
 import { routes } from "@/shared/config/routes";
+import { formatRelative } from "@/shared/lib/date";
+import { inBounds, type LatLngBounds } from "@/shared/lib/geo";
 import { MapView } from "@/shared/map";
-import { Skeleton, Thumb } from "@/shared/ui/display";
+import { Avatar, EmptyState, Skeleton, Thumb } from "@/shared/ui/display";
+
+const TAB_LABEL: Record<FeedTab, string> = { following: "팔로잉", recommended: "추천" };
 
 /**
- * 피드 지도: 공개 게시물에 연결된 장소를 탐색합니다.
+ * 피드 지도: 지금 탭(팔로잉 · 추천)의 게시물에 연결된 장소를 지도에 띄우고,
+ * 지도 화면에 보이는 지역의 게시물을 아래에 모두 보여 줍니다. 지도를 움직이면 목록도 바뀝니다.
  * 내가 저장한 장소를 관리하는 ‘내 지도’와는 다른 데이터입니다.
  */
-export function FeedMap() {
-  const { data, isPending } = useFeedPlaces();
+export function FeedMap({ tab }: { tab: FeedTab }) {
+  const { data: places, isPending: placesPending } = useFeedPlaces(tab);
+  const { data: posts, isPending: postsPending } = useFeed(tab);
+  const [bounds, setBounds] = useState<LatLngBounds | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = data?.find((d) => d.place.id === selectedId) ?? null;
 
-  if (isPending) return <Skeleton className="h-[calc(100dvh-190px)] rounded-none" />;
+  const selected = places?.find((d) => d.place.id === selectedId) ?? null;
+
+  /** 지도에 보이는 장소 (장소를 고르면 그 장소만) */
+  const visiblePlaces = useMemo(() => {
+    if (!places) return [];
+    if (selected) return [selected];
+    return bounds ? places.filter((d) => inBounds(d.place.location, bounds)) : places;
+  }, [places, bounds, selected]);
+
+  /** 보이는 장소가 나온 게시물 (최신순, 중복 없이) + 그 게시물에서 보이는 장소 */
+  const visiblePosts = useMemo(() => {
+    if (!posts) return [];
+    const placeById = new Map(visiblePlaces.map((d) => [d.place.id, d.place]));
+    return posts
+      .map((post) => ({ post, places: post.places.filter((p) => placeById.has(p.id)) }))
+      .filter((row) => row.places.length > 0);
+  }, [posts, visiblePlaces]);
+
+  if (placesPending || postsPending) return <Skeleton className="h-[calc(100dvh-190px)] rounded-none" />;
 
   return (
-    <div className="relative">
-      <div className="absolute top-3 left-3 z-10 rounded-full bg-white/95 px-3 py-1.5 text-[12px] font-bold text-ink shadow-sm">
-        피드 지도 · 공개 게시물의 장소 {data?.length ?? 0}곳
-      </div>
-      <MapView
-        className="h-[calc(100dvh-190px)] min-h-[420px]"
-        markers={(data ?? []).map((d) => ({
-          id: d.place.id,
-          position: d.place.location,
-          label: String(d.postCount),
-          title: d.place.name,
-        }))}
-        selectedId={selectedId}
-        onMarkerClick={setSelectedId}
-      />
-      {selected && (
-        <div className="absolute inset-x-3 bottom-3 z-10 flex items-center gap-3 rounded-card bg-bg p-3 shadow-[0_2px_12px_rgba(0,0,0,0.12)]">
-          <Thumb src={selected.place.imageUrl} alt="" className="size-14" />
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-[15px] font-bold">{selected.place.name}</div>
-            <div className="text-[12px] text-ink-sub">
-              {selected.place.region} · {categoryLabel(selected.place.category)}
-            </div>
-            <Link href={routes.post(selected.postIds[0])} className="mt-1 inline-flex items-center text-[12px] font-bold text-primary-deep">
-              게시물 {selected.postCount}개 보기 <ChevronRight size={14} />
-            </Link>
-          </div>
-          <SavePlaceButton place={selected.place} withLabel source={{ type: "POST", refId: selected.postIds[0], label: "피드 지도에서 발견" }} />
+    <div>
+      <div className="relative">
+        <div className="absolute top-3 left-3 z-10 rounded-full bg-white/95 px-3 py-1.5 text-[12px] font-bold text-ink shadow-sm">
+          {TAB_LABEL[tab]} 게시물의 장소 {places?.length ?? 0}곳
         </div>
-      )}
+        <MapView
+          className="h-[52dvh] min-h-[320px]"
+          markers={(places ?? []).map((d) => ({
+            id: d.place.id,
+            position: d.place.location,
+            label: String(d.postCount),
+            title: d.place.name,
+          }))}
+          selectedId={selectedId}
+          onMarkerClick={(id) => setSelectedId((cur) => (cur === id ? null : id))}
+          onBoundsChange={setBounds}
+          ariaLabel={`${TAB_LABEL[tab]} 피드 지도`}
+        />
+        {selected && (
+          <div className="absolute inset-x-3 bottom-3 z-10 flex items-center gap-3 rounded-card bg-bg p-3 shadow-[0_2px_12px_rgba(0,0,0,0.12)]">
+            <Thumb src={selected.place.imageUrl} alt="" className="size-14" />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[15px] font-bold">{selected.place.name}</div>
+              <div className="text-[12px] text-ink-sub">
+                {selected.place.region} · {categoryLabel(selected.place.category)} · 게시물 {selected.postCount}개
+              </div>
+            </div>
+            <SavePlaceButton place={selected.place} withLabel source={{ type: "POST", refId: selected.postIds[0], label: "피드 지도에서 발견" }} />
+            <button
+              type="button"
+              onClick={() => setSelectedId(null)}
+              aria-label="장소 선택 해제"
+              className="-mr-1 inline-flex size-9 shrink-0 items-center justify-center rounded-full text-ink-sub active:bg-fill"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      <section aria-live="polite">
+        <h2 className="px-4 pt-4 pb-1 text-[14px] font-bold">
+          {selected ? `${selected.place.name}의 게시물` : "지도에 보이는 지역의 게시물"}{" "}
+          <span className="text-primary-deep">{visiblePosts.length}</span>
+        </h2>
+        {visiblePosts.length === 0 ? (
+          <EmptyState
+            title={tab === "following" ? "이 지역에는 팔로잉한 사람의 게시물이 없어요" : "이 지역에는 추천 게시물이 없어요"}
+            description="지도를 움직이거나 축소해 보세요."
+          />
+        ) : (
+          <ul className="divide-y divide-line">
+            {visiblePosts.map(({ post, places: here }) => (
+              <li key={post.id}>
+                <MapPostRow post={post} places={here} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
+  );
+}
+
+/** 지도 아래 게시물 한 줄: 이 지역 장소가 연결된 사진 · 작성자 · 장소 · 본문 첫 줄 */
+function MapPostRow({ post, places }: { post: Post; places: Place[] }) {
+  const photo = post.photos.find((ph) => ph.placeId && places.some((p) => p.id === ph.placeId)) ?? post.photos[0];
+  return (
+    <Link href={routes.post(post.id)} className="flex gap-3 px-4 py-3 active:bg-fill">
+      <Thumb src={photo.url} alt="" className="size-[72px] rounded-card" />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <Avatar src={post.author.profileImageUrl} name={post.author.nickname} size={20} />
+          <span className="truncate text-[13px] font-bold">{post.author.nickname}</span>
+          <span className="shrink-0 text-[12px] text-ink-faint">· {formatRelative(post.createdAt)}</span>
+        </div>
+        <p className="mt-1 truncate text-[12px] font-bold text-primary-deep">{places.map((p) => p.name).join(" · ")}</p>
+        <p className="mt-0.5 truncate text-[13px] text-ink-sub">{post.content.split("\n")[0]}</p>
+      </div>
+    </Link>
   );
 }
