@@ -17,15 +17,18 @@ const MIN_SPIN = 500;
  * 당겨서 새로고침 (터치).
  * 페이지가 맨 위일 때 아래로 당겼다 놓으면 onRefresh를 실행합니다.
  * 가로로 움직이기 시작한 손가락(사진 넘기기)은 무시합니다.
+ * refreshSignal 값이 바뀌면 당겼다 놓은 것과 같은 모습으로 새로고침합니다 (홈 버튼 다시 누르기 등).
  */
 export function PullToRefresh({
   onRefresh,
   children,
   disabled,
+  refreshSignal = 0,
 }: {
   onRefresh: () => Promise<unknown>;
   children: ReactNode;
   disabled?: boolean;
+  refreshSignal?: number;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [pull, setPull] = useState(0);
@@ -37,6 +40,30 @@ export function PullToRefresh({
   useEffect(() => {
     onRefreshRef.current = onRefresh;
   });
+
+  // 외부 신호로 새로고침: 당긴 위치에 표시를 띄우고 새로고침이 끝나면 접습니다.
+  useEffect(() => {
+    if (!refreshSignal) return;
+    let cancelled = false;
+    const run = async () => {
+      pullRef.current = THRESHOLD * 0.75;
+      setPull(THRESHOLD * 0.75);
+      setRefreshing(true);
+      try {
+        await Promise.all([onRefreshRef.current(), new Promise((r) => setTimeout(r, MIN_SPIN))]);
+      } finally {
+        if (!cancelled) {
+          setRefreshing(false);
+          pullRef.current = 0;
+          setPull(0);
+        }
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshSignal]);
 
   useEffect(() => {
     const el = rootRef.current;

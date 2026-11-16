@@ -2,18 +2,22 @@
 
 import { House, Map as MapIcon, Plus, Send, UserRound } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useUnreadMessageCount } from "@/entities/conversation";
 import { useMe } from "@/entities/user";
 import { routes } from "@/shared/config/routes";
 import { cn } from "@/shared/lib/cn";
+import { emitHomeReselect } from "@/shared/lib/events";
 import { ComposeMenu } from "./ComposeMenu";
 
 /** 하단 내비게이션: 홈 / 내 지도 / 추가(+) / DM / 프로필 (일정은 내 프로필의 일정 탭) */
 export function BottomTabBar() {
   const pathname = usePathname();
+  const params = useSearchParams();
   const { data: me } = useMe();
+  /** 이미 피드 목록을 보고 있을 때 홈을 누르면: 이동 대신 맨 위로 + 새로고침 */
+  const onFeedList = pathname === routes.feed() && params.get("view") !== "map";
   const [composeOpen, setComposeOpen] = useState(false);
   const unread = useUnreadMessageCount();
   const profileHref = me ? routes.user(me.username) : routes.settings();
@@ -65,6 +69,12 @@ export function BottomTabBar() {
                   href={tab.href}
                   aria-current={tab.active ? "page" : undefined}
                   aria-label={"badge" in tab && tab.badge ? `${tab.label}, 안 읽은 메시지 ${tab.badge}개` : undefined}
+                  onClick={(e) => {
+                    if (tab.href === routes.feed() && onFeedList) {
+                      e.preventDefault();
+                      emitHomeReselect();
+                    }
+                  }}
                   className={cn(
                     "flex h-full flex-col items-center justify-center gap-1 text-[10px]",
                     tab.active ? "font-bold text-primary-deep" : "text-ink-sub",
