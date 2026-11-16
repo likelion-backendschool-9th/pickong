@@ -5,7 +5,7 @@ import { useState, type ReactNode } from "react";
 import { categoryLabel, usePlaceSearch, type Place } from "@/entities/place";
 import { Spinner } from "@/shared/ui/display";
 import { Input } from "@/shared/ui/form";
-import { useDebounced } from "./useDebounced";
+import { useDebounced } from "@/shared/lib/useDebounced";
 
 interface PlaceSearchPanelProps {
   onSelect: (place: Place) => void;

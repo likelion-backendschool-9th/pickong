@@ -1,13 +1,11 @@
 import type { PlaceDto } from "@/entities/place";
-import type { Reservation } from "../model/types";
+import type { PlanStatus } from "../model/types";
 
 export interface PlanItemDto {
   id: string;
-  kind: "RESERVATION" | "FREE";
   place: PlaceDto;
-  stayMinutes: number;
+  fixedTime: string | null;
   visited: boolean;
-  reservation: Reservation | null;
 }
 
 export interface PlanDto {
@@ -15,18 +13,7 @@ export interface PlanDto {
   title: string;
   date: string;
   region: string;
-  startPlace: PlaceDto;
-  startTime: string;
-  endTime: string;
   memo: string | null;
-  status: "UPCOMING" | "DONE";
+  status: PlanStatus;
   items: PlanItemDto[];
-}
-
-export interface TravelTimeDto {
-  fromId: string;
-  toId: string;
-  minutes: number;
-  distanceMeters: number;
-  mode: "WALK" | "TRANSIT";
 }

@@ -148,18 +148,13 @@ export function planDto(p: PlanRow) {
     title: p.title,
     date: p.date,
     region: p.region,
-    startPlace: placeDto(findPlace(p.startPlaceId)!),
-    startTime: p.startTime,
-    endTime: p.endTime,
     memo: p.memo,
     status: p.status,
     items: p.items.map((it) => ({
       id: it.id,
-      kind: it.kind,
       place: placeDto(findPlace(it.placeId)!),
-      stayMinutes: it.stayMinutes,
+      fixedTime: it.fixedTime,
       visited: it.visited,
-      reservation: it.reservation,
     })),
   };
 }

@@ -7,7 +7,7 @@ import { routes } from "@/shared/config/routes";
 const rows = [
   { label: "프로필 편집", desc: "닉네임 · 소개 · 활동 지역", href: routes.editProfile() },
   { label: "기본 공개 범위", desc: "새 게시물 · 컬렉션의 기본값 · 전체 공개", href: null },
-  { label: "알림 설정", desc: "소셜 · 일정 점검 알림", href: null },
+  { label: "알림 설정", desc: "소셜 · 일정 알림", href: null },
   { label: "위치 권한", desc: "직접 기능을 쓸 때만 사용해요 · 실시간 위치를 공개하지 않아요", href: null },
   { label: "내 데이터와 계정", desc: "저장 데이터 내보내기 · 계정 탈퇴", href: null },
 ];

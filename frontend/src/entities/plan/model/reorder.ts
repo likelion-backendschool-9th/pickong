@@ -1,18 +1,11 @@
-import { toMinutes } from "@/shared/lib/time";
+import { estimateTravelMinutes } from "@/shared/lib/geo";
 import type { PlanItem } from "./types";
 
-/** 확정 예약은 드래그로 옮길 수 없습니다. */
-export const canDrag = (item: PlanItem) => item.kind === "FREE";
-
-/**
- * 순서 변경. 확정 예약을 옮기려 하면 원래 배열을 그대로 돌려줍니다.
- * 자유 일정은 예약 앞뒤로 자유롭게 옮길 수 있고, 예약 시간 자체는 바뀌지 않습니다.
- */
+/** 순서 변경. 모든 장소를 옮길 수 있습니다 (고정 시간은 순서를 막지 않고 표시만 합니다). */
 export function moveItem(items: PlanItem[], fromIndex: number, toIndex: number): PlanItem[] {
-  const item = items[fromIndex];
-  if (!item || !canDrag(item) || fromIndex === toIndex || toIndex < 0 || toIndex >= items.length) return items;
+  if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= items.length || toIndex >= items.length) return items;
   const next = items.slice();
-  next.splice(fromIndex, 1);
+  const [item] = next.splice(fromIndex, 1);
   next.splice(toIndex, 0, item);
   return next;
 }
@@ -21,20 +14,28 @@ export function removeItem(items: PlanItem[], itemId: string): PlanItem[] {
   return items.filter((i) => i.id !== itemId);
 }
 
-export function setStay(items: PlanItem[], itemId: string, stayMinutes: number): PlanItem[] {
-  return items.map((i) => (i.id === itemId && i.kind === "FREE" ? { ...i, stayMinutes } : i));
+/** 고정 시간 설정 · 해제 (null이면 해제) */
+export function setFixedTime(items: PlanItem[], itemId: string, fixedTime: string | null): PlanItem[] {
+  return items.map((i) => (i.id === itemId ? { ...i, fixedTime } : i));
 }
 
-export function insertAt(items: PlanItem[], index: number, item: PlanItem): PlanItem[] {
-  const next = items.slice();
-  next.splice(Math.max(0, Math.min(index, next.length)), 0, item);
-  return next;
+export function appendItem(items: PlanItem[], item: PlanItem): PlanItem[] {
+  return [...items, item];
 }
 
-/** 확정 예약을 시간 순서에 맞는 위치에 넣습니다. */
-export function insertReservation(items: PlanItem[], item: PlanItem): PlanItem[] {
-  if (!item.reservation) return [...items, item];
-  const start = toMinutes(item.reservation.startTime);
-  const index = items.findIndex((i) => i.reservation && toMinutes(i.reservation.startTime) > start);
-  return index === -1 ? [...items, item] : insertAt(items, index, item);
+/**
+ * 고정 시간이 목록 순서와 어긋난 곳: 앞에 있는데 뒤의 고정 시간보다 늦은 경우.
+ * 예) 1. 영화관 19:00 → 3. 식당 18:00 이면 { earlier: 영화관, later: 식당 }
+ */
+export function fixedTimeOrderIssue(items: PlanItem[]): { earlier: PlanItem; later: PlanItem } | null {
+  const fixed = items.filter((i) => i.fixedTime);
+  for (let a = 0; a < fixed.length; a++) {
+    for (let b = a + 1; b < fixed.length; b++) {
+      if (fixed[a].fixedTime! > fixed[b].fixedTime!) return { earlier: fixed[a], later: fixed[b] };
+    }
+  }
+  return null;
 }
+
+/** 다음 장소까지 이동 시간 어림값(분). 직선거리 기반 참고용입니다. */
+export const travelEstimate = (from: PlanItem, to: PlanItem) => estimateTravelMinutes(from.place.location, to.place.location);

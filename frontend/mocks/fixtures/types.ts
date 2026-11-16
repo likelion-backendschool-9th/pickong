@@ -106,32 +106,29 @@ export interface ReservationDto {
   memo: string;
 }
 
+/** 일정 장소: 시간이 정해진 곳(영화 · 식당 예약 등)만 fixedTime(HH:mm) */
 export interface PlanItemRow {
   id: string;
-  kind: "RESERVATION" | "FREE";
   placeId: string;
-  stayMinutes: number;
+  fixedTime: string | null;
   visited: boolean;
-  reservation: ReservationDto | null;
 }
 
+/** PLANNING: 계획 중 / UPCOMING: 계획 완료 / DONE: 방문 기록 완료 */
 export interface PlanRow {
   id: string;
   ownerId: string;
   title: string;
   date: string;
   region: string;
-  startPlaceId: string;
-  startTime: string;
-  endTime: string;
   memo: string;
-  status: "UPCOMING" | "DONE";
+  status: "PLANNING" | "UPCOMING" | "DONE";
   items: PlanItemRow[];
 }
 
 export interface NotificationRow {
   id: string;
-  type: "FOLLOW" | "COMMENT" | "LIKE" | "COLLECTION_SAVE" | "PLAN_CONFLICT";
+  type: "FOLLOW" | "COMMENT" | "LIKE" | "COLLECTION_SAVE" | "PLAN_REMINDER";
   actorId: string | null;
   message: string;
   detail: string;

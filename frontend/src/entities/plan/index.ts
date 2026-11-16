@@ -1,16 +1,15 @@
-export type { Leg, Plan, PlanItem, PlanWarning, Reservation, ReservationType, Timeline, TimelineEntry } from "./model/types";
-export { buildTimeline, estimateLeg } from "./model/timeline";
-export { canDrag, insertAt, insertReservation, moveItem, removeItem, setStay } from "./model/reorder";
-export { suggestForGap, suggestOrder, type GapSuggestion } from "./model/suggest";
-export { arrangeInitial } from "./model/arrange";
-export { planApi, type CreatePlanInput } from "./api/planApi";
+export type { Plan, PlanItem, PlanStatus } from "./model/types";
+export { appendItem, fixedTimeOrderIssue, moveItem, removeItem, setFixedTime, travelEstimate } from "./model/reorder";
+export { PLAN_STATUS_LABEL } from "./model/status";
+export { planShareText } from "./model/share";
+export { planApi, type CreatePlanInput, type RecordVisitsInput } from "./api/planApi";
 export {
   planKeys,
   useCreatePlan,
+  useDeletePlan,
   usePlan,
   usePlans,
   useRecordVisits,
-  useTravelLegs,
+  useSetPlanStatus,
   useUpdatePlanItems,
 } from "./api/queries";
-export { RESERVATION_TYPE_LABEL, ReservationCard } from "./ui/ReservationCard";

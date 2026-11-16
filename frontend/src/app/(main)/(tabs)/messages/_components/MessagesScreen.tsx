@@ -3,7 +3,7 @@
 import { Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   matchesConversation,
   messagePreview,
@@ -16,12 +16,10 @@ import { errorMessage } from "@/shared/api/errors";
 import { routes } from "@/shared/config/routes";
 import { cn } from "@/shared/lib/cn";
 import { formatRelative } from "@/shared/lib/date";
+import { useDebounced } from "@/shared/lib/useDebounced";
 import { Avatar, EmptyState, ErrorState, SectionTitle, Skeleton, Spinner } from "@/shared/ui/display";
 import { Input } from "@/shared/ui/form";
 import { useToast } from "@/shared/ui/Toast";
-
-/** 사용자 검색 요청은 입력을 멈추고 잠시 뒤에 보냅니다. */
-const SEARCH_DELAY = 250;
 
 /**
  * DM 대화 목록: 최근 메시지 순, 안 읽은 대화는 굵게 + 개수 배지.
@@ -30,13 +28,9 @@ const SEARCH_DELAY = 250;
 export function MessagesScreen() {
   const { data, isPending, isError, error, refetch } = useConversations();
   const [query, setQuery] = useState("");
-  const [debounced, setDebounced] = useState("");
+  // 사용자 검색 요청은 입력을 멈추고 잠시 뒤에 보냅니다.
+  const debounced = useDebounced(query.trim());
   const searching = query.trim().length > 0;
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(query.trim()), SEARCH_DELAY);
-    return () => clearTimeout(t);
-  }, [query]);
 
   return (
     <div>

@@ -4,11 +4,9 @@ import type { PlanDto, PlanItemDto } from "./dto";
 
 const toPlanItem = (dto: PlanItemDto): PlanItem => ({
   id: dto.id,
-  kind: dto.kind,
   place: toPlace(dto.place),
-  stayMinutes: dto.stayMinutes,
+  fixedTime: dto.fixedTime,
   visited: dto.visited,
-  reservation: dto.reservation,
 });
 
 export const toPlan = (dto: PlanDto): Plan => ({
@@ -16,20 +14,15 @@ export const toPlan = (dto: PlanDto): Plan => ({
   title: dto.title,
   date: dto.date,
   region: dto.region,
-  startPlace: toPlace(dto.startPlace),
-  startTime: dto.startTime,
-  endTime: dto.endTime,
   memo: dto.memo ?? "",
   status: dto.status,
   items: dto.items.map(toPlanItem),
 });
 
-/** 저장 요청 본문: 장소는 id만 보냅니다. */
+/** 저장 요청 본문: 장소는 id만 보냅니다. 새 항목(tmp-)은 서버가 id를 만듭니다. */
 export const toPlanItemInput = (item: PlanItem) => ({
   id: item.id,
-  kind: item.kind,
   placeId: item.place.id,
-  stayMinutes: item.stayMinutes,
+  fixedTime: item.fixedTime,
   visited: item.visited,
-  reservation: item.reservation,
 });
