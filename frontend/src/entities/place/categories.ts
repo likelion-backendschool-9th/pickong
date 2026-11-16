@@ -13,7 +13,10 @@ export const CATEGORY_LABEL: Record<PlaceCategory, string> = {
   ETC: "기타",
 };
 
-/** 내 지도 카테고리 필터에 노출할 순서 */
+/** 내 지도 카테고리 필터 기본값 (사용자가 칩을 편집하지 않았을 때의 보이는 칩과 순서) */
 export const FILTER_CATEGORIES: PlaceCategory[] = ["CAFE", "RESTAURANT", "SHOP", "PARK", "PHOTO_SPOT", "EXHIBITION", "STREET"];
+
+/** 칩 편집에서 고를 수 있는 전체 카테고리 (장소의 종류 자체는 사용자가 바꾸지 않습니다) */
+export const ALL_CATEGORIES = Object.keys(CATEGORY_LABEL) as PlaceCategory[];
 
 export const categoryLabel = (c: PlaceCategory) => CATEGORY_LABEL[c] ?? "기타";

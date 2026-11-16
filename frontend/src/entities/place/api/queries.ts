@@ -1,12 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { placeApi, savedPlaceApi, type SavePlacesInput, type UpdateSavedPlacesInput } from "./placeApi";
+import { FILTER_CATEGORIES } from "../categories";
+import { mapCategoryApi, placeApi, savedPlaceApi, type SavePlacesInput, type UpdateSavedPlacesInput } from "./placeApi";
 
 export const placeKeys = {
   all: ["places"] as const,
   detail: (id: string) => [...placeKeys.all, "detail", id] as const,
   search: (q: string) => [...placeKeys.all, "search", q] as const,
   saved: () => ["saved-places"] as const,
+  mapCategories: () => ["me", "map-categories"] as const,
 };
+
+/** 내 지도 카테고리 칩 (불러오기 전에는 기본값) */
+export const useMapCategories = () =>
+  useQuery({ queryKey: placeKeys.mapCategories(), queryFn: mapCategoryApi.get, placeholderData: FILTER_CATEGORIES });
+
+export function useSaveMapCategories() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: mapCategoryApi.save,
+    onSuccess: (categories) => qc.setQueryData(placeKeys.mapCategories(), categories),
+  });
+}
 
 /** 내 지도·저장 목록·일정 후보가 함께 쓰는 저장 장소 데이터 (지도와 목록은 같은 데이터) */
 export const useSavedPlaces = () => useQuery({ queryKey: placeKeys.saved(), queryFn: savedPlaceApi.list });

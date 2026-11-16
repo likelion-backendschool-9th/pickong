@@ -10,16 +10,18 @@ export type {
 } from "./model";
 export type { PlaceDto } from "./api/dto";
 export { toPlace } from "./api/mapper";
-export { CATEGORY_LABEL, FILTER_CATEGORIES, categoryLabel } from "./categories";
+export { ALL_CATEGORIES, CATEGORY_LABEL, FILTER_CATEGORIES, categoryLabel } from "./categories";
 export { formatHours, openStateAt, type OpenState } from "./businessHours";
-export { placeApi, savedPlaceApi, type CreateCustomPlaceInput, type SavePlacesInput } from "./api/placeApi";
+export { mapCategoryApi, placeApi, savedPlaceApi, type CreateCustomPlaceInput, type SavePlacesInput } from "./api/placeApi";
 export {
   placeKeys,
   useCreateCustomPlace,
   useDeleteSavedPlaces,
+  useMapCategories,
   usePlaceDetail,
   usePlaceSearch,
   useSavedPlaces,
+  useSaveMapCategories,
   useSavePlaces,
   useUpdateSavedPlaces,
 } from "./api/queries";

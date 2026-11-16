@@ -35,6 +35,13 @@ export const placeApi = {
   createCustom: async (input: CreateCustomPlaceInput) => toPlace(await http.post<PlaceDto>("/places", input)),
 };
 
+/** 내 지도 카테고리 칩 설정: 보이는 카테고리를 순서대로 (계정에 저장) */
+export const mapCategoryApi = {
+  get: async () => (await http.get<{ categories: PlaceCategory[] }>("/me/map-categories")).categories,
+  save: async (categories: PlaceCategory[]) =>
+    (await http.put<{ categories: PlaceCategory[] }>("/me/map-categories", { categories })).categories,
+};
+
 export const savedPlaceApi = {
   list: async (): Promise<SavedPlace[]> => (await http.get<SavedPlaceDto[]>("/saved-places")).map(toSavedPlace),
   save: (input: SavePlacesInput) => http.post<SaveResult>("/saved-places", input),

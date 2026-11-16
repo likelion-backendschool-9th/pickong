@@ -1,17 +1,18 @@
 "use client";
 
-import { FolderHeart, List, Map as MapIcon, Search } from "lucide-react";
+import { FolderHeart, List, Map as MapIcon, Search, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useMyCollections } from "@/entities/collection";
-import { CATEGORY_LABEL, FILTER_CATEGORIES, useSavedPlaces } from "@/entities/place";
+import { CATEGORY_LABEL, FILTER_CATEGORIES, useMapCategories, useSavedPlaces, type PlaceCategory } from "@/entities/place";
 import { errorMessage } from "@/shared/api/errors";
 import { routes } from "@/shared/config/routes";
 import { Chip } from "@/shared/ui/controls";
 import { ErrorState, Skeleton } from "@/shared/ui/display";
 import { Input } from "@/shared/ui/form";
 import { EMPTY_FILTER, filterSavedPlaces, type SavedPlaceFilter } from "../_lib/filterSavedPlaces";
+import { CategoryChipEditor } from "./CategoryChipEditor";
 import { EmptyMap } from "./EmptyMap";
 import { SavedMapView } from "./SavedMapView";
 import { SavedListView } from "./SavedListView";
@@ -28,6 +29,8 @@ export function MyMapScreen() {
   }));
   const { data: saved, isPending, isError, error, refetch } = useSavedPlaces();
   const { data: collections = [] } = useMyCollections();
+  const { data: chipCategories = FILTER_CATEGORIES } = useMapCategories();
+  const [editingChips, setEditingChips] = useState(false);
 
   const filtered = useMemo(() => filterSavedPlaces(saved ?? [], filter), [saved, filter]);
   const set = (patch: Partial<SavedPlaceFilter>) => setFilter((f) => ({ ...f, ...patch }));
@@ -71,11 +74,19 @@ export function MyMapScreen() {
         <div className="flex items-center gap-2 px-4 py-2.5">
           <div className="scrollbar-none flex min-w-0 flex-1 gap-1.5 overflow-x-auto">
             <CategoryChip active={filter.category === "ALL"} onClick={() => set({ category: "ALL" })}>전체</CategoryChip>
-            {FILTER_CATEGORIES.map((c) => (
+            {chipCategories.map((c) => (
               <CategoryChip key={c} active={filter.category === c} onClick={() => set({ category: c })}>
                 {CATEGORY_LABEL[c]}
               </CategoryChip>
             ))}
+            <button
+              type="button"
+              onClick={() => setEditingChips(true)}
+              aria-label="카테고리 칩 편집"
+              className="inline-flex h-7 shrink-0 items-center rounded-md px-2 text-ink-sub active:bg-fill"
+            >
+              <SlidersHorizontal size={15} />
+            </button>
           </div>
           <Chip onClick={() => setView(view === "map" ? "list" : "map")} icon={view === "map" ? <List size={14} /> : <MapIcon size={14} />}>
             {view === "map" ? "목록" : "지도"}
@@ -94,6 +105,16 @@ export function MyMapScreen() {
       ) : (
         <SavedListView saved={filtered} total={saved.length} filter={filter} onFilter={set} />
       )}
+
+      <CategoryChipEditor
+        open={editingChips}
+        onClose={() => setEditingChips(false)}
+        current={chipCategories}
+        onSaved={(categories: PlaceCategory[]) => {
+          // 보고 있던 카테고리를 숨겼으면 전체로
+          if (filter.category !== "ALL" && !categories.includes(filter.category)) set({ category: "ALL" });
+        }}
+      />
     </div>
   );
 }

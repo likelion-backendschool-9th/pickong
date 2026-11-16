@@ -31,6 +31,8 @@ export const db = {
   notifications: clone(notifications),
   conversations: clone(conversations),
   messages: clone(messages),
+  /** 사용자별 내 지도 카테고리 칩 설정 (보이는 것만, 순서대로). 없으면 기본값 */
+  mapCategories: {} as Record<string, string[]>,
 };
 
 export { ME_ID };

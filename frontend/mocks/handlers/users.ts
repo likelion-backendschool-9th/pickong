@@ -10,9 +10,12 @@ import {
   postDto,
   userDto,
 } from "../db.ts";
-import { notFound, type Route } from "../router.ts";
+import { HttpError, notFound, type Route } from "../router.ts";
 
 const userOr404 = (username: string) => findUserByName(username) ?? notFound("사용자");
+
+const ALL_CATEGORIES = ["CAFE", "RESTAURANT", "PHOTO_SPOT", "SHOP", "EXHIBITION", "STREET", "PARK", "ATTRACTION", "STATION", "ETC"];
+const DEFAULT_MAP_CATEGORIES = ["CAFE", "RESTAURANT", "SHOP", "PARK", "PHOTO_SPOT", "EXHIBITION", "STREET"];
 
 export const userRoutes: Route[] = [
   { method: "GET", path: "/api/me", handler: () => userDto(db.users.find((u) => u.id === ME_ID)!) },
@@ -25,6 +28,24 @@ export const userRoutes: Route[] = [
       if (typeof body?.bio === "string") me.bio = body.bio;
       if (typeof body?.region === "string") me.region = body.region;
       return userDto(me);
+    },
+  },
+  {
+    /** 내 지도 카테고리 칩: 보이는 카테고리를 순서대로 */
+    method: "GET",
+    path: "/api/me/map-categories",
+    handler: () => ({ categories: db.mapCategories[ME_ID] ?? DEFAULT_MAP_CATEGORIES }),
+  },
+  {
+    method: "PUT",
+    path: "/api/me/map-categories",
+    handler: ({ body }) => {
+      const list: unknown = body?.categories;
+      if (!Array.isArray(list) || list.some((c) => !ALL_CATEGORIES.includes(c)) || new Set(list).size !== list.length) {
+        throw new HttpError(400, "BAD_CATEGORIES", "카테고리 설정을 확인해 주세요.");
+      }
+      db.mapCategories[ME_ID] = list;
+      return { categories: list };
     },
   },
   {
