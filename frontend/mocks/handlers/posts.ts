@@ -7,32 +7,36 @@ const postOr404 = (id: string) => {
   return post;
 };
 
+/**
+ * 피드에 보이는 게시물 (최신순). 목록과 지도가 같은 기준을 씁니다.
+ * - following: 나와 내가 팔로우하는 사람의 게시물 (볼 수 있는 것만)
+ * - recommended: 다른 사람의 전체 공개 게시물
+ */
+const feedPosts = (tab: string) =>
+  db.posts
+    .filter((p) => canView(p.authorId, p.visibility))
+    .filter((p) =>
+      tab === "recommended"
+        ? p.authorId !== ME_ID && p.visibility === "PUBLIC"
+        : p.authorId === ME_ID || isFollowing(ME_ID, p.authorId),
+    )
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
 export const postRoutes: Route[] = [
   {
     method: "GET",
     path: "/api/feed",
     delay: 300,
-    handler: ({ query }) => {
-      const tab = query.get("tab") ?? "following";
-      return db.posts
-        .filter((p) => canView(p.authorId, p.visibility))
-        .filter((p) =>
-          tab === "following"
-            ? p.authorId === ME_ID || isFollowing(ME_ID, p.authorId)
-            : p.authorId !== ME_ID && p.visibility === "PUBLIC",
-        )
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-        .map(postDto);
-    },
+    handler: ({ query }) => feedPosts(query.get("tab") ?? "following").map(postDto),
   },
   {
-    /** 피드 지도: 공개 게시물에 연결된 장소 (내 지도와 별개) */
+    /** 피드 지도: 피드 탭(팔로잉 · 추천)과 같은 기준의 게시물에 연결된 장소 (내 지도와 별개). postIds는 최신순 */
     method: "GET",
     path: "/api/feed/places",
     delay: 300,
-    handler: () => {
+    handler: ({ query }) => {
       const byPlace = new Map<string, string[]>();
-      for (const post of db.posts.filter((p) => p.visibility === "PUBLIC")) {
+      for (const post of feedPosts(query.get("tab") ?? "following")) {
         for (const ph of post.photos) {
           if (!ph.placeId) continue;
           const list = byPlace.get(ph.placeId) ?? [];

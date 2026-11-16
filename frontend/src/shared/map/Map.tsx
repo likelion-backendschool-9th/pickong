@@ -3,7 +3,7 @@
 import { Lock, Minus, Plus } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/shared/lib/cn";
-import type { LatLng, MapMarker } from "./types";
+import type { LatLng, LatLngBounds, MapMarker } from "./types";
 
 /**
  * 지도 컴포넌트 (현재: 개념 지도 일러스트).
@@ -42,6 +42,8 @@ interface MapProps {
   showZoom?: boolean;
   /** 지도 이동 시 중심 좌표 알림 (좌표 직접 지정용) */
   onCenterChange?: (center: LatLng) => void;
+  /** 화면에 보이는 범위가 바뀔 때 알림 (처음 맞춤 · 이동 · 확대/축소) */
+  onBoundsChange?: (bounds: LatLngBounds) => void;
   /** 중앙 고정 핀 표시 (좌표 직접 지정용) */
   crosshair?: boolean;
   caption?: string;
@@ -59,6 +61,7 @@ export function MapView({
   path,
   showZoom = true,
   onCenterChange,
+  onBoundsChange,
   crosshair,
   caption = "예시 지도 · 위치는 확인이 필요해요",
   className,
@@ -103,6 +106,19 @@ export function MapView({
     }),
     [size, current.center.lat, current.center.lng, current.mpp, cosLat],
   );
+
+  // 보이는 범위 알림: 중심 · 축척 · 크기가 바뀔 때마다
+  const onBoundsChangeRef = useRef(onBoundsChange);
+  useEffect(() => {
+    onBoundsChangeRef.current = onBoundsChange;
+  });
+  const { lat: cLat, lng: cLng } = current.center;
+  useEffect(() => {
+    if (!size.w || !onBoundsChangeRef.current) return;
+    const halfLat = ((size.h / 2) * current.mpp) / M_PER_DEG_LAT;
+    const halfLng = ((size.w / 2) * current.mpp) / (M_PER_DEG_LAT * cosLat);
+    onBoundsChangeRef.current({ north: cLat + halfLat, south: cLat - halfLat, east: cLng + halfLng, west: cLng - halfLng });
+  }, [cLat, cLng, current.mpp, size.w, size.h, cosLat]);
 
   const updateView = (next: { center: LatLng; mpp: number }) => {
     setView(next);

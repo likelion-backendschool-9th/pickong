@@ -87,6 +87,20 @@ export const posts: PostRow[] = [
     bookmarkedByMe: false,
     createdAt: ago(60 * 24 * 15),
   },
+  {
+    id: "post-7",
+    authorId: "u-seoyeon",
+    photos: [
+      { url: "/images/photos/street.jpg", placeId: "p-hanok" },
+      { url: "/images/photos/cafe.jpg", placeId: null },
+    ],
+    content: "나만 보는 북촌 메모.",
+    visibility: "PRIVATE",
+    likeCount: 0,
+    likedByMe: false,
+    bookmarkedByMe: false,
+    createdAt: ago(60 * 24 * 20),
+  },
 ];
 
 export const comments: CommentRow[] = [

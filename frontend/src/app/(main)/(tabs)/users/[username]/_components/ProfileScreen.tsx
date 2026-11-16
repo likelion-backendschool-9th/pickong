@@ -1,8 +1,9 @@
 "use client";
 
-import { Settings } from "lucide-react";
+import { Menu } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
 import { CollectionCard, useUserCollections } from "@/entities/collection";
 import { useMyVisitRecords } from "@/entities/plan";
 import { PostGrid, useUserPosts } from "@/entities/post";
@@ -11,10 +12,19 @@ import { FollowButton } from "@/features/follow-user";
 import { errorMessage } from "@/shared/api/errors";
 import { routes } from "@/shared/config/routes";
 import { formatShortDate } from "@/shared/lib/date";
-import { ButtonLink } from "@/shared/ui/Button";
+import { Button, ButtonLink } from "@/shared/ui/Button";
 import { Tabs } from "@/shared/ui/controls";
 import { Avatar, EmptyState, ErrorState, Skeleton, Thumb } from "@/shared/ui/display";
 import { TopBar } from "@/shared/ui/layout";
+import { SideSheet } from "@/shared/ui/SideSheet";
+import { SettingsMenu } from "../../../../_components/SettingsMenu";
+import {
+  matchesVisibility,
+  parseVisibilityFilter,
+  VisibilityFilter,
+  visibilityFilterLabel,
+  type VisibilityFilterValue,
+} from "./VisibilityFilter";
 import { VisitMap } from "./VisitMap";
 
 type Tab = "posts" | "collections" | "map" | "visits";
@@ -32,12 +42,18 @@ export function ProfileScreen({ username }: { username: string }) {
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   if (isPending) return <Skeleton className="h-dvh rounded-none" />;
   if (isError) return <ErrorState message={errorMessage(error)} />;
 
   const tabs = user.isMe ? MY_TABS : BASE_TABS;
   const tab = tabs.find((t) => t.value === params.get("tab"))?.value ?? "posts";
+  /** 공개 범위 필터: 내 프로필의 게시물 · 컬렉션 탭에서만 */
+  const showFilter = user.isMe && (tab === "posts" || tab === "collections");
+  const vis = showFilter ? parseVisibilityFilter(params.get("vis")) : "ALL";
+  const setVis = (v: VisibilityFilterValue) =>
+    router.replace(`${pathname}?tab=${tab}${v === "ALL" ? "" : `&vis=${v}`}`, { scroll: false });
 
   return (
     <div>
@@ -46,9 +62,16 @@ export function ProfileScreen({ username }: { username: string }) {
         hideBack={user.isMe}
         right={
           user.isMe && (
-            <Link href={routes.settings()} aria-label="계정 설정" className="inline-flex size-11 items-center justify-center rounded-full active:bg-fill">
-              <Settings size={21} strokeWidth={1.6} />
-            </Link>
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              aria-label="메뉴"
+              aria-haspopup="dialog"
+              aria-expanded={menuOpen}
+              className="inline-flex size-11 items-center justify-center rounded-full active:bg-fill"
+            >
+              <Menu size={23} strokeWidth={1.6} />
+            </button>
           )
         }
       />
@@ -77,9 +100,9 @@ export function ProfileScreen({ username }: { username: string }) {
               <ButtonLink href={routes.editProfile()} variant="secondary" size="md">
                 프로필 편집
               </ButtonLink>
-              <ButtonLink href={routes.settings()} variant="secondary" size="md">
+              <Button variant="secondary" size="md" onClick={() => setMenuOpen(true)}>
                 계정 설정
-              </ButtonLink>
+              </Button>
             </div>
           ) : (
             <FollowButton user={user} size="md" block />
@@ -87,40 +110,72 @@ export function ProfileScreen({ username }: { username: string }) {
         </div>
       </section>
 
-      <div className="mt-5 border-b border-line px-5">
+      <div className="mt-5 flex items-center gap-2 border-b border-line px-5">
         <Tabs
           items={tabs}
           value={tab}
           onChange={(t) => router.replace(`${pathname}?tab=${t}`, { scroll: false })}
+          className="min-w-0 flex-1"
         />
+        {showFilter && <VisibilityFilter value={vis} onChange={setVis} />}
       </div>
 
-      {tab === "posts" && <PostsTab username={username} />}
-      {tab === "collections" && <CollectionsTab username={username} isMe={user.isMe} nickname={user.nickname} />}
+      {tab === "posts" && <PostsTab username={username} isMe={user.isMe} vis={vis} />}
+      {tab === "collections" && <CollectionsTab username={username} isMe={user.isMe} nickname={user.nickname} vis={vis} />}
       {tab === "map" && <VisitMap user={user} />}
       {tab === "visits" && user.isMe && <VisitsTab />}
+
+      {user.isMe && (
+        <SideSheet open={menuOpen} onClose={() => setMenuOpen(false)} title={`${user.nickname}님의 계정`}>
+          <SettingsMenu onNavigate={() => setMenuOpen(false)} />
+        </SideSheet>
+      )}
     </div>
   );
 }
 
-function PostsTab({ username }: { username: string }) {
+function PostsTab({ username, isMe, vis }: { username: string; isMe: boolean; vis: VisibilityFilterValue }) {
   const { data, isPending } = useUserPosts(username);
   if (isPending) return <Skeleton className="m-5 h-40" />;
   if (!data?.length) return <EmptyState title="아직 게시물이 없어요" />;
-  return <div className="pt-0.5"><PostGrid posts={data} /></div>;
+  const posts = data.filter((p) => matchesVisibility(vis, p.visibility));
+  if (!posts.length) return <EmptyState title={`${visibilityFilterLabel(vis)} 게시물이 없어요`} />;
+  return (
+    <div className="pt-0.5">
+      {vis !== "ALL" && (
+        <p className="px-5 pt-2.5 pb-2 text-[13px] text-ink-sub">
+          {visibilityFilterLabel(vis)} 게시물 <b className="text-ink">{posts.length}</b>
+        </p>
+      )}
+      <PostGrid posts={posts} showVisibility={isMe} />
+    </div>
+  );
 }
 
-function CollectionsTab({ username, isMe, nickname }: { username: string; isMe: boolean; nickname: string }) {
+function CollectionsTab({
+  username,
+  isMe,
+  nickname,
+  vis,
+}: {
+  username: string;
+  isMe: boolean;
+  nickname: string;
+  vis: VisibilityFilterValue;
+}) {
   const { data, isPending } = useUserCollections(username);
   if (isPending) return <Skeleton className="m-5 h-40" />;
-  if (!data?.length) return <EmptyState title="공개 컬렉션이 없어요" />;
+  if (!data?.length) return <EmptyState title={isMe ? "아직 컬렉션이 없어요" : "공개 컬렉션이 없어요"} />;
+  const collections = data.filter((c) => matchesVisibility(vis, c.visibility));
+  if (!collections.length) return <EmptyState title={`${visibilityFilterLabel(vis)} 컬렉션이 없어요`} />;
   return (
     <div className="px-5">
       <p className="pt-3 text-[13px] font-bold">
-        {isMe ? "내 컬렉션" : `${nickname}님의 공개 컬렉션`} {data.length}
+        {isMe ? (vis === "ALL" ? "내 컬렉션" : `내 컬렉션 · ${visibilityFilterLabel(vis)}`) : `${nickname}님의 공개 컬렉션`}{" "}
+        {collections.length}
       </p>
       <div className="divide-y divide-line">
-        {data.map((c) => (
+        {collections.map((c) => (
           <CollectionCard key={c.id} collection={c} />
         ))}
       </div>

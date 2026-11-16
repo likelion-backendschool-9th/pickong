@@ -10,6 +10,7 @@ import { routes } from "@/shared/config/routes";
 import { ButtonLink } from "@/shared/ui/Button";
 import { Chip, Tabs } from "@/shared/ui/controls";
 import { EmptyState, ErrorState, Skeleton } from "@/shared/ui/display";
+import { PullToRefresh } from "@/shared/ui/PullToRefresh";
 import { FeedMap } from "./FeedMap";
 
 export function FeedScreen() {
@@ -51,7 +52,7 @@ export function FeedScreen() {
         </div>
       </header>
 
-      {mode === "map" ? <FeedMap /> : <FeedList tab={tab} />}
+      {mode === "map" ? <FeedMap tab={tab} /> : <FeedList tab={tab} />}
     </div>
   );
 }
@@ -71,21 +72,24 @@ function FeedList({ tab }: { tab: FeedTab }) {
       </div>
     );
   }
-  if (isError) return <ErrorState message={errorMessage(error)} onRetry={() => refetch()} />;
-  if (posts.length === 0) {
-    return (
-      <EmptyState title="아직 볼 게시물이 없어요" description="추천 탭에서 마음에 드는 사람을 팔로우해 보세요.">
-        <ButtonLink href={routes.search()} variant="secondary" block>
-          사람 · 장소 찾아보기
-        </ButtonLink>
-      </EmptyState>
-    );
-  }
+  // 위에서 당겼다 놓으면 피드를 다시 불러옵니다 (오류 · 빈 화면에서도 가능)
   return (
-    <div className="divide-y divide-line">
-      {posts.map((post, i) => (
-        <PostCard key={post.id} post={post} priority={i === 0} />
-      ))}
-    </div>
+    <PullToRefresh onRefresh={() => refetch()}>
+      {isError ? (
+        <ErrorState message={errorMessage(error)} onRetry={() => refetch()} />
+      ) : posts.length === 0 ? (
+        <EmptyState title="아직 볼 게시물이 없어요" description="추천 탭에서 마음에 드는 사람을 팔로우해 보세요.">
+          <ButtonLink href={routes.search()} variant="secondary" block>
+            사람 · 장소 찾아보기
+          </ButtonLink>
+        </EmptyState>
+      ) : (
+        <div className="divide-y divide-line">
+          {posts.map((post, i) => (
+            <PostCard key={post.id} post={post} priority={i === 0} />
+          ))}
+        </div>
+      )}
+    </PullToRefresh>
   );
 }
