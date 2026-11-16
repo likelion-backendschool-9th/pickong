@@ -16,8 +16,8 @@ pickong/
 ├── frontend/                    Next.js (App Router) · TypeScript · Tailwind
 │   ├── src/
 │   │   ├── app/                 라우트와 페이지 전용 코드
-│   │   │   ├── (main)/(tabs)/   하단 내비게이션 화면: 홈 · 내 지도 · 컬렉션 · 일정 · 프로필
-│   │   │   ├── (main)/(sub)/    세부 작업 화면: 게시물 작성 · 장소 · 링크 가져오기 · 검색 · 설정 등
+│   │   │   ├── (main)/(tabs)/   하단 내비게이션 화면: 홈 · 내 지도 · 컬렉션 · DM · 프로필(일정 탭 포함)
+│   │   │   ├── (main)/(sub)/    세부 작업 화면: 게시물 작성 · 장소 · 링크 가져오기 · 검색 · DM 대화방 · 설정 등
 │   │   │   └── globals.css      디자인 토큰 (@theme)
 │   │   ├── widgets/             여러 기능을 조합한 화면 블록 (post-card)
 │   │   ├── features/            사용자 동작 단위 (save-place · like-post · bookmark-post ...)
