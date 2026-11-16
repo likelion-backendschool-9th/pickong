@@ -10,6 +10,7 @@ export {
   useFeed,
   useFeedPlaces,
   usePost,
+  useUserPlaces,
   useUserPosts,
 } from "./api/queries";
 export { PostGrid } from "./ui/PostGrid";

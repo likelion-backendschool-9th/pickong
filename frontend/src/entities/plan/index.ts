@@ -13,6 +13,6 @@ export {
   useRecordVisits,
   useTravelLegs,
   useUpdatePlanItems,
-  useVisitRecords,
+  useMyVisitRecords,
 } from "./api/queries";
 export { RESERVATION_TYPE_LABEL, ReservationCard } from "./ui/ReservationCard";

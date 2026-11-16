@@ -8,6 +8,7 @@ export const postKeys = {
   feedPlaces: () => [...postKeys.all, "feed-places"] as const,
   detail: (id: string) => [...postKeys.all, "detail", id] as const,
   byUser: (username: string) => [...postKeys.all, "user", username] as const,
+  placesByUser: (username: string) => [...postKeys.all, "user-places", username] as const,
   comments: (id: string) => [...postKeys.all, "comments", id] as const,
 };
 
@@ -16,6 +17,9 @@ export const useFeedPlaces = () => useQuery({ queryKey: postKeys.feedPlaces(), q
 export const usePost = (id: string) => useQuery({ queryKey: postKeys.detail(id), queryFn: () => postApi.get(id) });
 export const useUserPosts = (username: string) =>
   useQuery({ queryKey: postKeys.byUser(username), queryFn: () => postApi.byUser(username) });
+/** 방문 지도: 이 사용자의 게시물에 연결된 장소 (게시물을 올리면 postKeys.all 무효화로 함께 갱신) */
+export const useUserPlaces = (username: string) =>
+  useQuery({ queryKey: postKeys.placesByUser(username), queryFn: () => postApi.placesByUser(username) });
 export const useComments = (id: string, enabled = true) =>
   useQuery({ queryKey: postKeys.comments(id), queryFn: () => postApi.comments(id), enabled });
 
