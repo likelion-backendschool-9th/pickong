@@ -44,6 +44,8 @@ interface MapProps {
   onCenterChange?: (center: LatLng) => void;
   /** 화면에 보이는 범위가 바뀔 때 알림 (처음 맞춤 · 이동 · 확대/축소) */
   onBoundsChange?: (bounds: LatLngBounds) => void;
+  /** 이 위치로 지도를 옮깁니다 (검색 결과 선택 등). key가 바뀔 때마다 한 번 이동 */
+  focus?: { key: string; position: LatLng } | null;
   /** 중앙 고정 핀 표시 (좌표 직접 지정용) */
   crosshair?: boolean;
   caption?: string;
@@ -62,6 +64,7 @@ export function MapView({
   showZoom = true,
   onCenterChange,
   onBoundsChange,
+  focus,
   crosshair,
   caption = "예시 지도 · 위치는 확인이 필요해요",
   className,
@@ -76,7 +79,13 @@ export function MapView({
   );
   const drag = useRef<{ x: number; y: number; center: LatLng; moved: boolean } | null>(null);
 
-  const markerKey = markers.map((m) => `${m.id}:${m.position.lat},${m.position.lng}`).join("|");
+  /**
+   * 일반 장소 점(poi)은 지도를 움직일 때마다 바뀌므로, 처음 범위 맞춤과 이름표 개수 판단에서는 빼고
+   * 강조 핀만 기준으로 삼습니다. (점이 새로 불러와져도 지도가 튀지 않게)
+   */
+  const pins = useMemo(() => markers.filter((m) => m.tone !== "poi"), [markers]);
+  const pinCount = pins.length;
+  const markerKey = pins.map((m) => `${m.id}:${m.position.lat},${m.position.lng}`).join("|");
 
   useEffect(() => {
     const el = ref.current;
@@ -88,15 +97,22 @@ export function MapView({
     return () => ro.disconnect();
   }, []);
 
+  // 외부에서 위치를 지정하면 그곳으로 이동 (렌더 중 상태 보정: key가 바뀐 경우에만)
+  const [focusedKey, setFocusedKey] = useState<string | null>(null);
+  if (focus && focus.key !== focusedKey) {
+    setFocusedKey(focus.key);
+    setView((v) => ({ center: focus.position, mpp: Math.min(v?.mpp ?? 3, 2.6) }));
+  }
+
   // 마커 구성이 바뀌면 전체가 보이도록 다시 맞춥니다.
   const fitted = useRef<string | null>(null);
   useEffect(() => {
-    if (initialCenter || !size.w || fitted.current === markerKey) return;
+    if (initialCenter || focusedKey || !size.w || fitted.current === markerKey) return;
     fitted.current = markerKey;
-    setView(fitView(markers, size));
-  }, [markerKey, size, initialCenter, markers]);
+    setView(fitView(pins, size));
+  }, [markerKey, size, initialCenter, focusedKey, pins]);
 
-  const current = view ?? fitView(markers, size);
+  const current = view ?? fitView(pins, size);
   const cosLat = Math.cos((current.center.lat * Math.PI) / 180);
 
   const project = useCallback(
@@ -240,6 +256,30 @@ export function MapView({
         markers.map((m) => {
           const { x, y } = project(m.position);
           const selected = m.id === selectedId;
+          if (m.tone === "poi") {
+            // 일반 장소: 작은 점. 고르면 이름표를 보여 줍니다.
+            return (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => onMarkerClick?.(m.id)}
+                aria-label={m.title ?? "장소"}
+                aria-pressed={onMarkerClick ? selected : undefined}
+                className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center p-1.5"
+                style={{ left: x, top: y, zIndex: selected ? 3 : 1 }}
+              >
+                <span
+                  className={cn(
+                    "block rounded-full border-2 border-white shadow-[0_1px_3px_rgba(0,0,0,0.3)]",
+                    selected ? "size-4 bg-ink" : "size-3 bg-ink-faint",
+                  )}
+                />
+                {m.title && selected && (
+                  <span className="mt-0.5 max-w-24 truncate rounded bg-white/90 px-1 text-[10px] font-bold text-ink">{m.title}</span>
+                )}
+              </button>
+            );
+          }
           return (
             <button
               key={m.id}
@@ -261,7 +301,7 @@ export function MapView({
               >
                 {m.tone === "fixed" && !m.label ? <Lock size={12} /> : m.label}
               </span>
-              {m.title && (selected || markers.length <= 6) && (
+              {m.title && (selected || pinCount <= 6) && (
                 <span className="mt-0.5 max-w-24 truncate rounded bg-white/90 px-1 text-[10px] font-bold text-ink">
                   {m.title}
                 </span>

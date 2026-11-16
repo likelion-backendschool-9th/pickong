@@ -5,19 +5,23 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useMyCollections } from "@/entities/collection";
-import { CATEGORY_LABEL, FILTER_CATEGORIES, useMapCategories, useSavedPlaces, type PlaceCategory } from "@/entities/place";
+import { CATEGORY_LABEL, FILTER_CATEGORIES, useMapCategories, useSavedPlaces, type Place, type PlaceCategory } from "@/entities/place";
 import { errorMessage } from "@/shared/api/errors";
 import { routes } from "@/shared/config/routes";
-import { Chip } from "@/shared/ui/controls";
+import { CheckMark, Chip } from "@/shared/ui/controls";
 import { ErrorState, Skeleton } from "@/shared/ui/display";
 import { Input } from "@/shared/ui/form";
 import { EMPTY_FILTER, filterSavedPlaces, type SavedPlaceFilter } from "../_lib/filterSavedPlaces";
 import { CategoryChipEditor } from "./CategoryChipEditor";
-import { EmptyMap } from "./EmptyMap";
-import { SavedMapView } from "./SavedMapView";
+import { MyMapView } from "./MyMapView";
+import { PlaceSearchResults } from "./PlaceSearchResults";
 import { SavedListView } from "./SavedListView";
 
-/** 내 지도: 내가 저장한 장소만 보여줍니다. 지도와 목록은 같은 저장 데이터를 사용합니다. */
+/**
+ * 내 지도: 일반 지도처럼 주변 장소가 보이고, 내가 저장한 곳은 초록 핀으로 따로 표시합니다.
+ * 검색은 기본이 일반 장소 검색이고, ‘저장한 곳만’을 켜면 저장한 장소 안에서만 찾습니다.
+ * 목록 보기는 저장한 장소 관리(컬렉션 · 방문 상태 · 삭제)입니다.
+ */
 export function MyMapScreen() {
   const params = useSearchParams();
   const router = useRouter();
@@ -31,8 +35,16 @@ export function MyMapScreen() {
   const { data: collections = [] } = useMyCollections();
   const { data: chipCategories = FILTER_CATEGORIES } = useMapCategories();
   const [editingChips, setEditingChips] = useState(false);
+  const [query, setQuery] = useState("");
+  const [savedOnly, setSavedOnly] = useState(false);
+  /** 일반 검색에서 고른 장소 (지도를 그곳으로 옮김) */
+  const [picked, setPicked] = useState<Place | null>(null);
+  const searchingAll = !savedOnly && query.trim().length > 0 && !picked;
 
-  const filtered = useMemo(() => filterSavedPlaces(saved ?? [], filter), [saved, filter]);
+  // 검색어는 ‘저장한 곳만’일 때만 저장 장소 필터에 씁니다.
+  const effective = useMemo(() => ({ ...filter, query: savedOnly ? query : "" }), [filter, query, savedOnly]);
+  const filtered = useMemo(() => filterSavedPlaces(saved ?? [], effective), [saved, effective]);
+  const savedPlaceIds = useMemo(() => new Set((saved ?? []).map((s) => s.place.id)), [saved]);
   const set = (patch: Partial<SavedPlaceFilter>) => setFilter((f) => ({ ...f, ...patch }));
   const setView = (v: "map" | "list") => router.replace(v === "list" ? `${pathname}?view=list` : pathname, { scroll: false });
 
@@ -50,12 +62,28 @@ export function MyMapScreen() {
             <Search size={18} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-ink-faint" />
             <Input
               type="search"
-              value={filter.query}
-              onChange={(e) => set({ query: e.target.value })}
-              placeholder="저장한 장소 검색"
-              aria-label="저장한 장소 검색"
-              className="h-11 pl-10"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPicked(null);
+              }}
+              placeholder={savedOnly ? "저장한 장소 검색" : "장소 · 지역 검색"}
+              aria-label={savedOnly ? "저장한 장소 검색" : "장소 검색"}
+              className="h-11 pr-[104px] pl-10"
             />
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={savedOnly}
+              onClick={() => {
+                setSavedOnly((v) => !v);
+                setPicked(null);
+              }}
+              className="absolute top-1/2 right-1.5 flex h-8 -translate-y-1/2 items-center gap-1.5 rounded-full px-2 text-[12px] font-bold text-ink-sub active:bg-fill"
+            >
+              <CheckMark checked={savedOnly} />
+              저장한 곳만
+            </button>
           </div>
         </div>
         <div className="scrollbar-none flex gap-2 overflow-x-auto px-4 pt-3">
@@ -94,16 +122,23 @@ export function MyMapScreen() {
         </div>
       </header>
 
-      {isPending ? (
+      {searchingAll ? (
+        <PlaceSearchResults
+          query={query}
+          savedPlaceIds={savedPlaceIds}
+          onPick={(place) => {
+            setPicked(place);
+            if (view === "list") setView("map");
+          }}
+        />
+      ) : isPending ? (
         <Skeleton className="h-[calc(100dvh-260px)] rounded-none" />
       ) : isError ? (
         <ErrorState message={errorMessage(error)} onRetry={() => refetch()} />
-      ) : saved.length === 0 ? (
-        <EmptyMap />
       ) : view === "map" ? (
-        <SavedMapView saved={filtered} />
+        <MyMapView saved={filtered} savedPlaceIds={savedPlaceIds} category={filter.category} focus={picked} />
       ) : (
-        <SavedListView saved={filtered} total={saved.length} filter={filter} onFilter={set} />
+        <SavedListView saved={filtered} total={saved.length} filter={effective} onFilter={set} />
       )}
 
       <CategoryChipEditor

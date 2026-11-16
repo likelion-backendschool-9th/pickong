@@ -19,6 +19,7 @@ export {
   useDeleteSavedPlaces,
   useMapCategories,
   usePlaceDetail,
+  usePlacesInBounds,
   usePlaceSearch,
   useSavedPlaces,
   useSaveMapCategories,

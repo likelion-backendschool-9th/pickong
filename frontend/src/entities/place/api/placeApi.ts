@@ -1,5 +1,6 @@
 import { http } from "@/shared/api/http";
 import type { Visibility } from "@/shared/config/visibility";
+import type { LatLngBounds } from "@/shared/lib/geo";
 import type { PlaceCategory, SavedPlace, SavedPlaceSourceType, SaveResult, VisitStatus } from "../model";
 import type { PlaceDetailDto, PlaceDto, SavedPlaceDto } from "./dto";
 import { toPlace, toPlaceDetail, toSavedPlace } from "./mapper";
@@ -32,6 +33,9 @@ export const placeApi = {
   search: async (q: string, signal?: AbortSignal) =>
     (await http.get<PlaceDto[]>("/places/search", { query: { q }, signal })).map(toPlace),
   detail: async (id: string) => toPlaceDetail(await http.get<PlaceDetailDto>(`/places/${id}`)),
+  /** 지도 범위 안의 장소 (일반 지도처럼 주변 장소를 깔아 두는 용도) */
+  inBounds: async (b: LatLngBounds, signal?: AbortSignal) =>
+    (await http.get<PlaceDto[]>("/places", { query: { bbox: [b.west, b.south, b.east, b.north].join(",") }, signal })).map(toPlace),
   createCustom: async (input: CreateCustomPlaceInput) => toPlace(await http.post<PlaceDto>("/places", input)),
 };
 
