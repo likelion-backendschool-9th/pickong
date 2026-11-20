@@ -1,5 +1,6 @@
 package com.pickong.feed.application.service;
 
+import com.pickong.common.domain.Visibility;
 import com.pickong.feed.application.port.in.FeedUseCase;
 import com.pickong.feed.application.port.out.FeedRepository;
 import com.pickong.feed.domain.model.Feed;
@@ -33,17 +34,18 @@ public class FeedService implements FeedUseCase {
     }
 
     @Override
-    public Feed createFeed(Long placeId, Long authorId, String content, List<String> imageUrls) {
-        Feed feed = Feed.create(placeId, authorId, content, imageUrls);
+    public Feed createFeed(Long userId, String content, Visibility visibility,
+                           List<Long> mediaFileIds, List<Long> placeIds) {
+        Feed feed = Feed.create(userId, content, visibility, mediaFileIds, placeIds);
         return feedRepository.save(feed);
     }
 
     @Override
-    public Feed updateFeed(Long feedId, Long placeId, String content, List<String> imageUrls) {
+    public Feed updateFeed(Long feedId, String content, Visibility visibility,
+                           List<Long> mediaFileIds, List<Long> placeIds) {
         Feed feed = feedRepository.findById(feedId);
-        feed.update(placeId, content, imageUrls);
+        feed.update(content, visibility, mediaFileIds, placeIds);
         return feedRepository.save(feed);
-
     }
 
     @Override

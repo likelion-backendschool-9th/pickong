@@ -15,7 +15,7 @@ import java.time.OffsetDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "feed_bookmarks")
-public class FeedBookmarksJpaEntity {
+public class FeedBookmarkJpaEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

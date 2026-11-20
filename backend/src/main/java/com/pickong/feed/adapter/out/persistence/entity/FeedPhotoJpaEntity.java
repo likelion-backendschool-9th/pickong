@@ -5,6 +5,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import com.pickong.feed.domain.model.FeedPhoto;
 import java.time.OffsetDateTime;
 
 /**
@@ -15,7 +16,7 @@ import java.time.OffsetDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "feed_photos")
-public class FeedPhotosJpaEntity {
+public class FeedPhotoJpaEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -32,4 +33,18 @@ public class FeedPhotosJpaEntity {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
+
+    /** 사진 목록은 게시물 저장 때마다 지우고 다시 넣으므로 id를 넘기지 않습니다. */
+    public static FeedPhotoJpaEntity of(Long feedId, FeedPhoto photo) {
+        FeedPhotoJpaEntity entity = new FeedPhotoJpaEntity();
+        entity.feedId = feedId;
+        entity.mediaFileId = photo.getMediaFileId();
+        entity.sortOrder = photo.getSortOrder();
+        entity.createdAt = OffsetDateTime.now();
+        return entity;
+    }
+
+    public FeedPhoto toDomain() {
+        return FeedPhoto.builder().id(id).mediaFileId(mediaFileId).sortOrder(sortOrder).build();
+    }
 }
