@@ -1,0 +1,33 @@
+/** 휴대폰 번호 인증 입력 처리 */
+
+export const CODE_LENGTH = 6;
+/** 인증번호 유효 시간(초) */
+export const CODE_TTL_SECONDS = 180;
+
+export function digitsOnly(value: string): string {
+  return value.replace(/\D/g, "");
+}
+
+/** 입력 중인 번호를 010-1234-5678 형태로 맞춥니다. 숫자는 최대 11자리까지 받습니다. */
+export function formatPhone(value: string): string {
+  const d = digitsOnly(value).slice(0, 11);
+  if (d.length <= 3) return d;
+  if (d.length <= 7) return `${d.slice(0, 3)}-${d.slice(3)}`;
+  // 10자리(011-123-4567)와 11자리(010-1234-5678)는 가운데 자리 수가 다릅니다.
+  const mid = d.length === 10 ? 3 : 4;
+  return `${d.slice(0, 3)}-${d.slice(3, 3 + mid)}-${d.slice(3 + mid)}`;
+}
+
+export function isValidPhone(value: string): boolean {
+  return /^01[016789]\d{7,8}$/.test(digitsOnly(value));
+}
+
+export function normalizeCode(value: string): string {
+  return digitsOnly(value).slice(0, CODE_LENGTH);
+}
+
+/** 남은 초를 mm:ss로 표시합니다. */
+export function formatCountdown(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+}

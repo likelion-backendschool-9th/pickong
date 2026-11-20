@@ -6,6 +6,7 @@
  * 실행: npm run mock (npm run dev에 포함)
  */
 import { createServer } from "node:http";
+import { authRoutes } from "./handlers/auth.ts";
 import { discoverRoutes } from "./handlers/discover.ts";
 import { importRoutes } from "./handlers/imports.ts";
 import { messageRoutes } from "./handlers/messages.ts";
@@ -18,6 +19,7 @@ import { createRouter } from "./router.ts";
 const PORT = Number(process.env.MOCK_PORT ?? 4000);
 
 const handle = createRouter([
+  ...authRoutes,
   ...userRoutes,
   ...postRoutes,
   ...placeRoutes,
