@@ -31,4 +31,5 @@ export const toPlaceDetail = (dto: PlaceDetailDto): PlaceDetail => ({
   discoveredFrom: dto.discoveredFrom,
   relatedPostCount: dto.relatedPostCount,
   visits: dto.visits,
+  isOwner: dto.isOwner ?? false,
 });
