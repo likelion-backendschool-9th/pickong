@@ -10,21 +10,13 @@ export function nicknameError(nickname: string): string | null {
   return null;
 }
 
-export function passwordError(password: string): string | null {
-  if (!password) return "비밀번호를 입력해 주세요.";
-  if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
-    return "영문·숫자를 포함한 8자 이상으로 설정해 주세요.";
-  }
-  return null;
-}
-
 export type AgreementKey = "terms" | "privacy" | "marketing";
 export type Agreements = Record<AgreementKey, boolean>;
 
-export const AGREEMENT_ITEMS: { key: AgreementKey; label: string; required: boolean }[] = [
-  { key: "terms", label: "서비스 이용약관 동의", required: true },
-  { key: "privacy", label: "개인정보 수집 및 이용 동의", required: true },
-  { key: "marketing", label: "마케팅 정보 수신 동의", required: false },
+export const AGREEMENT_ITEMS: { key: AgreementKey; label: string; required: boolean; termsType: "service" | "privacy" | "marketing" }[] = [
+  { key: "terms", label: "서비스 이용약관 동의", required: true, termsType: "service" },
+  { key: "privacy", label: "개인정보 수집 및 이용 동의", required: true, termsType: "privacy" },
+  { key: "marketing", label: "마케팅 정보 수신 동의", required: false, termsType: "marketing" },
 ];
 
 export const NO_AGREEMENTS: Agreements = { terms: false, privacy: false, marketing: false };

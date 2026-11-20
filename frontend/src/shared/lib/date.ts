@@ -58,3 +58,9 @@ export function localYmd(iso: string): string {
   const d = new Date(iso);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+
+/** 연도까지 보이는 날짜: ISO 시각이나 YYYY-MM-DD를 2026.11.20 형태로 (구매 · 정산 · 약관 등) */
+export function formatDotDate(value: string): string {
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(value) ? parseDate(value) : new Date(value);
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
+}

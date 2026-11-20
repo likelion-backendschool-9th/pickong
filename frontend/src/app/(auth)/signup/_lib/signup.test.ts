@@ -4,7 +4,6 @@ import {
   hasRequiredAgreements,
   isAllAgreed,
   nicknameError,
-  passwordError,
   toggleAllAgreements,
 } from "./signup";
 
@@ -19,16 +18,6 @@ describe("nicknameError", () => {
 
   it("앞뒤 공백은 글자 수에서 뺀다", () => {
     expect(nicknameError("  콩  ")).not.toBeNull();
-  });
-});
-
-describe("passwordError", () => {
-  it("영문과 숫자를 모두 포함한 8자 이상이어야 한다", () => {
-    expect(passwordError("")).toBe("비밀번호를 입력해 주세요.");
-    expect(passwordError("abc123")).not.toBeNull();
-    expect(passwordError("abcdefgh")).not.toBeNull();
-    expect(passwordError("12345678")).not.toBeNull();
-    expect(passwordError("pickong1")).toBeNull();
   });
 });
 

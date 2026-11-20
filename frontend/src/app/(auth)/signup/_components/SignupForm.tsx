@@ -4,9 +4,8 @@ import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { routes } from "@/shared/config/routes";
 import { TopBar } from "@/shared/ui/layout";
-import { useToast } from "@/shared/ui/Toast";
 import { AuthCheckbox, AuthField, AuthHeading, AuthInput, AuthSwitchLine, pillButtonClass } from "../../_components/AuthUi";
-import { emailError } from "../../_lib/validation";
+import { emailError, passwordError } from "../../_lib/validation";
 import {
   AGREEMENT_ITEMS,
   NICKNAME_MAX,
@@ -14,7 +13,6 @@ import {
   hasRequiredAgreements,
   isAllAgreed,
   nicknameError,
-  passwordError,
   toggleAllAgreements,
   type Agreements,
 } from "../_lib/signup";
@@ -37,7 +35,6 @@ export function SignupForm({
   onChange: (value: SignupValue) => void;
   onNext: () => void;
 }) {
-  const toast = useToast();
   const [touched, setTouched] = useState<Record<FieldName, boolean>>({ nickname: false, email: false, password: false });
   const [submitted, setSubmitted] = useState(false);
 
@@ -132,16 +129,13 @@ export function SignupForm({
                   >
                     [{item.required ? "필수" : "선택"}] {item.label}
                   </AuthCheckbox>
-                  {item.required && (
-                    <button
-                      type="button"
-                      onClick={() => toast({ message: "약관 화면은 준비 중이에요." })}
-                      className="shrink-0 px-1 py-1 text-[15px] text-ink-sub"
-                      aria-label={`${item.label} 보기`}
-                    >
-                      보기
-                    </button>
-                  )}
+                  <Link
+                    href={routes.terms(item.termsType)}
+                    className="shrink-0 px-1 py-1 text-[15px] text-ink-sub"
+                    aria-label={`${item.label} 보기`}
+                  >
+                    보기
+                  </Link>
                 </li>
               ))}
             </ul>

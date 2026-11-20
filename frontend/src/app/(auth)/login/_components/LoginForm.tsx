@@ -17,7 +17,11 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [keepSignedIn, setKeepSignedIn] = useState(true);
   const [submitted, setSubmitted] = useState(false);
-  const login = useMutation({ mutationFn: authApi.login, onSuccess: () => router.replace(routes.feed()) });
+  const login = useMutation({
+    mutationFn: authApi.login,
+    // 관리자 계정은 관리 페이지로, 회원은 피드로 보냅니다.
+    onSuccess: ({ role }) => router.replace(role === "ADMIN" ? routes.admin() : routes.feed()),
+  });
 
   // 로그인은 빈칸만 확인하고, 계정이 맞는지는 서버가 판단합니다. (이메일 형식 검사는 회원가입에서)
   const emailErr = submitted && !email.trim() ? "이메일을 입력해 주세요." : null;
@@ -86,9 +90,9 @@ export function LoginForm() {
           이메일 찾기
         </button>
         <span className="h-4 w-px bg-line" aria-hidden />
-        <button type="button" onClick={comingSoon} className="py-1">
+        <Link href={routes.passwordReset()} className="py-1">
           비밀번호 찾기
-        </button>
+        </Link>
       </div>
 
       <div className="mt-10 rounded-[16px] bg-soft px-6 py-5">
