@@ -6,10 +6,16 @@
  * 실행: npm run mock (npm run dev에 포함)
  */
 import { createServer } from "node:http";
+import { accountRoutes } from "./handlers/account.ts";
+import { adminRoutes } from "./handlers/admin.ts";
 import { authRoutes } from "./handlers/auth.ts";
+import { creatorRoutes } from "./handlers/creator.ts";
 import { discoverRoutes } from "./handlers/discover.ts";
+import { groupChatRoutes } from "./handlers/groupChats.ts";
 import { importRoutes } from "./handlers/imports.ts";
 import { messageRoutes } from "./handlers/messages.ts";
+import { myPlaceRoutes } from "./handlers/myPlaces.ts";
+import { paymentRoutes } from "./handlers/payments.ts";
 import { placeRoutes } from "./handlers/places.ts";
 import { planRoutes } from "./handlers/plans.ts";
 import { postRoutes } from "./handlers/posts.ts";
@@ -27,6 +33,12 @@ const handle = createRouter([
   ...planRoutes,
   ...discoverRoutes,
   ...messageRoutes,
+  ...accountRoutes,
+  ...myPlaceRoutes,
+  ...creatorRoutes,
+  ...paymentRoutes,
+  ...groupChatRoutes,
+  ...adminRoutes,
 ]);
 
 createServer(handle).listen(PORT, () => {

@@ -13,7 +13,8 @@ export const users: UserRow[] = [
     postCount: 24,
     followerCount: 328,
     followingCount: 162,
-    isCreator: true,
+    // 크리에이터 신청 → 관리자 승인 흐름을 확인할 수 있도록 처음에는 일반 회원입니다. 승인되면 true로 바뀝니다.
+    isCreator: false,
   },
   {
     id: "u-jimin",

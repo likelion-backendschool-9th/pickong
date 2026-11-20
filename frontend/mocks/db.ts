@@ -124,7 +124,8 @@ export function savedPlaceDto(s: SavedPlaceRow) {
 }
 
 export const hasPurchased = (collectionId: string, userId = ME_ID) =>
-  db.purchases.some((p) => p.userId === userId && p.collectionId === collectionId);
+  // 환불이 끝난 구매는 열람 권한이 없어집니다.
+  db.purchases.some((p) => p.userId === userId && p.collectionId === collectionId && p.status !== "REFUNDED");
 
 export const isLockedCollection = (c: CollectionRow, viewerId = ME_ID) =>
   !!c.price && c.ownerId !== viewerId && !hasPurchased(c.id, viewerId);

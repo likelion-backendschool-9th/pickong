@@ -110,6 +110,13 @@ export const savedPlaces: SavedPlaceRow[] = [
     source: { type: "POST", refId: "post-4", label: "유진님의 게시물에서 발견" },
   }),
 
+  saved("sp-10", "u-seoyeon", "p-my-alley", ["c-photo"], {
+    source: { type: "CUSTOM", refId: null, label: "직접 등록한 장소" },
+  }),
+  saved("sp-11", "u-seoyeon", "p-my-bench", [], {
+    source: { type: "CUSTOM", refId: null, label: "직접 등록한 장소" },
+  }),
+
   saved("sp-101", "u-jimin", "p-onyu", ["c-jimin-seongsu", "c-jimin-hidden"]),
   saved("sp-102", "u-jimin", "p-momo", ["c-jimin-seongsu"]),
   saved("sp-103", "u-jimin", "p-salt", ["c-jimin-seongsu", "c-jimin-hidden"]),
