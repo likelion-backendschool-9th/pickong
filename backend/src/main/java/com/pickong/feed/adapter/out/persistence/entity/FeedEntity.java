@@ -43,10 +43,8 @@ public class FeedEntity {
     }
 
     public Feed toDomain() {
-        return Feed.create(
-                this.placeId,
-                this.authorId,
-                this.content,
+        Feed feed = Feed.create(this.placeId, this.authorId, this.content,
                 this.imageUrls != null ? List.of(this.imageUrls.split(",")) : List.of());
+        return feed;
     }
 }
