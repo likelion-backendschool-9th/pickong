@@ -18,3 +18,7 @@ Thumbs.db
 .env.*
 !.env.example
 !.env.local.example
+
+# 로컬 개인 작업 템플릿
+_local/
+

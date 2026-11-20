@@ -180,8 +180,8 @@ pickong/
 
 | 개념 | API 경로 | DB 테이블 | 백엔드 모듈 | 프론트 |
 | --- | --- | --- | --- | --- |
-| 게시물 | `/feeds` | `posts`, `post_photos`, `post_places` | `post` | `entities/post` |
-| 댓글 · 좋아요 · 북마크 | `/feeds/{feedId}/comments`, `/likes`, `/bookmarks` | `comments`, `post_likes`, `comment_likes`, `post_bookmarks` | `post` | `features/like-post` 등 |
+| 게시물 | `/feeds` | `feeds`, `feed_photos`, `feed_places` | `feed` | `entities/feed` |
+| 댓글 · 좋아요 · 북마크 | `/feeds/{feedId}/comments`, `/likes`, `/bookmarks` | `comments`, `feed_likes`, `comment_likes`, `feed_bookmarks` | `feed` | `features/like-feed` 등 |
 | 장소 | `/places` | `places` (+ 영업시간·외부 참조) | `place` | `entities/place` |
 | 저장 장소 (찜) | `/saved-places` | `saved_places` | `savedplace` | `entities/place` (`SavedPlace`) |
 | 컬렉션 · 유료 컬렉션 구매 | `/collections`, `/me/purchases` | `collections`, `collection_*` | `collection` | `entities/collection` |
@@ -199,7 +199,7 @@ API 명세서에서 **'보류'**로 표시한 기능입니다. 프론트·백엔
 
 | 기능 | API | 관련 테이블 |
 | --- | --- | --- |
-| 태그 (검색·인기·태그별 게시물/장소·내 태그 통계) | `/api/v1/tags/**`, `GET /api/v1/me/tag-stats` | `tags`, `post_tags`, `place_tags`, `user_tag_stats` |
+| 태그 (검색·인기·태그별 게시물/장소·내 태그 통계) | `/api/v1/tags/**`, `GET /api/v1/me/tag-stats` | `tags`, `feed_tags`, `place_tags`, `user_tag_stats` |
 | 디바이스 등록·삭제 (푸시 토큰) | `POST /api/v1/me/devices`, `DELETE /api/v1/me/devices/{deviceId}` | `user_devices` |
 | 지도 공개 범위 | `GET·PATCH /api/v1/me/map-settings` | (전용 컬럼 없음) |
 | 알림 전체 읽음 | `POST /api/v1/notifications/read-all` | `notifications` |
