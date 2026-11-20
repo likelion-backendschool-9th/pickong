@@ -208,6 +208,8 @@ API 명세서에서 **'보류'**로 표시한 기능입니다. 프론트·백엔
 
 보류를 풀 때는 명세서의 상태를 먼저 바꾸고, 백엔드 모듈 위치는 [backend_blueprint.md](backend_blueprint.md) 부록 A를 따릅니다.
 
+> **예외:** 개인 태그(`/tags`, 장소별 태그 편집)와 디바이스 관리(`/settings/devices`)는 프론트 화면과 mock만 먼저 만들어 두었습니다. 명세서 상태는 바뀌지 않았으므로 백엔드는 계속 보류이고, API 경로도 mock 기준(`/api/me/tags`, `/api/me/devices`)입니다.
+
 ---
 
 ## 부록 A. 기능 정리

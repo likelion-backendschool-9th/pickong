@@ -613,11 +613,12 @@ feature A가 feature B를 import하지 않습니다. **조합은 위 계층에�
 
 | 공개 | 로그인 필요 (`proxy.ts`에서 `/login`으로) |
 | --- | --- |
-| `/`, `/login`, `/signup` | `/feed`, `/map`, `/import`, `/plans/**` |
+| `/`, `/login`, `/signup`, `/password/reset`, `/terms/[type]` | `/feed`, `/map`, `/import`, `/plans/**` |
 | `/posts/[postId]` (공개 범위 준수) | `/posts/new`, `/collections`, `/collections/new` |
 | `/places/[placeId]` | `/places/custom/new`, `/notifications`, `/settings/**` |
 | `/collections/[collectionId]` (공개 컬렉션) | |
-| `/users/[username]`, `/explore` | |
+| `/users/[username]`, `/explore` | `/tags/**`, `/creator/**`, `/checkout/**`, `/purchases/**` |
+| | `/admin/**` (관리자 계정만) |
 
 - 공개 페이지는 `generateMetadata`로 제목·설명·OG 이미지를 설정합니다.
 - 로그인하지 않은 사용자가 찜 같은 행동을 누르면 로그인 화면으로 보냅니다 (feature 컴포넌트에서 처리).
@@ -956,10 +957,22 @@ entities/plan/model/            # React import 금지. 입력 → 출력만 있�
 | `/messages/[conversationId]` | DM 대화방 | 로그인 | Client (주기적 갱신) | 껍데기 |
 | `/notifications` | 알림 | 로그인 | Server | 3차 |
 | `/settings`, `/settings/profile` | 설정 · 프로필 편집 | 로그인 | 폼(Client) | 1차 |
+| `/settings/agreements`, `/notifications`, `/devices`, `/withdraw` | 약관 및 동의 관리 · 푸시 알림 설정 · 디바이스 관리 · 회원 탈퇴 | 로그인 | Client | 껍데기 |
+| `/password/reset` | 비밀번호 재설정 (이메일 → 인증번호 → 새 비밀번호) | 공개 | 단계별 흐름(Client) | 껍데기 |
+| `/terms/[type]` | 약관 전문 (`service` · `privacy` · `marketing`) | 공개 | Client | 껍데기 |
+| `/tags`, `/tags/[name]` | 내 태그 검색(`?q=`) · 태그별 장소 | 로그인 | Client | 껍데기 (보류 기능, mock만) |
+| `/places/[placeId]/photos`, `/places/[placeId]/tags` | 저장한 장소의 개인 사진 추가 · 삭제 / 개인 태그 편집 | 로그인 | Client | 껍데기 |
+| `/places/mine`, `/places/[placeId]/edit` | 직접 등록한 장소 목록 · 수정 · 삭제 | 로그인 | 폼(Client) | 껍데기 |
+| `/creator`, `/creator/apply`, `/creator/account`, `/creator/earnings` | 크리에이터 홈(심사 결과) · 신청 · 정산 계좌 · 수익 내역 | 로그인 | Client | 껍데기 |
+| `/checkout/[collectionId]` | 유료 컬렉션 카드 결제 (지금은 mock 결제창) | 로그인 | Client | 껍데기 |
+| `/purchases`, `/purchases/[purchaseId]/refund` | 구매 내역 · 환불 신청 | 로그인 | Client | 껍데기 |
+| `/messages/groups`, `/messages/groups/new`, `/messages/groups/[groupId]` | 그룹 채팅 목록 · 만들기 · 관리 (대화방 화면은 아직 없음) | 로그인 | Client | 껍데기 |
+| `/admin/**` | 관리자: 신고 처리 · 사용자 제재 · 콘텐츠 관리 · 크리에이터 심사 · 환불 · 정산 | 관리자 계정 | Client | 껍데기 |
 
 **하단 탭 (모바일 우선):** 홈(`/feed`) · 내 지도(`/map`, `/collections`) · ➕ · DM(`/messages`) · 프로필(`/users/[username]`, 일정 탭 포함).
 ➕는 게시물 올리기(`/posts/new`) · 장소 직접 추가(`/places/new`) · AI 링크로 가져오기(`/import`) 세 갈래로 분기합니다. 탐색은 홈의 ‘추천’ 탭과 통합 검색(`/search`)이 대신합니다.
 하단 탭이 있는 화면은 `app/(main)/(tabs)`, 뒤로가기 중심의 세부 작업 화면은 `app/(main)/(sub)`에 둡니다 (URL에는 영향 없음).
+관리자 화면은 회원 화면과 섞이지 않도록 `app/(admin)/admin`에 둡니다. 관리자 계정으로 로그인하면 `/admin`으로 이동합니다 (mock 계정 `admin` / `123123123`).
 
 ---
 

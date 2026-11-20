@@ -6,10 +6,13 @@ export interface LoginInput {
   keepSignedIn: boolean;
 }
 
+/** USER: 일반 회원 / ADMIN: 회원과 별개인 관리자 계정 (common_blueprint.md 5.3) */
+export type AccountRole = "USER" | "ADMIN";
+
 /**
- * 인증 API. 토큰은 서버가 httpOnly 쿠키로 내려주므로 응답 본문은 쓰지 않습니다.
- * (common_blueprint.md 5.3)
+ * 인증 API. 토큰은 서버가 httpOnly 쿠키로 내려주므로 프론트는 토큰을 다루지 않습니다.
  */
 export const authApi = {
-  login: (input: LoginInput) => http.post<unknown>("/auth/login", input).then(() => undefined),
+  login: (input: LoginInput) => http.post<{ role: AccountRole; nickname: string }>("/auth/login", input),
+  logout: () => http.post<void>("/auth/logout"),
 };

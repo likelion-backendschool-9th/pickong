@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock, MapPin, Quote } from "lucide-react";
+import { Camera, ChevronRight, Clock, Hash, MapPin, Pencil, Quote } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { useMyCollections } from "@/entities/collection";
@@ -14,6 +14,7 @@ import { ButtonLink } from "@/shared/ui/Button";
 import { Chip } from "@/shared/ui/controls";
 import { Badge, ErrorState, Photo, SectionTitle, Skeleton, Thumb } from "@/shared/ui/display";
 import { BottomCta, Screen, TopBar } from "@/shared/ui/layout";
+import { usePlacePhotos, usePlaceTags } from "./_api/myRecordApi";
 
 export function PlaceDetailScreen({ id }: { id: string }) {
   const { data, isPending, isError, error } = usePlaceDetail(id);
@@ -28,7 +29,17 @@ export function PlaceDetailScreen({ id }: { id: string }) {
 
   return (
     <Screen>
-      <TopBar title="장소 상세" backHref={routes.map()} />
+      <TopBar
+        title="장소 상세"
+        backHref={routes.map()}
+        right={
+          data.isOwner && (
+            <Link href={routes.editPlace(place.id)} aria-label="장소 수정" className="inline-flex size-11 items-center justify-center rounded-full active:bg-fill">
+              <Pencil size={19} strokeWidth={1.8} />
+            </Link>
+          )
+        }
+      />
       {place.imageUrl && (
         <div className="relative aspect-[16/10] w-full bg-fill">
           <Photo src={place.imageUrl} alt={place.name} priority />
@@ -54,6 +65,8 @@ export function PlaceDetailScreen({ id }: { id: string }) {
             {inCollections.length ? `컬렉션: ${inCollections.join(", ")}` : "컬렉션 없이 내 지도에 저장됨"}
           </p>
         )}
+
+        {saved && <MyRecord placeId={place.id} />}
 
         <MapView className="-mx-5 mt-5 h-48" markers={[{ id: place.id, position: place.location, title: place.name }]} selectedId={place.id} />
         <div className="mt-3 flex items-center gap-2 text-[13px] text-ink-sub">
@@ -97,5 +110,27 @@ export function PlaceDetailScreen({ id }: { id: string }) {
       </BottomCta>
       <SavePlaceSheet open={saveOpen} onClose={() => setSaveOpen(false)} places={[place]} source={{ type: "SEARCH", refId: null, label: "장소 상세에서 저장" }} />
     </Screen>
+  );
+}
+
+/** 저장한 장소에 남긴 나만의 기록: 사진 · 태그 */
+function MyRecord({ placeId }: { placeId: string }) {
+  const { data: photos = [] } = usePlacePhotos(placeId);
+  const { data: tags = [] } = usePlaceTags(placeId);
+  return (
+    <div className="mt-4 divide-y divide-line rounded-card border border-line">
+      <Link href={routes.placePhotos(placeId)} className="flex items-center gap-3 px-4 py-3">
+        <Camera size={17} className="shrink-0 text-primary-deep" aria-hidden />
+        <span className="min-w-0 flex-1 text-[14px] font-bold">내 사진</span>
+        <span className="text-[13px] text-ink-sub">{photos.length ? `${photos.length}장` : "추가하기"}</span>
+        <ChevronRight size={16} className="text-ink-faint" />
+      </Link>
+      <Link href={routes.placeTags(placeId)} className="flex items-center gap-3 px-4 py-3">
+        <Hash size={17} className="shrink-0 text-primary-deep" aria-hidden />
+        <span className="shrink-0 text-[14px] font-bold">내 태그</span>
+        <span className="min-w-0 flex-1 truncate text-right text-[13px] text-ink-sub">{tags.length ? tags.map((t) => `#${t}`).join(" ") : "추가하기"}</span>
+        <ChevronRight size={16} className="text-ink-faint" />
+      </Link>
+    </div>
   );
 }

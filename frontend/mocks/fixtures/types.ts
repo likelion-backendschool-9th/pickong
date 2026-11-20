@@ -106,9 +106,13 @@ export interface PurchaseRow {
   userId: string;
   collectionId: string;
   amount: number;
-  /** 지금은 테스트 결제만. PG 연결 후 실제 결제 수단이 들어갑니다. */
-  method: "TEST";
+  /** TEST: 개발용 테스트 결제 / CARD: 카드 결제 (지금은 mock PG 승인) */
+  method: "TEST" | "CARD";
+  /** 카드 결제일 때 카드사 · 할부 개월 (0 = 일시불) */
+  card?: { company: string; installment: number } | null;
   purchasedAt: string;
+  status?: "PAID" | "REFUND_REQUESTED" | "REFUNDED" | "REFUND_REJECTED";
+  refund?: { reason: string; detail: string; requestedAt: string; processedAt: string | null; rejectReason: string | null } | null;
 }
 
 export interface ReservationDto {

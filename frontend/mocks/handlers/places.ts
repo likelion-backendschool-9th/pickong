@@ -123,6 +123,7 @@ export const placeRoutes: Route[] = [
             : null,
         relatedPostCount: db.posts.filter((p) => p.photos.some((ph) => ph.placeId === place.id)).length,
         visits,
+        isOwner: place.isCustom && place.ownerId === ME_ID,
       };
     },
   },
