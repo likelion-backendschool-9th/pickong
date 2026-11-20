@@ -19,6 +19,9 @@ Thumbs.db
 !.env.example
 !.env.local.example
 
+# pnpm 
+frontend/pnpm-lock.yaml
+
 # 로컬 개인 작업 템플릿
 _local/
 

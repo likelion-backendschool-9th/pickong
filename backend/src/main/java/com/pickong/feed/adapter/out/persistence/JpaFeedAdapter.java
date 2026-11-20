@@ -23,7 +23,8 @@ public class JpaFeedAdapter implements FeedRepository {
     @Override
     public List<Feed> findLatestFeeds(int limit) {
         return feedJpaRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(0, limit)).stream()
-                .map(FeedEntity::toDomain).toList();
+                .map(FeedEntity::toDomain)
+                .toList();
     }
 
     @Override
