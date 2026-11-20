@@ -57,7 +57,7 @@
 | # | 문제 | 유지보수에서 생기는 일 |
 | --- | --- | --- |
 | 1 | **모든 UI가 `features/`에 들어감.** `PlanEditor`, `CommentList`, 링크 가져오기 화면 전체처럼 한 페이지에서만 쓰는 코드도 feature로 분리 | 페이지 하나를 고칠 때 `app/`과 `features/`를 오가야 함. `features/`가 사실상 페이지 폴더의 복제본이 됨 |
-| 2 | **feature 간 조합 규칙이 없음.** `PostCard`(post) 안에 `SavePlaceButton`(place)을 넣으면서 "index.ts면 import 허용"이라는 예외를 둠 | feature끼리 서로 import하게 되고 순환 의존이 생김. 한 feature를 고치면 어디가 깨질지 예측할 수 없음 |
+| 2 | **feature 간 조합 규칙이 없음.** `FeedCard`(feed) 안에 `SavePlaceButton`(place)을 넣으면서 "index.ts면 import 허용"이라는 예외를 둠 | feature끼리 서로 import하게 되고 순환 의존이 생김. 한 feature를 고치면 어디가 깨질지 예측할 수 없음 |
 | 3 | **전역 `types/` 폴더.** 도메인 타입의 소유자가 없고, API 응답(DTO)과 화면용 모델 구분이 없음 | 백엔드 필드명 하나가 바뀌면 그 타입을 쓰는 모든 컴포넌트를 수정해야 함 |
 | 4 | **API 함수마다 `if (USE_MOCK)` 분기** | 코드 경로가 둘이라 실제 경로가 테스트되지 않음. 백엔드 연결 시 모든 API 파일을 다시 손대야 함 |
 | 5 | **Server/Client 구분 없음.** 모든 데이터를 훅으로 가져오는 구조, `loading`/`error` 처리 없음, 공유 링크용 공개 페이지·SEO 미고려 | 결국 모든 페이지가 Client Component가 되기 쉬움. 첫 화면이 느리고 공유 링크 미리보기가 안 됨 |
@@ -86,7 +86,7 @@
 | --- | --- |
 | **사용 범위에 따라 배치** (페이지 → 상위 라우트 → features/widgets → shared) | 페이지 전용 코드는 페이지 옆에 두어 찾기 쉽게 하고, 진짜 재사용되는 코드만 위로 올림 |
 | **FSD 계층 일부 도입:** `app` · `widgets` · `features` · `entities` · `shared`. 단, **필요한 슬라이스만 생성** | 의존 방향을 한 방향으로 고정. feature끼리의 의존을 금지하고 조합은 위 계층에서 함 |
-| **`widgets/`는 1개(`post-card`)로 시작** | 여러 페이지에서 똑같이 조합되는 블록이 현재 이것뿐이기 때문 |
+| **`widgets/`는 1개(`feed-card`)로 시작** | 여러 페이지에서 똑같이 조합되는 블록이 현재 이것뿐이기 때문 |
 | **전역 `types/` 삭제** → 엔티티별 `model.ts` + `api/dto.ts` + `api/mapper.ts` | 타입마다 소유자가 생기고, DTO 변경이 mapper에서 멈춤 |
 | **mock은 HTTP 계층에서** (독립 mock 서버) | API 코드가 한 경로가 됨. 전환은 환경변수 하나 |
 | **`page.tsx`는 항상 Server Component** | 첫 화면 렌더링, SEO, 서버 전용 코드 보호 |
@@ -300,9 +300,9 @@ pickong/
     │   │               └── _components/ProfileEditForm.tsx
     │   │
     │   ├── widgets/                        # ── 여러 페이지에서 똑같이 조합되는 UI 블록 (현재 1개)
-    │   │   └── post-card/
+    │   │   └── feed-card/
     │   │       ├── index.ts
-    │   │       └── PostCard.tsx            # PostCardView + LikeButton + SavePlaceButton 조합
+    │   │       └── FeedCard.tsx            # FeedCardView + LikeButton + SavePlaceButton 조합
     │   │
     │   ├── features/                       # ── 여러 페이지에서 재사용하는 사용자 행동 (현재 4개)
     │   │   ├── save-place/                 # "찜" → 컬렉션 선택 → 저장
@@ -310,10 +310,10 @@ pickong/
     │   │   │   ├── SavePlaceButton.tsx
     │   │   │   ├── SaveToCollectionSheet.tsx
     │   │   │   └── useSavePlace.ts
-    │   │   ├── like-post/
+    │   │   ├── like-feed/
     │   │   │   ├── index.ts
     │   │   │   ├── LikeButton.tsx
-    │   │   │   └── useLikePost.ts
+    │   │   │   └── useLikeFeed.ts
     │   │   ├── follow-user/
     │   │   │   ├── index.ts
     │   │   │   ├── FollowButton.tsx
@@ -338,11 +338,11 @@ pickong/
     │   │   │   ├── businessHours.test.ts
     │   │   │   ├── api/
     │   │   │   └── ui/                     # PlaceCard.tsx, PlacePin.tsx, CategoryIcon.tsx
-    │   │   ├── post/
+    │   │   ├── feed/
     │   │   │   ├── index.ts
     │   │   │   ├── model.ts
     │   │   │   ├── api/
-    │   │   │   └── ui/                     # PostCardView.tsx, SponsoredBadge.tsx
+    │   │   │   └── ui/                     # FeedCardView.tsx, SponsoredBadge.tsx
     │   │   ├── collection/
     │   │   │   ├── index.ts
     │   │   │   ├── model.ts
@@ -426,7 +426,7 @@ pickong/
 
 - **`pages` 계층(FSD)은 만들지 않음:** Next.js의 `app/`이 그 역할을 함. 두 개를 두면 페이지 코드가 두 곳으로 나뉨.
 - **`processes` 계층은 만들지 않음:** FSD에서도 사용을 권장하지 않으며, 여러 단계 흐름(링크 가져오기)은 한 페이지 안에서 끝남.
-- **`widgets`는 남김:** `PostCard`(엔티티 UI + 좋아요 + 찜)가 피드·프로필·장소 상세·탐색 네 곳에서 똑같이 쓰임. 각 페이지에서 따로 조합하면 카드 하나를 바꿀 때 네 곳을 고쳐야 함.
+- **`widgets`는 남김:** `FeedCard`(엔티티 UI + 좋아요 + 찜)가 피드·프로필·장소 상세·탐색 네 곳에서 똑같이 쓰임. 각 페이지에서 따로 조합하면 카드 하나를 바꿀 때 네 곳을 고쳐야 함.
 - **`entities`는 남김:** feature끼리 import하지 않으려면, 여러 feature가 함께 쓰는 모델·API를 둘 아래 계층이 필요함.
 
 ---
@@ -459,7 +459,7 @@ app  ──▶  widgets  ──▶  features  ──▶  entities  ──▶  sh
 ※2 **엔티티 간 참조:** 타입과 순수 함수에 한해, **정해진 방향으로만** 다른 엔티티의 공개 API를 import할 수 있습니다. 순환은 금지합니다.
 
 ```
-post ──▶ user, place
+feed ──▶ user, place
 collection ──▶ user, place
 plan ──▶ place
 ```
@@ -469,9 +469,9 @@ plan ──▶ place
 feature A가 feature B를 import하지 않습니다. **조합은 위 계층에서 합니다.**
 
 ```tsx
-// ❌ features/like-post 안에서 features/save-place를 import
-// ✅ widgets/post-card/PostCard.tsx에서 조합
-<PostCardView post={post} actions={<><LikeButton postId={post.id} /><SavePlaceButton place={post.place} /></>} />
+// ❌ features/like-feed 안에서 features/save-place를 import
+// ✅ widgets/feed-card/FeedCard.tsx에서 조합
+<FeedCardView feed={feed} actions={<><LikeButton feedId={feed.id} /><SavePlaceButton place={feed.place} /></>} />
 ```
 
 조합이 한 페이지에서만 일어나면 widget을 만들지 않고 그 페이지의 `_components`에서 조합합니다 (예: `map/_components/MapSearch.tsx`가 `place-search`와 `save-place`를 조합).
@@ -488,7 +488,7 @@ feature A가 feature B를 import하지 않습니다. **조합은 위 계층에�
 | 서버 전용 코드 | `*.server.ts` 파일은 `import 'server-only'`로 시작. **`index.ts`에서 다시 export하지 않음.** 서버 전용 export가 필요한 슬라이스는 별도 `server.ts` 진입점을 둠 |
 
 `index.ts`에는 **밖에서 실제로 쓰는 것만** export합니다. DTO와 mapper는 export하지 않습니다.
-예외: ※2 방향(post·collection → user·place, plan → place)의 엔티티가 응답 안에 포함된 다른 엔티티를 변환할 때 필요한 DTO 타입과 mapper(`PlaceDto`·`toPlace`, `UserDto`·`toUser` 등)는 export합니다. 중첩 객체 변환을 엔티티마다 따로 구현하지 않기 위해서입니다.
+예외: ※2 방향(feed·collection → user·place, plan → place)의 엔티티가 응답 안에 포함된 다른 엔티티를 변환할 때 필요한 DTO 타입과 mapper(`PlaceDto`·`toPlace`, `UserDto`·`toUser` 등)는 export합니다. 중첩 객체 변환을 엔티티마다 따로 구현하지 않기 위해서입니다.
 
 ### 규칙 강제 방법
 
@@ -536,10 +536,10 @@ feature A가 feature B를 import하지 않습니다. **조합은 위 계층에�
 | `CollectionForm` | `/collections/new`만 (편집 화면 생기면 승격) | 페이지 `_components` |
 | `UserList` | followers, following | 공통 부모 `users/[username]/_components` |
 | `AppHeader`, `BottomTabBar`, `LogoutButton` | `(main)` 레이아웃, settings | `(main)/_components` |
-| `PostCard` (조합) | feed, users/[username], places/[placeId], explore | `widgets/post-card` |
-| `SavePlaceButton` | PostCard, 장소 상세, 컬렉션 상세, 지도, 탐색 | `features/save-place` |
+| `FeedCard` (조합) | feed, users/[username], places/[placeId], explore | `widgets/feed-card` |
+| `SavePlaceButton` | FeedCard, 장소 상세, 컬렉션 상세, 지도, 탐색 | `features/save-place` |
 | `FollowButton` | 프로필, 팔로워 목록, 탐색 크리에이터, 게시물 상세 | `features/follow-user` |
-| `LikeButton` | PostCard, 게시물 상세 | `features/like-post` |
+| `LikeButton` | FeedCard, 게시물 상세 | `features/like-feed` |
 | 장소 검색 | 게시물 작성(장소 태그), 지도, 링크 추출 후보 수정 | `features/place-search` |
 | 영업시간 판정 | 장소 상세, 일정 점검 | `entities/place/businessHours.ts` |
 | 일정 계산·검증 | 일정 편집, 일정 공유 화면(2차) — 9.3 참고 | `entities/plan/model` |
@@ -553,7 +553,7 @@ feature A가 feature B를 import하지 않습니다. **조합은 위 계층에�
 | `features/share-link` | 컬렉션에 이어 일정 공유(2차)에서도 필요할 때 |
 | `widgets/place-sheet` | 지도와 컬렉션 상세의 장소 바텀시트가 같은 구성이 될 때 |
 | `features/purchase-collection` | 유료 컬렉션(3차)이 컬렉션 상세와 크리에이터 페이지 양쪽에 생길 때 |
-| `widgets/post-list` | 피드·프로필·장소 상세의 게시물 목록이 같은 무한 스크롤 구성이 될 때 |
+| `widgets/feed-list` | 피드·프로필·장소 상세의 게시물 목록이 같은 무한 스크롤 구성이 될 때 |
 
 ### 승격·강등 절차
 
@@ -694,20 +694,20 @@ const { data } = useQuery(savedPlaceQueries.list(filter));
 **mapper가 변환 계층입니다.** 백엔드 필드명·형식이 바뀌면 `dto.ts`와 `mapper.ts`만 수정합니다.
 
 ```ts
-// entities/post/api/dto.ts — 백엔드 응답 그대로
-export interface PostResponseDto { postId: number; likeCnt: number; createdAt: string; /* ... */ }
+// entities/feed/api/dto.ts — 백엔드 응답 그대로
+export interface FeedResponseDto { feedId: number; likeCnt: number; createdAt: string; /* ... */ }
 
-// entities/post/api/mapper.ts
-export const toPost = (dto: PostResponseDto): Post => ({
-  id: String(dto.postId),
+// entities/feed/api/mapper.ts
+export const toFeed = (dto: FeedResponseDto): Feed => ({
+  id: String(dto.feedId),
   likeCount: dto.likeCnt,
   createdAt: dto.createdAt,
   /* ... */
 });
 
-// entities/post/api/postApi.ts — 밖으로는 도메인 모델만 반환
-export async function getPost(id: Id): Promise<Post> {
-  return toPost(await http.get<PostResponseDto>(`/posts/${id}`));
+// entities/feed/api/feedApi.ts — 밖으로는 도메인 모델만 반환
+export async function getFeed(id: Id): Promise<Feed> {
+  return toFeed(await http.get<FeedResponseDto>(`/feeds/${id}`));
 }
 ```
 
@@ -758,26 +758,26 @@ export async function getPost(id: Id): Promise<Post> {
 ```
 app/(main)/feed/
 ├── page.tsx              # Server: 첫 페이지를 postQueries.feed()로 prefetch → HydrationBoundary
-├── loading.tsx           # PostCard 스켈레톤 3개
+├── loading.tsx           # FeedCard 스켈레톤 3개
 └── _components/
-    ├── FeedList.tsx      # 'use client' useInfiniteQuery(postQueries.feed()), 화면 끝에서 다음 페이지
+    ├── FeedList.tsx      # 'use client' useInfiniteQuery(feedQueries.feed()), 화면 끝에서 다음 페이지
     └── FeedEmpty.tsx     # Server: 팔로우한 사람이 없을 때 탐색으로 안내
 
-widgets/post-card/PostCard.tsx      # 'use client' PostCardView + LikeButton + SavePlaceButton
-features/like-post/                 # useMutation + 낙관적 업데이트, postKeys 무효화
+widgets/feed-card/FeedCard.tsx      # 'use client' FeedCardView + LikeButton + SavePlaceButton
+features/like-feed/                 # useMutation + 낙관적 업데이트, feedKeys 무효화
 features/save-place/                # 컬렉션 선택 시트, savedPlaceKeys·collectionKeys 무효화
-entities/post/api/queries.ts        # postQueries.feed() — 피드·프로필·장소 상세가 같은 key 체계 사용
-entities/post/ui/PostCardView.tsx   # 표시 전용, actions slot
+entities/feed/api/queries.ts        # feedQueries.feed() — 피드·프로필·장소 상세가 같은 key 체계 사용
+entities/feed/ui/FeedCardView.tsx   # 표시 전용, actions slot
 ```
 
-**흐름:** `page.tsx`(Server)가 첫 페이지를 가져와서 HTML을 바로 그림 → `FeedList`(Client)가 같은 query key로 이어받아 다음 페이지를 불러옴 → 각 카드는 `widgets/post-card`.
+**흐름:** `page.tsx`(Server)가 첫 페이지를 가져와서 HTML을 바로 그림 → `FeedList`(Client)가 같은 query key로 이어받아 다음 페이지를 불러옴 → 각 카드는 `widgets/feed-card`.
 
 | 수정 상황 | 바뀌는 파일 |
 | --- | --- |
-| 카드에 공유 버튼 추가 | `widgets/post-card/PostCard.tsx` 하나 (피드·프로필·장소 상세·탐색에 모두 반영) |
+| 카드에 공유 버튼 추가 | `widgets/feed-card/FeedCard.tsx` 하나 (피드·프로필·장소 상세·탐색에 모두 반영) |
 | 피드를 페이지 번호 방식으로 변경 | `feed/_components/FeedList.tsx` 하나 |
-| 백엔드가 `likeCnt` → `likeCount`로 변경 | `entities/post/api/dto.ts`, `mapper.ts` |
-| 좋아요 실패 시 처리 변경 | `features/like-post/useLikePost.ts` |
+| 백엔드가 `likeCnt` → `likeCount`로 변경 | `entities/feed/api/dto.ts`, `mapper.ts` |
+| 좋아요 실패 시 처리 변경 | `features/like-feed/useLikeFeed.ts` |
 
 ### 9.2 지도
 
@@ -891,7 +891,7 @@ entities/plan/model/            # React import 금지. 입력 → 출력만 있�
 
 | 대상 | 규칙 | 예 |
 | --- | --- | --- |
-| 슬라이스 폴더 | kebab-case | `save-place`, `post-card` |
+| 슬라이스 폴더 | kebab-case | `save-place`, `feed-card` |
 | 컴포넌트 파일 | PascalCase | `SavePlaceButton.tsx` |
 | 그 외 파일 | camelCase | `businessHours.ts`, `useSavePlace.ts` |
 | 테스트 | 대상 파일 옆 `*.test.ts(x)` | `timeline.test.ts` |
@@ -903,7 +903,7 @@ entities/plan/model/            # React import 금지. 입력 → 출력만 있�
 
 | 담당 | 영역 |
 | --- | --- |
-| A — 피드·게시물 | `feed/`, `posts/`, `widgets/post-card`, `features/like-post`, `entities/post` |
+| A — 피드·게시물 | `feed/`, `posts/`, `widgets/feed-card`, `features/like-feed`, `entities/feed` |
 | B — 지도·장소·컬렉션 | `map/`, `places/`, `collections/`, `features/save-place`, `features/place-search`, `entities/place`, `entities/collection`, `shared/map` |
 | C — AI 링크 가져오기 | `import/` |
 | D — 일정 | `plans/`, `entities/plan` |
@@ -1020,7 +1020,7 @@ interface Collection {
   placeCount: number;
 }
 
-// entities/post/model.ts
+// entities/feed/model.ts
 // 사진마다 장소를 하나씩 연결할 수 있습니다 (없을 수도 있음). 같은 장소가 여러 사진에 연결될 수 있습니다.
 interface PostPhoto {
   url: string;

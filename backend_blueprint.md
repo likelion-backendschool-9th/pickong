@@ -58,7 +58,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 ### 1.1 현재 상태
 
 현재 `backend/src/main/java/com/pickong/`에는 `PickongApplication.java`만 있고, 패키지는 이 문서의 이전 버전에서 **설계만** 했습니다.
-이전 설계의 최상위 모듈 19개(`auth`, `user`, `social`, `terms`, `media`, `place`, `route`, `savedplace`, `post`, `collection`, `plan`, `placeimport`, `conversation`, `notification`, `moderation`, `creator`, `settlement`, `payment`, `admin`)와 `common`은 **그대로 유지합니다.**
+이전 설계의 최상위 모듈 19개(`auth`, `user`, `social`, `terms`, `media`, `place`, `route`, `savedplace`, `feed`, `collection`, `plan`, `placeimport`, `conversation`, `notification`, `moderation`, `creator`, `settlement`, `payment`, `admin`)와 `common`은 **그대로 유지합니다.**
 각 모듈이 소유 테이블과 API를 겹치지 않게 나누고 있고(2장), 의존 그래프에 순환이 없습니다(6.2).
 
 ### 1.2 유지하는 결정과 근거
@@ -89,7 +89,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | 후보 | 만들지 않는 이유 |
 | --- | --- |
 | `tag` 모듈 | 태그 API가 전부 보류입니다. 보류를 풀면 별도 모듈로 만듭니다 (부록 A) |
-| `comment`, `like` 모듈 | 댓글·좋아요는 게시물의 공개 범위·카운터·삭제와 함께 움직입니다 (2.2) |
+| `comment`, `like` 모듈 | 댓글·좋아요는 게시물의 공개 범위·카운터·삭제와 함께 움직입니다 (2.2). `feed` 모듈 안에 둡니다 |
 | `purchase` 모듈 | 구매는 컬렉션 버전·잠금·미리보기 규칙과 떼어 낼 수 없습니다. 분리하면 `collection ↔ purchase` 순환이 생깁니다 (2.2) |
 | `shared/` 비즈니스 패키지 | 여러 모듈이 같은 규칙을 쓰면, 그 규칙을 소유한 모듈의 공개 포트로 제공합니다 |
 
@@ -107,11 +107,11 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | `user` | 회원 · 프로필 · 상태(정지·탈퇴), 사용자 설정, 지도 카테고리 설정, 카운터 | `users`, `user_settings`, `user_map_category_settings` | 제재 사유·이력 (`moderation`), 팔로우 (`social`) |
 | `social` | 팔로우 · 차단, 관계 판정(팔로워인가, 차단했는가) | `follows`, `user_blocks` | 팔로워 수 저장 (`users.follower_count`는 `user`가 갱신) |
 | `terms` | 약관 버전 · 현재 약관 판정 · 동의 · 철회 | `terms`, `user_terms_agreements` | |
-| `media` | 업로드 URL 발급 · 업로드 확인 · 이미지 처리 · 재시도 · 정리 | `media_files` | 어떤 게시물의 사진인지 (`post_photos`가 참조) |
+| `media` | 업로드 URL 발급 · 업로드 확인 · 이미지 처리 · 재시도 · 정리 | `media_files` | 어떤 게시물의 사진인지 (`feed_photos`가 참조) |
 | `place` | 장소 마스터, 외부 장소 참조, 영업시간, 장소 검색(지도 API) | `places`, `place_external_refs`, `place_business_hours`, `place_hours_exceptions` | 개인 메모·방문 상태 (`savedplace`) |
 | `route` | 외부 길찾기 호출, 이동 시간 · 거리 · 행렬, 캐시 | 없음 | 방문 순서 최적화 (`plan`) |
 | `savedplace` | 저장 장소(찜), 방문 상태, 메모, 저장 출처, 개인 사진 | `saved_places` (+ 개인 사진 테이블, 8.1 #4) | 컬렉션 구성 (`collection`) |
-| `post` | 게시물 · 사진 · 장소 태그, 댓글, 좋아요, 북마크, 피드 | `posts`, `post_photos`, `post_places`, `post_likes`, `post_bookmarks`, `comments`, `comment_likes` | |
+| `feed` | 게시물 · 사진 · 장소 태그, 댓글, 좋아요, 북마크, 피드 | `feeds`, `feed_photos`, `feed_places`, `feed_likes`, `feed_bookmarks`, `comments`, `comment_likes` | |
 | `collection` | 컬렉션 · 구성 장소, 유료 가격, 버전 스냅샷, 구매 권한, 열람 기록, 환불 가능 판정, 정산 대상 판정 | `collections`, `collection_places`, `collection_versions`, `collection_version_places`, `collection_purchases` | PG 호출, 결제·환불 기록 (`payment`) |
 | `plan` | 일정 · 일정 장소 · 예약, 방문 처리, **방문 순서 최적화 · 일정 충돌 검증**, 날씨 | `plans`, `plan_items`, `plan_item_reservations` | 외부 길찾기 호출 (`route`) |
 | `placeimport` | 링크 수집 → 본문 분석 → LLM 추출 → 장소 검증 작업, 진행 상태, 비용 기록 | `import_jobs`, `import_extraction_runs` | 장소 저장 (`savedplace` 일괄 저장 API) |
@@ -127,15 +127,15 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 
 | 질문 | 결정 | 근거 |
 | --- | --- | --- |
-| Comment · Like · Bookmark를 `post` 안에 둘까 | **`post` 안에 둡니다.** 단, 게시물 애그리거트와 **별도 애그리거트**(Comment, 좋아요·북마크는 관계 테이블)로 다룹니다 | 셋 다 게시물의 공개 범위 · 차단 · 삭제 규칙을 그대로 따르고, 카운터(`like_count`, `comment_count`, `bookmark_count`)가 `posts`에 있습니다. 분리하면 게시물 볼 권한 판정을 다른 모듈에 공개해야 합니다. 애그리거트를 나누는 이유는 댓글 하나 쓸 때 게시물 전체를 잠그지 않기 위해서입니다 |
+| Comment · Like · Bookmark를 `feed` 안에 둘까 | **`feed` 안에 둡니다.** 단, 게시물 애그리거트와 **별도 애그리거트**(Comment, 좋아요·북마크는 관계 테이블)로 다룹니다 | 셋 다 게시물의 공개 범위 · 차단 · 삭제 규칙을 그대로 따르고, 카운터(`like_count`, `comment_count`, `bookmark_count`)가 `feeds`에 있습니다. 분리하면 게시물 볼 권한 판정을 다른 모듈에 공개해야 합니다. 애그리거트를 나누는 이유는 댓글 하나 쓸 때 게시물 전체를 잠그지 않기 위해서입니다 |
 | Purchase · CollectionVersion을 `collection` 안에 둘까 | **`collection` 안에 둡니다** | 잠금·미리보기 판정에는 구매 여부가 필요하고, 구매에는 가격·버전이 필요합니다. 나누면 서로 의존하는 순환이 생깁니다. "구매한 사람만 전체를 본다"는 규칙 하나가 한 모듈에 있어야 고치기 쉽습니다 |
 | Refund를 `payment`에서 관리할까 | **기록과 PG 취소는 `payment`, 환불 가능 여부 판정은 `collection`** | `refunds`는 결제(`payment_id`)의 취소 기록이고 PG 호출과 함께 움직입니다. 반면 "첫 열람 전 · 기한 내 · 정산 전"은 컬렉션 구매 규칙입니다. 다른 결제 목적이 생기면 환불 조건도 목적마다 다릅니다 |
 | 팔로우 · 차단을 `social`에 둘까 | **`social`에 둡니다** | 차단하면 팔로우를 함께 끊어야 하므로 한 트랜잭션·한 모듈이 맞습니다. 게시물·DM·검색이 모두 "관계 판정"을 쓰므로 하위 모듈로 둡니다 |
 | 지도 카테고리 설정 · 사용자 설정을 `user`에 둘까 | **`user`에 둡니다** | 둘 다 회원 1명에게 속한 개인 설정이고, 다른 데이터와 규칙을 공유하지 않습니다. 별도 모듈로 만들 만큼 규칙이 없습니다 |
 | Tag를 별도 도메인으로 둘까 | **지금은 만들지 않고, 보류를 풀면 별도 `tag` 모듈** | 태그는 게시물 · 장소 · 사용자 통계 세 곳에 걸쳐 있어 어느 한 모듈에 넣으면 그 모듈이 다른 모듈 데이터를 집계하게 됩니다 |
 | 관리자 API | **업무 규칙과 컨트롤러는 담당 모듈, `admin`은 인증 · 역할 · 작업 기록** | 1.3 #1 |
-| `/me/**` API | 경로가 아니라 **반환 데이터의 소유자**로 배정 | `/me/purchases` → `collection`, `/me/payments` → `payment`, `/me/creator/settlements` → `settlement`, `/me/bookmarked-feeds` → `post` |
-| `/users/{username}/**` API | 마찬가지로 반환 데이터 기준 | `/feeds` → `post`, `/collections` → `collection`, `/plans` → `plan`, `/saved-places` → `savedplace` |
+| `/me/**` API | 경로가 아니라 **반환 데이터의 소유자**로 배정 | `/me/purchases` → `collection`, `/me/payments` → `payment`, `/me/creator/settlements` → `settlement`, `/me/bookmarked-feeds` → `feed` |
+| `/users/{username}/**` API | 마찬가지로 반환 데이터 기준 | `/feeds` → `feed`, `/collections` → `collection`, `/plans` → `plan`, `/saved-places` → `savedplace` |
 | `GET /auth/check-username` | **`user`** | `users.username`의 규칙과 UNIQUE는 `user`가 소유합니다 |
 
 ### 2.3 다른 모듈의 요청으로 바뀌는 컬럼
@@ -145,7 +145,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | 컬럼 | 소유 | 바꾸게 하는 모듈 | 방법 |
 | --- | --- | --- | --- |
 | `users.follower_count`, `following_count` | user | social | `UserCounterUseCase` (같은 트랜잭션, 원자적 증감) |
-| `users.post_count` | user | post | `UserCounterUseCase` |
+| `users.feed_count` | user | feed | `UserCounterUseCase` |
 | `users.status`, `suspended_until` | user | moderation | `UserStatusUseCase.suspend / ban / lift` |
 | `users.password_hash`, `last_login_at` | user | auth | `UserAccountUseCase` |
 | `saved_places.visit_status`, `visited_at` | savedplace | plan (방문 기록) | `SavedPlaceCommandUseCase.markVisited` |
@@ -156,7 +156,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 
 ### 2.4 보류 기능의 테이블
 
-`tags`, `post_tags`, `place_tags`, `user_tag_stats`, `user_devices`는 **지금 어떤 모듈도 소유하지 않습니다.** Flyway 초기 스크립트에 넣을지는 8.7에서 정합니다. 보류를 풀 때의 위치는 부록 A에 있습니다.
+`tags`, `feed_tags`, `place_tags`, `user_tag_stats`, `user_devices`는 **지금 어떤 모듈도 소유하지 않습니다.** Flyway 초기 스크립트에 넣을지는 8.7에서 정합니다. 보류를 풀 때의 위치는 부록 A에 있습니다.
 
 ---
 
@@ -236,22 +236,22 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | POST · DELETE | `/saved-places/{savedPlaceId}/photos/**` | `SavedPlaceCommandUseCase.addPhoto / removePhoto` (테이블 없음, 8.1 #4) |
 | GET | `/users/{username}/saved-places` | `SavedPlaceQueryUseCase.publicMapOf` (공개 기준 미정, 8.1 #3) |
 
-### post
+### feed
 | 메서드 | 경로 | 입력 포트 · 메서드 | 비고 |
 | --- | --- | --- | --- |
-| GET | `/feeds?tab=following\|recommended` | `PostQueryUseCase.feed` | 추천은 비로그인 허용 |
-| GET | `/feeds/places?tab=` | `PostQueryUseCase.feedPlaces` | |
-| POST | `/feeds` | `PostCommandUseCase.write` | |
-| GET · PUT · DELETE | `/feeds/{feedId}` | `PostQueryUseCase.getDetail` / `PostCommandUseCase.update / delete` | feedId = `posts.public_id` |
+| GET | `/feeds?tab=following\|recommended` | `FeedQueryUseCase.feed` | 추천은 비로그인 허용 |
+| GET | `/feeds/places?tab=` | `FeedQueryUseCase.feedPlaces` | |
+| POST | `/feeds` | `FeedCommandUseCase.write` | |
+| GET · PUT · DELETE | `/feeds/{feedId}` | `FeedQueryUseCase.getDetail` / `FeedCommandUseCase.update / delete` | feedId = `feeds.public_id` |
 | GET | `/feeds/{feedId}/comments` | `CommentQueryUseCase.list` | 댓글 + 대댓글 일부 |
 | GET | `/feeds/{feedId}/comments/{commentId}/replies` | `CommentQueryUseCase.replies` | |
 | POST · PUT · DELETE | `/feeds/{feedId}/comments/**` | `CommentCommandUseCase.write / edit / delete` | |
-| POST · DELETE | `/feeds/{feedId}/likes` | `PostReactionUseCase.likePost / unlikePost` | |
-| POST · DELETE | `/feeds/{feedId}/comments/{commentId}/likes` | `PostReactionUseCase.likeComment / unlikeComment` | |
-| POST · DELETE | `/feeds/{feedId}/bookmarks` | `PostReactionUseCase.bookmark / unbookmark` | |
-| GET | `/me/bookmarked-feeds` | `PostQueryUseCase.myBookmarks` | |
-| GET | `/users/{username}/feeds` | `PostQueryUseCase.postsOf` | |
-| GET | `/users/{username}/visits` | `PostQueryUseCase.visitedPlacesOf` | 기준 미정 (8.3 #3) |
+| POST · DELETE | `/feeds/{feedId}/likes` | `FeedReactionUseCase.likeFeed / unlikeFeed` | |
+| POST · DELETE | `/feeds/{feedId}/comments/{commentId}/likes` | `FeedReactionUseCase.likeComment / unlikeComment` | |
+| POST · DELETE | `/feeds/{feedId}/bookmarks` | `FeedReactionUseCase.bookmark / unbookmark` | |
+| GET | `/me/bookmarked-feeds` | `FeedQueryUseCase.myBookmarks` | |
+| GET | `/users/{username}/feeds` | `FeedQueryUseCase.feedsOf` | |
+| GET | `/users/{username}/visits` | `FeedQueryUseCase.visitedPlacesOf` | 기준 미정 (8.3 #3) |
 
 ### collection
 | 메서드 | 경로 | 입력 포트 · 메서드 | 비고 |
@@ -380,8 +380,8 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 
 | 단계 | 기준 | 구조 | 해당 테이블 |
 | --- | --- | --- | --- |
-| **1. 분리** | 상태 전이 · 금액 계산 · 권한 규칙이 있음 | `domain/model` + `persistence/entity` + 변환 | users, posts, comments, places, saved_places, collections(+places·versions), collection_purchases, plans(+items·reservations), payments, refunds, creator_settlements, creators, creator_payout_accounts, import_jobs, conversations(+members), messages, media_files, reports, user_sanctions, refresh_tokens, terms |
-| **2. 모델 없음** | 규칙이 "있다/없다", "추가만" 수준 | domain 모델 없이 **포트 메서드가 원시값·dto를 받음** (`follow(followerId, followeeId)`). JPA 엔티티는 adapter 안에만 | follows, user_blocks, post_likes, comment_likes, post_bookmarks, notifications, user_settings, user_map_category_settings, user_terms_agreements, user_social_accounts, creator_status_histories, place_external_refs, import_extraction_runs, admin_action_logs |
+| **1. 분리** | 상태 전이 · 금액 계산 · 권한 규칙이 있음 | `domain/model` + `persistence/entity` + 변환 | users, feeds, comments, places, saved_places, collections(+places·versions), collection_purchases, plans(+items·reservations), payments, refunds, creator_settlements, creators, creator_payout_accounts, import_jobs, conversations(+members), messages, media_files, reports, user_sanctions, refresh_tokens, terms |
+| **2. 모델 없음** | 규칙이 "있다/없다", "추가만" 수준 | domain 모델 없이 **포트 메서드가 원시값·dto를 받음** (`follow(followerId, followeeId)`). JPA 엔티티는 adapter 안에만 | follows, user_blocks, feed_likes, comment_likes, feed_bookmarks, notifications, user_settings, user_map_category_settings, user_terms_agreements, user_social_accounts, creator_status_histories, place_external_refs, import_extraction_runs, admin_action_logs |
 | **3. 금지** | — | JPA 엔티티를 application이나 domain에서 쓰는 것 | 전부 |
 
 - 2단계 테이블에도 규칙이 생기면(예: 알림 묶음 처리) 그때 1단계로 올립니다.
@@ -393,7 +393,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | --- | --- | --- |
 | in-port | **애그리거트(리소스)마다 Command 1개 + Query 1개**에서 시작. 흐름 중심 기능은 기능 이름 하나 | `PlanCommandUseCase`, `PlanQueryUseCase`, `LoginUseCase` |
 | in-port 분리 | 메서드가 8개를 넘거나, 특정 메서드만 외부 시스템이 필요할 때 | `PlanRouteUseCase`(길찾기 필요)를 `PlanQueryUseCase`에서 분리 |
-| 다른 모듈 전용 in-port | 누가 쓰는지 드러나도록 이름으로 구분 | `UserCounterUseCase`(social·post), `PurchaseSettlementUseCase`(settlement) |
+| 다른 모듈 전용 in-port | 누가 쓰는지 드러나도록 이름으로 구분 | `UserCounterUseCase`(social·feed), `PurchaseSettlementUseCase`(settlement) |
 | service | in-port 하나당 구현 하나. 서비스끼리 서로 호출하지 않음 (공통 로직은 domain으로) | `PlanCommandService` |
 | PersistencePort | **애그리거트마다 1개** (조회·저장·삭제를 한 인터페이스에) | `PlanPersistencePort` |
 | QueryPort | **모듈마다 1개**, 화면 조회 전용. 커지면 화면 단위로 분리 | `PlanQueryPort` |
@@ -445,7 +445,7 @@ backend/src/main/java/com/pickong/
 │   │   └── event/                            # UserWithdrawalRequestedEvent, UserStatusChangedEvent
 │   ├── application/
 │   │   ├── port/in/                          # UserCommandUseCase, UserQueryUseCase, UserSettingsUseCase,
-│   │   │                                     # UserAccountUseCase(auth), UserStatusUseCase(moderation), UserCounterUseCase(social·post)
+│   │   │                                     # UserAccountUseCase(auth), UserStatusUseCase(moderation), UserCounterUseCase(social·feed)
 │   │   ├── port/out/                         # UserPersistencePort, UserSettingsPersistencePort, UserQueryPort
 │   │   ├── service/
 │   │   └── dto/
@@ -506,15 +506,15 @@ backend/src/main/java/com/pickong/
 │   │   └── port/out/                         # SavedPlacePersistencePort, SavedPlaceQueryPort
 │   └── adapter/in/web/                       # SavedPlaceController, UserMapController
 │
-├── post/
+├── feed/
 │   ├── domain/
-│   │   ├── model/                            # Post(+PostPhoto, PostPlace), Comment
-│   │   ├── policy/PostVisibilityPolicy.java  # 공개 범위 + 관계 + 삭제 여부 → 볼 수 있는가
-│   │   └── event/                            # PostLikedEvent, CommentCreatedEvent, CommentLikedEvent
+│   │   ├── model/                            # Feed(+FeedPhoto, FeedPlace), Comment
+│   │   ├── policy/FeedVisibilityPolicy.java  # 공개 범위 + 관계 + 삭제 여부 → 볼 수 있는가
+│   │   └── event/                            # FeedLikedEvent, CommentCreatedEvent, CommentLikedEvent
 │   ├── application/
-│   │   ├── port/in/                          # PostCommandUseCase, PostQueryUseCase, CommentCommandUseCase,
-│   │   │                                     # CommentQueryUseCase, PostReactionUseCase
-│   │   └── port/out/                         # PostPersistencePort, CommentPersistencePort, ReactionPort(2단계), PostQueryPort
+│   │   ├── port/in/                          # FeedCommandUseCase, FeedQueryUseCase, CommentCommandUseCase,
+│   │   │                                     # CommentQueryUseCase, FeedReactionUseCase
+│   │   └── port/out/                         # FeedPersistencePort, CommentPersistencePort, ReactionPort(2단계), FeedQueryPort
 │   └── adapter/in/web/                       # FeedController, CommentController, ReactionController, UserFeedController
 │
 ├── collection/                               # → 5.2
@@ -528,7 +528,7 @@ backend/src/main/java/com/pickong/
 │   │   └── port/out/NotificationPersistencePort.java
 │   └── adapter/
 │       ├── in/web/NotificationController.java
-│       └── in/event/                         # SocialNotificationListener, PostNotificationListener,
+│       └── in/event/                         # SocialNotificationListener, FeedNotificationListener,
 │                                             # CollectionNotificationListener, CreatorNotificationListener
 │
 ├── moderation/
@@ -542,7 +542,7 @@ backend/src/main/java/com/pickong/
 │       ├── in/web/ReportController.java
 │       ├── in/web/admin/                     # AdminReportController, AdminSanctionController
 │       ├── in/scheduler/SanctionExpiryScheduler.java
-│       └── out/target/ReportTargetSnapshotAdapter.java   # 대상 종류별로 post · collection · user · conversation in-port 호출
+│       └── out/target/ReportTargetSnapshotAdapter.java   # 대상 종류별로 feed · collection · user · conversation in-port 호출
 │
 ├── creator/
 │   ├── domain/
@@ -594,7 +594,7 @@ backend/src/main/resources/
 | `Visibility` | `PUBLIC` · `FOLLOWERS` · `PRIVATE` + `allows(ViewerRelation)` | 게시물 · 컬렉션 · 장소 · 설정이 같은 3단계 규칙을 씁니다 (프론트도 `shared/config/visibility.ts`) |
 | `ViewerRelation` | `OWNER` · `FOLLOWER` · `OTHER` · `ANONYMOUS` | `Visibility.allows`의 입력. 값은 `social`이 계산해서 넘깁니다 |
 | `GeoPoint` | 위도·경도 + 범위 검증 | `place`, `route`, `plan`, `placeimport`가 좌표를 주고받습니다 |
-| `BoundingBox` | `서,남,동,북` | 지도 범위 조회 (`place`, `savedplace`, `post`) |
+| `BoundingBox` | `서,남,동,북` | 지도 범위 조회 (`place`, `savedplace`, `feed`) |
 
 공유 커널에 타입을 추가하려면 PR에 "두 개 이상의 모듈이 **같은 규칙**으로 쓴다"는 근거를 적고 모든 모듈 담당자의 리뷰를 받습니다.
 
@@ -1085,7 +1085,7 @@ ImportJobExecutionService.run(jobId)           트랜잭션은 단계 기록할 
 HTTP  ConversationController ─┐                         ┌─▶ ConversationPersistencePort / MessagePersistencePort
                               ├─▶ MessageUseCase ───────┤
 STOMP DmStompController ──────┘   (MessageService)      ├─▶ RelationQueryUseCase (차단)
-      @MessageMapping("dm.send")                        ├─▶ MediaQueryUseCase / PlaceQueryUseCase / PostQueryUseCase (첨부 확인)
+      @MessageMapping("dm.send")                        ├─▶ MediaQueryUseCase / PlaceQueryUseCase / FeedQueryUseCase (첨부 확인)
       @MessageMapping("dm.read")                        └─▶ MessagePushPort ──▶ StompMessagePushAdapter ──▶ /user/queue/dm
 ```
 
@@ -1178,15 +1178,15 @@ conversation/
 화살표는 "왼쪽이 오른쪽의 공개 API를 사용"입니다. 이벤트 구독도 의존으로 칩니다.
 
 ```
-notification ──▶ user, social, post, collection, creator, conversation, plan   (이벤트 구독, 수신 설정 확인)
-moderation   ──▶ user, post, collection, conversation, admin
+notification ──▶ user, social, feed, collection, creator, conversation, plan   (이벤트 구독, 수신 설정 확인)
+moderation   ──▶ user, feed, collection, conversation, admin
 settlement   ──▶ creator, collection, admin
 collection   ──▶ user, social, place, savedplace, media, creator, payment
 creator      ──▶ user, admin
 plan         ──▶ user, social, place, savedplace, route
 placeimport  ──▶ place, savedplace
-conversation ──▶ user, social, media, place, post
-post         ──▶ user, social, place, media
+conversation ──▶ user, social, media, place, feed
+feed         ──▶ user, social, place, media
 savedplace   ──▶ user, social, place
 route        ──▶ place
 place        ──▶ media
@@ -1216,7 +1216,7 @@ common       ◀── 모든 모듈 (common은 어떤 모듈에도 의존하지
 | `UserWithdrawalRequestedEvent` | user | 탈퇴 신청 저장 후 | auth (토큰 폐기) | 커밋 후 |
 | `UserStatusChangedEvent` | user | 정지 · 영구 정지 · 해제 저장 후 | auth (영구 정지 시 토큰 폐기), notification | 커밋 후 |
 | `UserFollowedEvent` | social | 팔로우 저장 후 | notification | 커밋 후 |
-| `PostLikedEvent`, `CommentCreatedEvent`, `CommentLikedEvent` | post | 저장 후 | notification | 커밋 후 |
+| `FeedLikedEvent`, `CommentCreatedEvent`, `CommentLikedEvent` | feed | 저장 후 | notification | 커밋 후 |
 | `SavedPlaceDeletingEvent` | savedplace | **삭제 직전** (FK 때문에 구성 장소를 먼저 지움) | collection | 동기, 같은 트랜잭션 |
 | `CollectionPurchasedEvent`, `PurchaseRefundedEvent` | collection | 구매 생성 · 환불 반영 후 | notification | 커밋 후 |
 | `CreatorApprovedEvent`, `CreatorRejectedEvent` | creator | 상태 변경 후 | notification | 커밋 후 |
@@ -1297,7 +1297,7 @@ class ArchitectureTest {
 
     /** 6.2와 같은 내용. 바꾸면 문서도 함께 수정 */
     static final Map<String, Set<String>> ALLOWED = Map.ofEntries(
-            entry("post", Set.of("user", "social", "place", "media")),
+            entry("feed", Set.of("user", "social", "place", "media")),
             entry("collection", Set.of("user", "social", "place", "savedplace", "media", "creator", "payment"))
             /* … */);
 
@@ -1372,7 +1372,7 @@ class ArchitectureTest {
 | --- | --- | --- | --- |
 | 1 | `users.password_hash`, `email` | 저장은 user, 해시 생성 · 검증은 auth | — |
 | 2 | `collection_places.owner_id`, `place_id` (저장 장소에서 복사한 값, 복합 FK) | collection 소유 | 저장 장소의 장소가 바뀌는 경우가 있는지 |
-| 3 | `/users/{username}/visits`의 기준 | post (게시물에 연결한 장소, 프론트 부록 A.1 기준) | `saved_places`의 VISITED 기준이면 savedplace로 이동 |
+| 3 | `/users/{username}/visits`의 기준 | feed (게시물에 연결한 장소, 프론트 부록 A.1 기준) | `saved_places`의 VISITED 기준이면 savedplace로 이동 |
 | 4 | `payments.collection_id` | payment 소유, 값은 SPI가 채움 | 결제 목적이 늘면 목적별 컬럼이 늘어남 → 범용 `target_id` 검토 |
 | 5 | `reports.target_type/target_id`, `notifications.target_*` | 다형 참조 (FK 없음) | 대상 삭제 시 처리 (신고는 스냅샷이 있어 유지) |
 | 6 | `places.visibility`, `owner_id` (직접 추가 장소) | place | CUSTOM 장소를 누가 볼 수 있는지 규칙 |
@@ -1384,8 +1384,8 @@ class ArchitectureTest {
 | 1 ★ | **구매 스냅샷의 완전성:** `collection_version_places`에는 장소 id · 순서 · 이름만 있음. 주소 · 좌표 · 카테고리 · 사진 · (있다면) 크리에이터 설명은 현재 `places` 값을 보여 주게 되어 구매 후 바뀔 수 있음. 버전에 표지 · 핀 스타일도 없음 | 구매자에게 보장할 범위를 정한 뒤, 필요한 값을 `collection_version_places`에 복사 (예: 주소 · 좌표 · 카테고리) |
 | 2 | 구매자는 구매 버전과 최신 버전 중 무엇을 보나? ("이 버전을 언제든 볼 수 있음" vs "가격 변경 시 기존 구매자 추가 금액 없음") | 제안: 상세는 최신 버전, 스냅샷 API는 구매 버전 |
 | 3 | ERD 내보내기 SQL이 MySQL 문법(백틱), FK가 10개만 있음, PK에 IDENTITY 없음 | Flyway 초기 스크립트를 PostgreSQL 문법으로 작성하고 모든 FK · 주석에 적힌 UNIQUE · CHECK · 부분 UNIQUE 인덱스를 포함 |
-| 4 | `UNIQUE(plan_id, position)`, `UNIQUE(user_id, position)`(지도 카테고리), `UNIQUE(post_id, position)` — 일괄 재배치 중간에 위반 | `DEFERRABLE INITIALLY DEFERRED` 또는 임시 음수 위치로 두 단계 갱신 |
-| 5 | 시각 타입 혼용: `posts`, `comments`, `post_*`, `comment_likes`만 `TIMESTAMP` | `TIMESTAMPTZ`로 통일 |
+| 4 | `UNIQUE(plan_id, position)`, `UNIQUE(user_id, position)`(지도 카테고리), `UNIQUE(feed_id, position)` — 일괄 재배치 중간에 위반 | `DEFERRABLE INITIALLY DEFERRED` 또는 임시 음수 위치로 두 단계 갱신 |
+| 5 | 시각 타입 혼용: `feeds`, `comments`, `feed_*`, `comment_likes`만 `TIMESTAMP` | `TIMESTAMPTZ`로 통일 |
 | 6 | `collection_purchases.fee_amount`가 NULL 허용 | 구매 시 항상 계산하므로 NOT NULL |
 | 7 | `payments.status` · `refunds` 외 상태 값 목록, 결제 준비 만료 시각 없음 | 상태 값 확정 (APPROVING 포함 여부), READY 만료 처리 |
 | 8 | `collection_places` → `saved_places` FK 삭제 정책 | 앱에서 동기 이벤트로 먼저 정리 (6.4). DB는 `RESTRICT` 유지 |
@@ -1410,7 +1410,7 @@ class ArchitectureTest {
 
 | 기준 | 적용 |
 | --- | --- |
-| **공유 링크로 열리는 리소스는 `public_id`(UUID)** | posts(`{feedId}`), places, collections, plans |
+| **공유 링크로 열리는 리소스는 `public_id`(UUID)** | feeds(`{feedId}`), places, collections, plans |
 | **본인 · 참여자 · 관리자만 접근하는 리소스는 BIGINT `id`** + 서비스에서 소유자 확인 | 댓글, 저장 장소, 일정 장소, 구매, 결제, 정산, 알림, 대화방, 메시지, 추출 작업, 미디어, 신고, 제재 |
 | **사용자는 `username`** | `/users/{username}`. 관리자 API만 `{userId}` |
 | 변환 위치 | 컨트롤러는 경로 값을 그대로 Command에 담고, **service가 `PlaceQueryUseCase.resolveId(publicId)` 등으로 내부 id로 바꿈**. domain과 다른 모듈 호출은 내부 id(Long)로 통일 |
@@ -1482,7 +1482,7 @@ class ArchitectureTest {
 | --- | --- | --- |
 | 모듈 패키지 | 소문자 한 단어 | `savedplace`, `placeimport` |
 | 모델 · VO · 정책 | 명사 / 정책은 판단 내용 + `Policy` · 계산은 `Calculator` | `Plan`, `CollectionPrice`, `RefundWindowPolicy`, `SettlementCalculator` |
-| 이벤트 | 과거형(완료) 또는 진행형(직전) + `Event`, record | `PostLikedEvent`, `SavedPlaceDeletingEvent` |
+| 이벤트 | 과거형(완료) 또는 진행형(직전) + `Event`, record | `FeedLikedEvent`, `SavedPlaceDeletingEvent` |
 | in-port | `<대상>CommandUseCase` · `<대상>QueryUseCase` · `<흐름>UseCase` | `PlanQueryUseCase`, `LoginUseCase` |
 | dto | `<동사><대상>Command` · `<대상>Query` · `<대상>Result` | `CreatePlanCommand`, `PlanDetailResult` |
 | out-port | `<대상>PersistencePort` · `<모듈>QueryPort` · `<역할>Port` | `PlanPersistencePort`, `WeatherPort` |
@@ -1502,7 +1502,7 @@ class ArchitectureTest {
 
 | 기능 | 위치 | 의존 |
 | --- | --- | --- |
-| 태그 (`tags`, `post_tags`, `place_tags`, `user_tag_stats`) | 새 모듈 `tag`. 게시물 작성·수정 시 `post`가 `TagUseCase`를 호출해 태그 연결과 통계(`place_tags.count`, `user_tag_stats.score`) 갱신을 같은 트랜잭션에서 요청 | `post → tag` 한 방향. `tag`가 `post` 이벤트를 구독하면 순환이 생기므로 이벤트는 쓰지 않음 |
+| 태그 (`tags`, `feed_tags`, `place_tags`, `user_tag_stats`) | 새 모듈 `tag`. 게시물 작성·수정 시 `feed`가 `TagUseCase`를 호출해 태그 연결과 통계(`place_tags.count`, `user_tag_stats.score`) 갱신을 같은 트랜잭션에서 요청 | `feed → tag` 한 방향. `tag`가 `feed` 이벤트를 구독하면 순환이 생기므로 이벤트는 쓰지 않음 |
 | 디바이스 · 푸시 (`user_devices`) | `notification`에 `DevicePersistencePort` + `PushSenderPort` (`adapter/out/external/fcm/`) | 변화 없음 (notification은 최상위) |
 | 지도 공개 범위 | `user`의 사용자 설정 (컬럼 추가 필요, 8.1 #3) | `savedplace`가 `UserSettingsUseCase` 조회 |
 | 알림 전체 읽음 | `NotificationUseCase.markAllRead` | 변화 없음 |
