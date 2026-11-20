@@ -1,6 +1,6 @@
 "use client";
 
-import { SquarePen } from "lucide-react";
+import { SquarePen, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -42,15 +42,24 @@ export function MessagesScreen() {
           label="Messages"
           title="메시지"
           right={
-            <button
-              type="button"
-              onClick={() => setComposing(true)}
-              aria-label="새 메시지"
-              aria-haspopup="dialog"
-              className="inline-flex size-10 items-center justify-center rounded-full text-ink active:bg-fill"
-            >
-              <SquarePen size={21} strokeWidth={1.8} />
-            </button>
+            <>
+              <Link
+                href={routes.groupChats()}
+                aria-label="그룹 채팅"
+                className="inline-flex size-10 items-center justify-center rounded-full text-ink active:bg-fill"
+              >
+                <Users size={21} strokeWidth={1.8} />
+              </Link>
+              <button
+                type="button"
+                onClick={() => setComposing(true)}
+                aria-label="새 메시지"
+                aria-haspopup="dialog"
+                className="inline-flex size-10 items-center justify-center rounded-full text-ink active:bg-fill"
+              >
+                <SquarePen size={21} strokeWidth={1.8} />
+              </button>
+            </>
           }
         />
         <div className="px-5 pt-4 pb-3">
