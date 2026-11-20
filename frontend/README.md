@@ -2,7 +2,7 @@
 
 > 당신의 마침표. 누군가의 "따옴표"가 됩니다
 
-설계 규칙은 저장소 루트의 [`BLUEPRINT.md`](../BLUEPRINT.md)를 따릅니다.
+설계 규칙은 저장소 루트의 [`frontend_blueprint.md`](../frontend_blueprint.md)와 [`common_blueprint.md`](../common_blueprint.md)를 따릅니다.
 
 ## 실행
 
