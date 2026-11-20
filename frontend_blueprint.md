@@ -131,16 +131,20 @@ pickong/
     │   │   ├── globals.css                 # Tailwind + 디자인 토큰(@theme)
     │   │   ├── global-error.tsx
     │   │   ├── not-found.tsx
-    │   │   ├── page.tsx                    # 랜딩 (공개, SEO). 로그인 상태면 /feed로
-    │   │   │
     │   │   ├── (auth)/
-    │   │   │   ├── layout.tsx
+    │   │   │   ├── page.tsx                # / 시작 화면 (공개). 시작하기 → /login. 로그인 상태면 /feed로
+    │   │   │   ├── _components/AuthUi.tsx  # 시작·로그인·회원가입 공통 입력창·체크박스·알약 버튼
+    │   │   │   ├── _lib/validation.ts      # 이메일 검증
     │   │   │   ├── login/
     │   │   │   │   ├── page.tsx
     │   │   │   │   └── _components/LoginForm.tsx
     │   │   │   └── signup/
     │   │   │       ├── page.tsx
-    │   │   │       └── _components/SignupForm.tsx
+    │   │   │       ├── _lib/               # signup.ts(닉네임·비밀번호·약관), phone.ts(번호 형식·타이머)
+    │   │   │       └── _components/
+    │   │   │           ├── SignupFlow.tsx      # 정보 입력 → 휴대폰 인증 단계
+    │   │   │           ├── SignupForm.tsx
+    │   │   │           └── PhoneVerifyStep.tsx
     │   │   │
     │   │   └── (main)/                     # 앱 셸 레이아웃 (헤더 + 하단 탭)
     │   │       ├── layout.tsx
@@ -930,8 +934,8 @@ entities/plan/model/            # React import 금지. 입력 → 출력만 있�
 
 | 경로 | 화면 | 접근 | 주요 렌더링 | 단계 |
 | --- | --- | --- | --- | --- |
-| `/` | 랜딩 (로그인 시 `/feed`로) | 공개 | Server | 껍데기 |
-| `/login`, `/signup` | 로그인 · 회원가입 | 공개 | Server + 폼(Client) | 껍데기 |
+| `/` | 시작 화면 (로그인 시 `/feed`로) | 공개 | Server | 껍데기 |
+| `/login`, `/signup` | 로그인 · 회원가입 (회원가입은 정보 입력 → 휴대폰 인증 단계) | 공개 | Server + 폼(Client) | 껍데기 |
 | `/feed` | 팔로잉 피드 | 로그인 | Server prefetch + 무한 스크롤(Client) | 껍데기 |
 | `/explore` | 탐색 | 공개 | Server + 버튼(Client) | 껍데기 |
 | `/map` | 나만의 지도 | 로그인 | Server prefetch + 지도(Client) | 껍데기 |
