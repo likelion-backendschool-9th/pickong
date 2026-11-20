@@ -3,22 +3,28 @@
 이 문서는 이 저장소에서 작업하는 AI 에이전트와 팀원이 공통으로 따르는 개발 규칙입니다.
 코드 작성, 브랜치 생성, 커밋, PR 작성 시 아래 규칙을 반드시 따릅니다.
 
-## 설계 문서: BLUEPRINT.md
+## 설계 문서: blueprint
 
-프론트엔드(`frontend/`) 코드를 작성하거나 수정하기 전에 저장소 루트의 `BLUEPRINT.md`를 먼저 읽고, 그 내용을 따릅니다.
-`BLUEPRINT.md`는 찜콩(Pickong) 프론트엔드의 기술 스택, 폴더 구조, 계층 의존 규칙, 상태 관리 및 API 연동 규칙, 라우트 맵, 엔티티 모델을 정의한 설계 문서입니다.
+코드를 작성하거나 수정하기 전에 저장소 루트의 설계 문서를 먼저 읽고, 그 내용을 따릅니다.
+
+| 문서 | 내용 |
+| --- | --- |
+| `common_blueprint.md` | 프론트·백엔드 공통: 설계 기준, API 계약(경로 · 오류 · 인증 · 식별자 · 형식), 용어, 보류 범위, 기능 정리 |
+| `frontend_blueprint.md` | 프론트엔드(`frontend/`): 기술 스택, 폴더 구조, 계층 의존 규칙, 상태 관리 및 API 연동 규칙, 라우트 맵, 엔티티 모델 |
+| `backend_blueprint.md` | 백엔드(`backend/`): 헥사고날 구조, 모듈 구성, 의존 규칙, 영속성 · 보안 · 비동기 작업 |
 
 ### 적용 범위와 우선순위
 
-- 폴더 구조, 코드 배치, 의존 방향, Server/Client Component 구분, 상태 관리, API 연동 방식은 `BLUEPRINT.md`를 기준으로 합니다.
+- 프론트엔드의 폴더 구조, 코드 배치, 의존 방향, Server/Client Component 구분, 상태 관리, API 연동 방식은 `frontend_blueprint.md`를 기준으로 합니다.
+- 백엔드의 패키지 구조, 계층 · 모듈 의존 방향, 영속성 규칙은 `backend_blueprint.md`를 기준으로 합니다.
+- 프론트와 백엔드가 주고받는 형식(API 경로, 오류 응답, 인증, ID)은 `common_blueprint.md`를 기준으로 합니다.
 - 브랜치, 커밋, PR, 리뷰, 금지 사항은 이 문서의 1~10장을 따릅니다. 프론트엔드와 백엔드 모두에 적용됩니다.
-- `backend/`(Spring Boot)는 `BLUEPRINT.md`의 범위 밖이므로 이 문서의 규칙을 따릅니다.
-- `BLUEPRINT.md`와 실제 코드가 다를 때는 임의로 한쪽에 맞추지 않고 팀원에게 확인합니다. 구조나 규칙을 바꾸는 경우에는 `BLUEPRINT.md`도 같은 PR에서 함께 수정합니다.
-- 다만 `BLUEPRINT.md` 부록 C의 `Plan` 관련 타입은 최신 정의가 코드(`types.ts`)에 있다고 명시되어 있으므로, 해당 부분은 코드를 기준으로 합니다.
+- blueprint와 실제 코드가 다를 때는 임의로 한쪽에 맞추지 않고 팀원에게 확인합니다. 구조나 규칙을 바꾸는 경우에는 해당 blueprint도 같은 PR에서 함께 수정합니다.
+- 다만 `frontend_blueprint.md` 부록 C의 `Plan` 관련 타입은 최신 정의가 코드(`types.ts`)에 있다고 명시되어 있으므로, 해당 부분은 코드를 기준으로 합니다.
 
 ### 프론트엔드 핵심 규칙 요약
 
-자세한 내용과 예외는 `BLUEPRINT.md`를 확인합니다.
+자세한 내용과 예외는 `frontend_blueprint.md`를 확인합니다.
 
 1. **계층 의존 방향:** `app → widgets → features → entities → shared` 순서로, 위 계층만 아래 계층을 import합니다.
 2. **feature 간 import 금지:** 조합이 필요하면 widget이나 페이지(`app/`)에서 합니다.
@@ -31,7 +37,7 @@
 9. **컴포넌트에서 `fetch`를 직접 호출하지 않습니다.** `entities/*/api` 또는 페이지 `_api`를 사용합니다.
 10. **DTO는 `api/` 폴더 밖으로 내보내지 않습니다.** 컴포넌트는 도메인 모델만 받고, 변환은 `mapper.ts`에서 합니다.
 11. **TanStack Query는 클라이언트에서 다시 조회·변경되는 데이터에만** 사용합니다. 변경(mutation)도 TanStack Query로 통일하며, Server Actions는 사용하지 않습니다.
-12. **Zustand store는 초기에 만들지 않습니다.** 필요하면 `BLUEPRINT.md` 8.2의 세 조건을 PR 설명에 적습니다.
+12. **Zustand store는 초기에 만들지 않습니다.** 필요하면 `frontend_blueprint.md` 8.2의 세 조건을 PR 설명에 적습니다.
 13. **필터, 탭, 검색어처럼 공유 가능한 화면 상태는 URL(`searchParams`)에 둡니다.**
 14. **계산·검증 로직은 React를 import하지 않는 순수 함수로 작성하고, 바로 옆에 테스트를 둡니다.**
 15. **단순 UI에는 UseCase, Port, Adapter 같은 추상화를 만들지 않습니다.**
@@ -51,9 +57,9 @@
 
 ### 작업 전 확인
 
-- 새 파일을 만들기 전에 `BLUEPRINT.md` 6장의 승격 사다리와 판단 순서로 위치를 정합니다.
-- 새 라우트를 추가할 때는 `BLUEPRINT.md` 부록 B의 라우트 맵(접근 권한, 렌더링 방식)을 확인합니다.
-- 엔티티 모델을 만들거나 수정할 때는 `BLUEPRINT.md` 부록 C를 확인합니다.
+- 새 파일을 만들기 전에 `frontend_blueprint.md` 6장의 승격 사다리와 판단 순서로 위치를 정합니다.
+- 새 라우트를 추가할 때는 `frontend_blueprint.md` 부록 B의 라우트 맵(접근 권한, 렌더링 방식)을 확인합니다.
+- 엔티티 모델을 만들거나 수정할 때는 `frontend_blueprint.md` 부록 C를 확인합니다.
 - 프론트엔드 변경은 ESLint(계층 의존 규칙 포함)와 테스트를 통과해야 PR을 올릴 수 있습니다.
 
 ## 요약

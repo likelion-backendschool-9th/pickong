@@ -3,7 +3,7 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
 /**
- * 계층 import 규칙 (BLUEPRINT.md 5장).
+ * 계층 import 규칙 (frontend_blueprint.md 5장).
  * eslint-plugin-boundaries 도입 전까지 no-restricted-imports로 핵심 규칙만 강제합니다.
  */
 const sliceInternals = {

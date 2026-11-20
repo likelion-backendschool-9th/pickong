@@ -9,7 +9,9 @@
 pickong/
 ├── README.md                    저장소 안내 (이 문서)
 ├── AGENT.md                     공통 개발 규칙 (브랜치 · 커밋 · PR · 빌드)
-├── BLUEPRINT.md                 프론트엔드 설계 문서
+├── common_blueprint.md          프론트·백엔드 공통 설계 (API 계약 · 용어 · 기능 정리)
+├── frontend_blueprint.md        프론트엔드 설계 문서
+├── backend_blueprint.md         백엔드 설계 문서 (헥사고날 구조)
 ├── .gitignore                   공통 무시 규칙 (OS · IDE · 로그 · 환경변수)
 ├── .editorconfig                공통 에디터 설정 (인코딩 · 줄바꿈 · 들여쓰기)
 │
@@ -38,7 +40,7 @@ pickong/
     └── README.md                백엔드 실행 · 프론트와 맞출 API 계약
 ```
 
-계층 규칙과 코드 배치 기준은 [BLUEPRINT.md](BLUEPRINT.md)에 있습니다.
+공통 API 계약은 [common_blueprint.md](common_blueprint.md), 계층 규칙과 코드 배치 기준은 [frontend_blueprint.md](frontend_blueprint.md)와 [backend_blueprint.md](backend_blueprint.md)에 있습니다.
 
 ## 실행
 
