@@ -1,6 +1,6 @@
-package com.pickong.feed.adapter.out.persistence;
+package com.pickong.feed.adapter.out.persistence.entity;
 
-import com.pickong.feed.domain.Feed;
+import com.pickong.feed.domain.model.Feed;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;

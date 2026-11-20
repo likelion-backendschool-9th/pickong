@@ -1,4 +1,4 @@
-package com.pickong.feed.domain;
+package com.pickong.feed.domain.model;
 
 import java.time.LocalDateTime;
 import java.util.List;

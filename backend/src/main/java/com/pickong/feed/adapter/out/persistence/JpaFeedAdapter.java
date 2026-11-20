@@ -1,7 +1,9 @@
 package com.pickong.feed.adapter.out.persistence;
 
+import com.pickong.feed.adapter.out.persistence.entity.FeedEntity;
+import com.pickong.feed.adapter.out.persistence.repository.FeedJpaRepository;
 import com.pickong.feed.application.port.out.FeedRepository;
-import com.pickong.feed.domain.Feed;
+import com.pickong.feed.domain.model.Feed;
 import java.util.List;
 import org.springframework.data.domain.PageRequest;
 
