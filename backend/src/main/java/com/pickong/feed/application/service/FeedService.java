@@ -2,7 +2,7 @@ package com.pickong.feed.application.service;
 
 import com.pickong.feed.application.port.in.FeedUseCase;
 import com.pickong.feed.application.port.out.FeedRepository;
-import com.pickong.feed.domain.Feed;
+import com.pickong.feed.domain.model.Feed;
 import java.util.List;
 
 public class FeedService implements FeedUseCase {

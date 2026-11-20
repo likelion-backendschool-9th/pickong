@@ -1,6 +1,6 @@
 package com.pickong.feed.application.port.out;
 
-import com.pickong.feed.domain.Feed;
+import com.pickong.feed.domain.model.Feed;
 import java.util.List;
 
 public interface FeedRepository {
