@@ -2,7 +2,7 @@ services:
   frontend:
     build:
       target: development
-    command: ["sh", "-c", "npm ci && exec npm run next -- --hostname 0.0.0.0"]
+    command: ["sh", "-c", "npm install && exec npm run next -- --hostname 0.0.0.0"]
     environment:
       NODE_ENV: development
       API_BASE_URL: http://mock:4000
