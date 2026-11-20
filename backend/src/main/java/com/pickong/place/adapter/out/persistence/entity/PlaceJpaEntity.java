@@ -17,7 +17,7 @@ import java.util.UUID;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "places")
-public class PlacesJpaEntity {
+public class PlaceJpaEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

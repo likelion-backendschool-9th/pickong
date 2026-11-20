@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "collection_version_places")
-public class CollectionVersionPlacesJpaEntity {
+public class CollectionVersionPlaceJpaEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

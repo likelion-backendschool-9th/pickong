@@ -15,7 +15,7 @@ import java.time.OffsetDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "user_sanctions")
-public class UserSanctionsJpaEntity {
+public class UserSanctionJpaEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

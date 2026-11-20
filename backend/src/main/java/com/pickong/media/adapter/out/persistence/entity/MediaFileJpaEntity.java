@@ -15,7 +15,7 @@ import java.time.OffsetDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "media_files")
-public class MediaFilesJpaEntity {
+public class MediaFileJpaEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

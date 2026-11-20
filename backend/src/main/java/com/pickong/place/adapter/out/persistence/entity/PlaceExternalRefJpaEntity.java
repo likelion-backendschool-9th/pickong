@@ -15,7 +15,7 @@ import java.time.OffsetDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "place_external_refs")
-public class PlaceExternalRefsJpaEntity {
+public class PlaceExternalRefJpaEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -15,7 +15,7 @@ import java.time.OffsetDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "user_map_category_settings")
-public class UserMapCategorySettingsJpaEntity {
+public class UserMapCategorySettingJpaEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

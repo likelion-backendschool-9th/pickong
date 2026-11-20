@@ -16,7 +16,7 @@ import java.time.OffsetDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "place_hours_exceptions")
-public class PlaceHoursExceptionsJpaEntity {
+public class PlaceHoursExceptionJpaEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

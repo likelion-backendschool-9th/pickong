@@ -15,7 +15,7 @@ import java.time.OffsetDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "user_blocks")
-public class UserBlocksJpaEntity {
+public class UserBlockJpaEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -22,7 +22,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "users")
-public class UsersJpaEntity {
+public class UserJpaEntity {
 
     // ───────────── PK ─────────────
     @Id
