@@ -1,5 +1,8 @@
 /** 라우트 경로 상수. 링크 문자열을 직접 쓰지 않고 이 함수를 사용합니다. */
 export const routes = {
+  start: () => "/",
+  login: () => "/login",
+  signup: () => "/signup",
   feed: () => "/feed",
   search: () => "/search",
   notifications: () => "/notifications",

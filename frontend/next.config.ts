@@ -19,9 +19,6 @@ const nextConfig: NextConfig = {
       },
     },
   },
-  async redirects() {
-    return [{ source: "/", destination: "/feed", permanent: false }];
-  },
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${apiBaseUrl}/api/:path*` }];
   },
