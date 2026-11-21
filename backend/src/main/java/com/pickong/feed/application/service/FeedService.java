@@ -7,6 +7,9 @@ import com.pickong.feed.application.port.out.FeedRepository;
 import com.pickong.feed.domain.model.Feed;
 import java.util.List;
 
+import org.springframework.stereotype.Service;
+
+@Service
 public class FeedService implements FeedUseCase {
     private final FeedRepository feedRepository;
 

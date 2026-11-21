@@ -10,11 +10,11 @@ import lombok.Getter;
 @Getter
 public class UpdateFeedRequest {
     @NotBlank(message = "내용은 필수입니다.")
-    private final String content;
+    private String content;
     @NotNull(message = "공개 범위는 필수입니다.")
-    private final Visibility visibility;
-    private final List<Long> mediaFileIds;
-    private final List<Long> placeIds;
+    private Visibility visibility;
+    private List<Long> mediaFileIds;
+    private List<Long> placeIds;
 
     public UpdateFeedCommand toCommand() {
         return new UpdateFeedCommand(content, visibility, mediaFileIds, placeIds);

@@ -14,16 +14,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+@Repository
 public class JpaFeedAdapter implements FeedRepository {
     private final FeedJpaRepository feedJpaRepository;
     private final FeedPhotoJpaRepository feedPhotoJpaRepository;
     private final FeedPlaceJpaRepository feedPlaceJpaRepository;
 
     public JpaFeedAdapter(FeedJpaRepository feedJpaRepository,
-                          FeedPhotoJpaRepository feedPhotoJpaRepository,
-                          FeedPlaceJpaRepository feedPlaceJpaRepository) {
+            FeedPhotoJpaRepository feedPhotoJpaRepository,
+            FeedPlaceJpaRepository feedPlaceJpaRepository) {
         this.feedJpaRepository = feedJpaRepository;
         this.feedPhotoJpaRepository = feedPhotoJpaRepository;
         this.feedPlaceJpaRepository = feedPlaceJpaRepository;
@@ -38,12 +40,12 @@ public class JpaFeedAdapter implements FeedRepository {
         feedPhotoJpaRepository.deleteAllByFeedId(feedId);
         feedPlaceJpaRepository.deleteAllByFeedId(feedId);
         List<FeedPhoto> photos = feedPhotoJpaRepository.saveAll(feed.getPhotos().stream()
-                        .map(photo -> FeedPhotoJpaEntity.of(feedId, photo))
-                        .toList())
+                .map(photo -> FeedPhotoJpaEntity.of(feedId, photo))
+                .toList())
                 .stream().map(FeedPhotoJpaEntity::toDomain).toList();
         List<FeedPlace> places = feedPlaceJpaRepository.saveAll(feed.getPlaces().stream()
-                        .map(place -> FeedPlaceJpaEntity.of(feedId, place))
-                        .toList())
+                .map(place -> FeedPlaceJpaEntity.of(feedId, place))
+                .toList())
                 .stream().map(FeedPlaceJpaEntity::toDomain).toList();
 
         return saved.toDomain(photos, places);
