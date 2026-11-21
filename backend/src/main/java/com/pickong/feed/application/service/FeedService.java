@@ -1,6 +1,7 @@
 package com.pickong.feed.application.service;
 
-import com.pickong.common.domain.Visibility;
+import com.pickong.feed.application.dto.CreateFeedCommand;
+import com.pickong.feed.application.dto.UpdateFeedCommand;
 import com.pickong.feed.application.port.in.FeedUseCase;
 import com.pickong.feed.application.port.out.FeedRepository;
 import com.pickong.feed.domain.model.Feed;
@@ -11,6 +12,11 @@ public class FeedService implements FeedUseCase {
 
     public FeedService(FeedRepository feedRepository) {
         this.feedRepository = feedRepository;
+    }
+
+    @Override
+    public Feed getFeed(Long feedId) {
+        return feedRepository.findById(feedId);
     }
 
     @Override
@@ -34,17 +40,17 @@ public class FeedService implements FeedUseCase {
     }
 
     @Override
-    public Feed createFeed(Long userId, String content, Visibility visibility,
-                           List<Long> mediaFileIds, List<Long> placeIds) {
-        Feed feed = Feed.create(userId, content, visibility, mediaFileIds, placeIds);
+    public Feed createFeed(CreateFeedCommand command) {
+        Feed feed = Feed.create(command.getUserId(), command.getContent(), command.getVisibility(),
+                command.getMediaFileIds(),
+                command.getPlaceIds());
         return feedRepository.save(feed);
     }
 
     @Override
-    public Feed updateFeed(Long feedId, String content, Visibility visibility,
-                           List<Long> mediaFileIds, List<Long> placeIds) {
+    public Feed updateFeed(Long feedId, UpdateFeedCommand command) {
         Feed feed = feedRepository.findById(feedId);
-        feed.update(content, visibility, mediaFileIds, placeIds);
+        feed.update(command.getContent(), command.getVisibility(), command.getMediaFileIds(), command.getPlaceIds());
         return feedRepository.save(feed);
     }
 

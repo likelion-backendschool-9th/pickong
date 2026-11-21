@@ -1,10 +1,12 @@
 package com.pickong.feed.application.port.in;
 
-import com.pickong.common.domain.Visibility;
 import com.pickong.feed.domain.model.Feed;
+import com.pickong.feed.application.dto.CreateFeedCommand;
+import com.pickong.feed.application.dto.UpdateFeedCommand;
 import java.util.List;
 
 public interface FeedUseCase {
+
     List<Feed> getLatestFeeds(int limit);
 
     List<Feed> getRecommendedFeeds(Long userId, int limit);
@@ -13,9 +15,11 @@ public interface FeedUseCase {
 
     List<Feed> getFeedsByTag(Long userId, List<String> tags, int limit);
 
-    Feed createFeed(Long userId, String content, Visibility visibility, List<Long> mediaFileIds, List<Long> placeIds);
+    Feed createFeed(CreateFeedCommand command);
 
-    Feed updateFeed(Long feedId, String content, Visibility visibility, List<Long> mediaFileIds, List<Long> placeIds);
+    Feed updateFeed(Long feedId, UpdateFeedCommand command);
+
+    Feed getFeed(Long feedId);
 
     void deleteFeed(Long feedId);
 }
