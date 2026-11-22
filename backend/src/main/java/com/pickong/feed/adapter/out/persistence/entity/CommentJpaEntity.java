@@ -1,5 +1,6 @@
 package com.pickong.feed.adapter.out.persistence.entity;
 
+import com.pickong.feed.domain.model.Comment;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -50,4 +51,36 @@ public class CommentJpaEntity {
 
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    // Comment 도메인 객체 → JPA 엔티티 변환 (저장·수정 시 사용)
+    public static CommentJpaEntity from(Comment comment) {
+        CommentJpaEntity entity = new CommentJpaEntity();
+        entity.id = comment.getId();
+        entity.feedId = comment.getFeedId();
+        entity.userId = comment.getUserId();
+        entity.parentId = comment.getParentId();
+        entity.content = comment.getContent();
+        entity.likeCount = comment.getLikeCount();
+        entity.hiddenAt = comment.getHiddenAt();
+        entity.deletedAt = comment.getDeletedAt();
+        entity.createdAt = comment.getCreatedAt() != null ? comment.getCreatedAt() : OffsetDateTime.now();
+        entity.updatedAt = OffsetDateTime.now();
+        return entity;
+    }
+
+    // JPA 엔티티 → Comment 도메인 객체 변환 (조회 시 사용)
+    public Comment toDomain() {
+        return Comment.builder()
+                .id(id)
+                .feedId(feedId)
+                .userId(userId)
+                .parentId(parentId)
+                .content(content)
+                .likeCount(likeCount)
+                .hiddenAt(hiddenAt)
+                .deletedAt(deletedAt)
+                .createdAt(createdAt)
+                .updatedAt(updatedAt)
+                .build();
+    }
 }

@@ -25,6 +25,20 @@ public class Comment {
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 
+    public static Comment create(Long feedId, Long userId, Long parentId, String content) {
+        return Comment.builder()
+                .feedId(feedId)
+                .userId(userId)
+                .parentId(parentId)
+                .content(content)
+                .likeCount(0)
+                .build();
+    }
+
+    public void update(String content) {
+        this.content = content;
+    }
+
     public boolean isReply() {
         return parentId != null;
     }

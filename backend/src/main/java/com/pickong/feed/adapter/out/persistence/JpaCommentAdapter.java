@@ -1,0 +1,56 @@
+package com.pickong.feed.adapter.out.persistence;
+
+import com.pickong.common.error.BusinessException;
+import com.pickong.common.error.ErrorCode;
+import com.pickong.feed.adapter.out.persistence.entity.CommentJpaEntity;
+import com.pickong.feed.adapter.out.persistence.repository.CommentJpaRepository;
+import com.pickong.feed.application.port.out.CommentRepository;
+import com.pickong.feed.domain.model.Comment;
+import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+
+@Repository
+public class JpaCommentAdapter implements CommentRepository {
+
+    private final CommentJpaRepository commentJpaRepository;
+
+    public JpaCommentAdapter(CommentJpaRepository commentJpaRepository) {
+        this.commentJpaRepository = commentJpaRepository;
+    }
+
+    @Override
+    @Transactional
+    public Comment save(Comment comment) {
+        return commentJpaRepository.save(CommentJpaEntity.from(comment)).toDomain();
+    }
+
+    @Override
+    public List<Comment> findByFeedId(Long feedId, Long cursor, int limit) {
+        return commentJpaRepository.findTopLevelByFeedId(feedId, cursor, limit)
+                .stream().map(CommentJpaEntity::toDomain).toList();
+    }
+
+    @Override
+    public List<Comment> findRepliesByParentId(Long parentId, Long cursor, int limit) {
+        return commentJpaRepository.findRepliesByParentId(parentId, cursor, limit)
+                .stream().map(CommentJpaEntity::toDomain).toList();
+    }
+
+    @Override
+    public Comment findById(Long commentId) {
+        return commentJpaRepository.findById(commentId)
+                .map(CommentJpaEntity::toDomain)
+                .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
+    }
+
+    @Override
+    @Transactional
+    public void deleteById(Long commentId) {
+        if (!commentJpaRepository.existsById(commentId)) {
+            throw new BusinessException(ErrorCode.COMMENT_NOT_FOUND);
+        }
+        commentJpaRepository.deleteById(commentId);
+    }
+}
