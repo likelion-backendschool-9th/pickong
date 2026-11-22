@@ -63,6 +63,7 @@ export function userDto(u: UserRow) {
     id: u.id,
     username: u.username,
     nickname: u.nickname,
+    name: u.name === undefined ? u.nickname : u.name,
     profileImageUrl: u.profileImageUrl,
     bio: u.bio,
     region: u.region,
