@@ -9,6 +9,7 @@ import com.pickong.feed.domain.model.Feed;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class FeedService implements FeedUseCase {
@@ -37,6 +38,7 @@ public class FeedService implements FeedUseCase {
     }
 
     @Override
+    @Transactional
     public Feed createFeed(CreateFeedCommand command) {
         Feed feed = Feed.create(command.getUserId(), command.getContent(), command.getVisibility(),
                 command.getMediaFileIds(),
@@ -45,6 +47,7 @@ public class FeedService implements FeedUseCase {
     }
 
     @Override
+    @Transactional
     public Feed updateFeed(Long feedId, UpdateFeedCommand command) {
         Feed feed = feedRepository.findById(feedId);
         feed.update(command.getContent(), command.getVisibility(), command.getMediaFileIds(), command.getPlaceIds());
@@ -52,6 +55,7 @@ public class FeedService implements FeedUseCase {
     }
 
     @Override
+    @Transactional
     public void deleteFeed(Long feedId) {
         feedRepository.deleteById(feedId);
     }
