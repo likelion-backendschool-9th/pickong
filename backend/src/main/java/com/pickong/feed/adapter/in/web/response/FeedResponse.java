@@ -39,6 +39,7 @@ public class FeedResponse {
         response.commentCount = feed.getCommentCount();
         response.bookmarkCount = feed.getBookmarkCount();
         response.sponsored = feed.isSponsored();
+        response.sponsorName = feed.getSponsorName();
         response.createdAt = feed.getCreatedAt();
         response.updatedAt = feed.getUpdatedAt();
         response.photos = feed.getPhotos();
