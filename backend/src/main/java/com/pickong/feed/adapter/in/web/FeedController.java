@@ -1,13 +1,12 @@
 package com.pickong.feed.adapter.in.web;
 
 import com.pickong.feed.application.port.in.FeedUseCase;
-import com.pickong.feed.domain.model.Feed;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
-
 import java.util.List;
 
 import org.springframework.validation.annotation.Validated;
@@ -22,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PathVariable;
 import com.pickong.feed.adapter.in.web.request.CreateFeedRequest;
 import com.pickong.feed.adapter.in.web.request.UpdateFeedRequest;
+import com.pickong.feed.adapter.in.web.response.FeedResponse;
 
 @Validated
 @RestController
@@ -38,54 +38,48 @@ public class FeedController {
 
     // 단건 상세조회
     @GetMapping("/{feedId}")
-    public Feed getFeed(@PathVariable @Positive Long feedId) {
-        return feedUseCase.getFeed(feedId);
+    public FeedResponse getFeed(@PathVariable @Positive Long feedId) {
+        return FeedResponse.from(feedUseCase.getFeed(feedId));
     }
 
-    // 최신 피드 목록 조회. limit은 1~50 사이만 허용
+    // 피드 목록 조회. tab=recommended(추천) | tab=following(팔로잉). limit은 1~50 사이만 허용
     @GetMapping
-    public List<Feed> getLatestFeeds(
-            @RequestParam @Min(value = 1, message = "limit은 1 이상이어야 합니다") @Max(value = 50, message = "limit은 50 이하이어야 합니다") int limit) {
-        return feedUseCase.getLatestFeeds(limit);
-    }
-
-    // 추천 피드 목록 조회. limit은 1~50 사이만 허용
-    @GetMapping("/recommended")
-    public List<Feed> getRecommendedFeeds(
+    public List<FeedResponse> getFeeds(
+            @RequestParam @NotNull String tab,
             @RequestParam @NotNull Long userId,
             @RequestParam @Min(value = 1, message = "limit은 1 이상이어야 합니다") @Max(value = 50, message = "limit은 50 이하이어야 합니다") int limit) {
-        return feedUseCase.getRecommendedFeeds(userId, limit);
+        if (tab.equals("following")) {
+            return feedUseCase.getFollowingFeeds(userId, limit).stream().map(FeedResponse::from).toList();
+        }
+        return feedUseCase.getRecommendedFeeds(userId, limit).stream().map(FeedResponse::from).toList();
     }
 
-    // 팔로잉 피드 목록 조회. limit은 1~50 사이만 허용
-    @GetMapping("/following")
-    public List<Feed> getFollowingFeeds(
+    // 피드 지도 장소 목록 조회. tab=recommended(추천) | tab=following(팔로잉)
+    // TODO: 피드 장소 조회 UseCase 구현 후 연결 필요
+    @GetMapping("/places")
+    public List<FeedResponse> getFeedPlaces(
+            @RequestParam @NotNull String tab,
             @RequestParam @NotNull Long userId,
             @RequestParam @Min(value = 1, message = "limit은 1 이상이어야 합니다") @Max(value = 50, message = "limit은 50 이하이어야 합니다") int limit) {
-        return feedUseCase.getFollowingFeeds(userId, limit);
-    }
-
-    // 태그 기반 피드 목록 조회. limit은 1~50 사이만 허용
-    @GetMapping("/tag")
-    public List<Feed> getFeedsByTag(
-            @RequestParam @NotNull Long userId,
-            @RequestParam List<String> tags,
-            @RequestParam @Min(value = 1, message = "limit은 1 이상이어야 합니다") @Max(value = 50, message = "limit은 50 이하이어야 합니다") int limit) {
-        return feedUseCase.getFeedsByTag(userId, tags, limit);
+        if (tab.equals("following")) {
+            return feedUseCase.getFollowingFeeds(userId, limit).stream().map(FeedResponse::from).toList();
+        }
+        return feedUseCase.getRecommendedFeeds(userId, limit).stream().map(FeedResponse::from).toList();
     }
 
     // 피드 생성
     @PostMapping
-    public Feed createFeed(@RequestBody CreateFeedRequest request) {
-        return feedUseCase.createFeed(request.toCommand());
+    public FeedResponse createFeed(@Valid @RequestBody CreateFeedRequest request) {
+        return FeedResponse.from(feedUseCase.createFeed(request.toCommand()));
     }
 
     // 피드 수정
     @PutMapping("/{feedId}")
-    public Feed updateFeed(
+    public FeedResponse updateFeed(
             @PathVariable @Positive Long feedId,
-            @RequestBody UpdateFeedRequest request) {
-        return feedUseCase.updateFeed(feedId, request.toCommand());
+            @Valid @RequestBody UpdateFeedRequest request) {
+        return FeedResponse.from(feedUseCase.updateFeed(feedId, request.toCommand()));
+
     }
 
     // 피드 삭제
