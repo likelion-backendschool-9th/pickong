@@ -17,6 +17,9 @@ public class FeedPhoto {
     private int sortOrder;
 
     static FeedPhoto create(Long mediaFileId, int sortOrder) {
-        return FeedPhoto.builder().mediaFileId(mediaFileId).sortOrder(sortOrder).build();
+        return FeedPhoto.builder()
+                .mediaFileId(mediaFileId)
+                .sortOrder(sortOrder)
+                .build();
     }
 }

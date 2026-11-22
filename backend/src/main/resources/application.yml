@@ -1,6 +1,9 @@
 spring:
   application:
     name: pickong-backend
+  mvc:
+    servlet:
+      path: /api/v1
 
 server:
   port: 8080
@@ -14,4 +17,4 @@ management:
 
 # API 문서: /swagger-ui.html (스펙 JSON: /v3/api-docs)
 springdoc:
-  paths-to-match: /api/**
+  paths-to-match: /api/v1/**

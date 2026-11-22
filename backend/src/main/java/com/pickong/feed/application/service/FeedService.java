@@ -1,11 +1,16 @@
 package com.pickong.feed.application.service;
 
-import com.pickong.common.domain.Visibility;
+import com.pickong.feed.application.dto.CreateFeedCommand;
+import com.pickong.feed.application.dto.FeedPage;
+import com.pickong.feed.application.dto.UpdateFeedCommand;
 import com.pickong.feed.application.port.in.FeedUseCase;
 import com.pickong.feed.application.port.out.FeedRepository;
 import com.pickong.feed.domain.model.Feed;
 import java.util.List;
 
+import org.springframework.stereotype.Service;
+
+@Service
 public class FeedService implements FeedUseCase {
     private final FeedRepository feedRepository;
 
@@ -14,42 +19,48 @@ public class FeedService implements FeedUseCase {
     }
 
     @Override
-    public List<Feed> getLatestFeeds(int limit) {
-        return feedRepository.findLatestFeeds(limit);
+    public Feed getFeed(Long feedId) {
+        return feedRepository.findById(feedId);
     }
 
     @Override
-    public List<Feed> getRecommendedFeeds(Long userId, int limit) {
-        return feedRepository.findRecommendedFeeds(userId, limit);
+    public FeedPage getRecommendedFeeds(Long userId, Long cursor, int limit) {
+        // limit+1개 조회해서 hasNext 판별
+        List<Feed> feeds = feedRepository.findRecommendedFeeds(userId, cursor, limit + 1);
+        return toPage(feeds, limit);
     }
 
     @Override
-    public List<Feed> getFollowingFeeds(Long userId, int limit) {
-        return feedRepository.findFollowingFeeds(userId, limit);
+    public FeedPage getFollowingFeeds(Long userId, Long cursor, int limit) {
+        List<Feed> feeds = feedRepository.findFollowingFeeds(userId, cursor, limit + 1);
+        return toPage(feeds, limit);
     }
 
     @Override
-    public List<Feed> getFeedsByTag(Long userId, List<String> tags, int limit) {
-        return feedRepository.findFeedsByTag(userId, tags, limit);
-    }
-
-    @Override
-    public Feed createFeed(Long userId, String content, Visibility visibility,
-                           List<Long> mediaFileIds, List<Long> placeIds) {
-        Feed feed = Feed.create(userId, content, visibility, mediaFileIds, placeIds);
+    public Feed createFeed(CreateFeedCommand command) {
+        Feed feed = Feed.create(command.getUserId(), command.getContent(), command.getVisibility(),
+                command.getMediaFileIds(),
+                command.getPlaceIds());
         return feedRepository.save(feed);
     }
 
     @Override
-    public Feed updateFeed(Long feedId, String content, Visibility visibility,
-                           List<Long> mediaFileIds, List<Long> placeIds) {
+    public Feed updateFeed(Long feedId, UpdateFeedCommand command) {
         Feed feed = feedRepository.findById(feedId);
-        feed.update(content, visibility, mediaFileIds, placeIds);
+        feed.update(command.getContent(), command.getVisibility(), command.getMediaFileIds(), command.getPlaceIds());
         return feedRepository.save(feed);
     }
 
     @Override
     public void deleteFeed(Long feedId) {
         feedRepository.deleteById(feedId);
+    }
+
+    // limit+1개 조회 결과로 FeedPage 생성 (hasNext, nextCursor 계산)
+    private FeedPage toPage(List<Feed> feeds, int limit) {
+        boolean hasNext = feeds.size() > limit;
+        List<Feed> result = hasNext ? feeds.subList(0, limit) : feeds;
+        Long nextCursor = hasNext ? result.get(result.size() - 1).getId() : null;
+        return new FeedPage(result, nextCursor, hasNext);
     }
 }

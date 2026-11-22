@@ -1,5 +1,7 @@
 package com.pickong.feed.adapter.out.persistence;
 
+import com.pickong.common.error.BusinessException;
+import com.pickong.common.error.ErrorCode;
 import com.pickong.feed.adapter.out.persistence.entity.FeedJpaEntity;
 import com.pickong.feed.adapter.out.persistence.entity.FeedPhotoJpaEntity;
 import com.pickong.feed.adapter.out.persistence.entity.FeedPlaceJpaEntity;
@@ -13,17 +15,18 @@ import com.pickong.feed.domain.model.FeedPlace;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+@Repository
 public class JpaFeedAdapter implements FeedRepository {
     private final FeedJpaRepository feedJpaRepository;
     private final FeedPhotoJpaRepository feedPhotoJpaRepository;
     private final FeedPlaceJpaRepository feedPlaceJpaRepository;
 
     public JpaFeedAdapter(FeedJpaRepository feedJpaRepository,
-                          FeedPhotoJpaRepository feedPhotoJpaRepository,
-                          FeedPlaceJpaRepository feedPlaceJpaRepository) {
+            FeedPhotoJpaRepository feedPhotoJpaRepository,
+            FeedPlaceJpaRepository feedPlaceJpaRepository) {
         this.feedJpaRepository = feedJpaRepository;
         this.feedPhotoJpaRepository = feedPhotoJpaRepository;
         this.feedPlaceJpaRepository = feedPlaceJpaRepository;
@@ -38,44 +41,33 @@ public class JpaFeedAdapter implements FeedRepository {
         feedPhotoJpaRepository.deleteAllByFeedId(feedId);
         feedPlaceJpaRepository.deleteAllByFeedId(feedId);
         List<FeedPhoto> photos = feedPhotoJpaRepository.saveAll(feed.getPhotos().stream()
-                        .map(photo -> FeedPhotoJpaEntity.of(feedId, photo))
-                        .toList())
+                .map(photo -> FeedPhotoJpaEntity.of(feedId, photo))
+                .toList())
                 .stream().map(FeedPhotoJpaEntity::toDomain).toList();
         List<FeedPlace> places = feedPlaceJpaRepository.saveAll(feed.getPlaces().stream()
-                        .map(place -> FeedPlaceJpaEntity.of(feedId, place))
-                        .toList())
+                .map(place -> FeedPlaceJpaEntity.of(feedId, place))
+                .toList())
                 .stream().map(FeedPlaceJpaEntity::toDomain).toList();
 
         return saved.toDomain(photos, places);
     }
 
     @Override
-    public List<Feed> findLatestFeeds(int limit) {
-        return toDomain(feedJpaRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(0, limit)));
-    }
-
-    @Override
-    public List<Feed> findRecommendedFeeds(Long userId, int limit) {
-        // TODO: 사용자 활동 기반 추천 피드 조회 쿼리
+    public List<Feed> findRecommendedFeeds(Long userId, Long cursor, int limit) {
+        // TODO: 사용자 활동 기반 추천 피드 조회 쿼리 (cursor 기반)
         return List.of();
     }
 
     @Override
-    public List<Feed> findFollowingFeeds(Long userId, int limit) {
-        // TODO: 팔로잉한 사용자의 피드 조회 쿼리
-        return List.of();
-    }
-
-    @Override
-    public List<Feed> findFeedsByTag(Long userId, List<String> tags, int limit) {
-        // TODO: 태그 기반 피드 조회 쿼리
+    public List<Feed> findFollowingFeeds(Long userId, Long cursor, int limit) {
+        // TODO: 팔로잉한 사용자의 피드 조회 쿼리 (cursor 기반)
         return List.of();
     }
 
     @Override
     public Feed findById(Long feedId) {
         FeedJpaEntity entity = feedJpaRepository.findById(feedId)
-                .orElseThrow(() -> new RuntimeException("피드를 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.FEED_NOT_FOUND));
         return toDomain(List.of(entity)).getFirst();
     }
 

@@ -6,13 +6,10 @@ import java.util.List;
 public interface FeedRepository {
     Feed save(Feed feed);
 
-    List<Feed> findLatestFeeds(int limit);
+    // cursor 이후의 피드를 limit+1개 조회 (hasNext 판별용)
+    List<Feed> findRecommendedFeeds(Long userId, Long cursor, int limit);
 
-    List<Feed> findRecommendedFeeds(Long userId, int limit);
-
-    List<Feed> findFollowingFeeds(Long userId, int limit);
-
-    List<Feed> findFeedsByTag(Long userId, List<String> tags, int limit);
+    List<Feed> findFollowingFeeds(Long userId, Long cursor, int limit);
 
     Feed findById(Long feedId);
 
