@@ -39,7 +39,7 @@ public class Feed {
     private List<FeedPlace> places = new ArrayList<>();
 
     public static Feed create(Long userId, String content, Visibility visibility,
-                              List<Long> mediaFileIds, List<Long> placeIds) {
+            List<Long> mediaFileIds, List<Long> placeIds) {
         Feed feed = Feed.builder()
                 .publicId(UUID.randomUUID())
                 .userId(userId)

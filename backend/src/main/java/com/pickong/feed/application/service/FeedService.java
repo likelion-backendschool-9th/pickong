@@ -1,6 +1,7 @@
 package com.pickong.feed.application.service;
 
 import com.pickong.feed.application.dto.CreateFeedCommand;
+import com.pickong.feed.application.dto.FeedPage;
 import com.pickong.feed.application.dto.UpdateFeedCommand;
 import com.pickong.feed.application.port.in.FeedUseCase;
 import com.pickong.feed.application.port.out.FeedRepository;
@@ -23,23 +24,16 @@ public class FeedService implements FeedUseCase {
     }
 
     @Override
-    public List<Feed> getLatestFeeds(int limit) {
-        return feedRepository.findLatestFeeds(limit);
+    public FeedPage getRecommendedFeeds(Long userId, Long cursor, int limit) {
+        // limit+1개 조회해서 hasNext 판별
+        List<Feed> feeds = feedRepository.findRecommendedFeeds(userId, cursor, limit + 1);
+        return toPage(feeds, limit);
     }
 
     @Override
-    public List<Feed> getRecommendedFeeds(Long userId, int limit) {
-        return feedRepository.findRecommendedFeeds(userId, limit);
-    }
-
-    @Override
-    public List<Feed> getFollowingFeeds(Long userId, int limit) {
-        return feedRepository.findFollowingFeeds(userId, limit);
-    }
-
-    @Override
-    public List<Feed> getFeedsByTag(Long userId, List<String> tags, int limit) {
-        return feedRepository.findFeedsByTag(userId, tags, limit);
+    public FeedPage getFollowingFeeds(Long userId, Long cursor, int limit) {
+        List<Feed> feeds = feedRepository.findFollowingFeeds(userId, cursor, limit + 1);
+        return toPage(feeds, limit);
     }
 
     @Override
@@ -60,5 +54,13 @@ public class FeedService implements FeedUseCase {
     @Override
     public void deleteFeed(Long feedId) {
         feedRepository.deleteById(feedId);
+    }
+
+    // limit+1개 조회 결과로 FeedPage 생성 (hasNext, nextCursor 계산)
+    private FeedPage toPage(List<Feed> feeds, int limit) {
+        boolean hasNext = feeds.size() > limit;
+        List<Feed> result = hasNext ? feeds.subList(0, limit) : feeds;
+        Long nextCursor = hasNext ? result.get(result.size() - 1).getId() : null;
+        return new FeedPage(result, nextCursor, hasNext);
     }
 }

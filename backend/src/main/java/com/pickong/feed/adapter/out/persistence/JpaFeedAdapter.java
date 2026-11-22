@@ -15,7 +15,6 @@ import com.pickong.feed.domain.model.FeedPlace;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,25 +53,14 @@ public class JpaFeedAdapter implements FeedRepository {
     }
 
     @Override
-    public List<Feed> findLatestFeeds(int limit) {
-        return toDomain(feedJpaRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(0, limit)));
-    }
-
-    @Override
-    public List<Feed> findRecommendedFeeds(Long userId, int limit) {
-        // TODO: 사용자 활동 기반 추천 피드 조회 쿼리
+    public List<Feed> findRecommendedFeeds(Long userId, Long cursor, int limit) {
+        // TODO: 사용자 활동 기반 추천 피드 조회 쿼리 (cursor 기반)
         return List.of();
     }
 
     @Override
-    public List<Feed> findFollowingFeeds(Long userId, int limit) {
-        // TODO: 팔로잉한 사용자의 피드 조회 쿼리
-        return List.of();
-    }
-
-    @Override
-    public List<Feed> findFeedsByTag(Long userId, List<String> tags, int limit) {
-        // TODO: 태그 기반 피드 조회 쿼리
+    public List<Feed> findFollowingFeeds(Long userId, Long cursor, int limit) {
+        // TODO: 팔로잉한 사용자의 피드 조회 쿼리 (cursor 기반)
         return List.of();
     }
 

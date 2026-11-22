@@ -3,17 +3,15 @@ package com.pickong.feed.application.port.in;
 import com.pickong.feed.domain.model.Feed;
 import com.pickong.feed.application.dto.CreateFeedCommand;
 import com.pickong.feed.application.dto.UpdateFeedCommand;
+import com.pickong.feed.application.dto.FeedPage;
 import java.util.List;
 
 public interface FeedUseCase {
 
-    List<Feed> getLatestFeeds(int limit);
+    // cursor: 마지막으로 조회한 feedId (첫 요청 시 null)
+    FeedPage getRecommendedFeeds(Long userId, Long cursor, int limit);
 
-    List<Feed> getRecommendedFeeds(Long userId, int limit);
-
-    List<Feed> getFollowingFeeds(Long userId, int limit);
-
-    List<Feed> getFeedsByTag(Long userId, List<String> tags, int limit);
+    FeedPage getFollowingFeeds(Long userId, Long cursor, int limit);
 
     Feed createFeed(CreateFeedCommand command);
 

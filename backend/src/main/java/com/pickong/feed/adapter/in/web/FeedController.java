@@ -21,7 +21,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PathVariable;
 import com.pickong.feed.adapter.in.web.request.CreateFeedRequest;
 import com.pickong.feed.adapter.in.web.request.UpdateFeedRequest;
+import com.pickong.feed.adapter.in.web.response.FeedPageResponse;
 import com.pickong.feed.adapter.in.web.response.FeedResponse;
+import com.pickong.feed.application.dto.FeedPage;
 
 @Validated
 @RestController
@@ -43,28 +45,39 @@ public class FeedController {
     }
 
     // 피드 목록 조회. tab=recommended(추천) | tab=following(팔로잉). limit은 1~50 사이만 허용
+    // cursor: 이전 응답의 nextCursor 값 (첫 요청 시 생략)
     @GetMapping
-    public List<FeedResponse> getFeeds(
+    public FeedPageResponse getFeeds(
             @RequestParam @NotNull String tab,
             @RequestParam @NotNull Long userId,
+            @RequestParam(required = false) Long cursor,
             @RequestParam @Min(value = 1, message = "limit은 1 이상이어야 합니다") @Max(value = 50, message = "limit은 50 이하이어야 합니다") int limit) {
-        if (tab.equals("following")) {
-            return feedUseCase.getFollowingFeeds(userId, limit).stream().map(FeedResponse::from).toList();
-        }
-        return feedUseCase.getRecommendedFeeds(userId, limit).stream().map(FeedResponse::from).toList();
+        FeedPage page = tab.equals("following")
+                ? feedUseCase.getFollowingFeeds(userId, cursor, limit)
+                : feedUseCase.getRecommendedFeeds(userId, cursor, limit);
+        return FeedPageResponse.of(
+                page.getFeeds().stream().map(FeedResponse::from).toList(),
+                page.getNextCursor(),
+                page.isHasNext()
+        );
     }
 
     // 피드 지도 장소 목록 조회. tab=recommended(추천) | tab=following(팔로잉)
     // TODO: 피드 장소 조회 UseCase 구현 후 연결 필요
     @GetMapping("/places")
-    public List<FeedResponse> getFeedPlaces(
+    public FeedPageResponse getFeedPlaces(
             @RequestParam @NotNull String tab,
             @RequestParam @NotNull Long userId,
+            @RequestParam(required = false) Long cursor,
             @RequestParam @Min(value = 1, message = "limit은 1 이상이어야 합니다") @Max(value = 50, message = "limit은 50 이하이어야 합니다") int limit) {
-        if (tab.equals("following")) {
-            return feedUseCase.getFollowingFeeds(userId, limit).stream().map(FeedResponse::from).toList();
-        }
-        return feedUseCase.getRecommendedFeeds(userId, limit).stream().map(FeedResponse::from).toList();
+        FeedPage page = tab.equals("following")
+                ? feedUseCase.getFollowingFeeds(userId, cursor, limit)
+                : feedUseCase.getRecommendedFeeds(userId, cursor, limit);
+        return FeedPageResponse.of(
+                page.getFeeds().stream().map(FeedResponse::from).toList(),
+                page.getNextCursor(),
+                page.isHasNext()
+        );
     }
 
     // 피드 생성
