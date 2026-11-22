@@ -1,5 +1,7 @@
 package com.pickong.user.adapter.out.persistence.entity;
 
+import com.pickong.user.domain.model.User;
+import com.pickong.user.domain.vo.UserStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -97,4 +99,28 @@ public class UserJpaEntity {
 
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    /** DB 행을 domain 모델로 바꿉니다. 상태 문자열은 enum으로 바꿉니다. */
+    public User toDomain() {
+        return User.builder()
+                .id(id)
+                .publicId(publicId)
+                .username(username)
+                .email(email)
+                .passwordHash(passwordHash)
+                .displayName(displayName)
+                .bio(bio)
+                .profileImageUrl(profileImageUrl)
+                .status(UserStatus.valueOf(status))
+                .suspendedUntil(suspendedUntil)
+                .followerCount(followerCount)
+                .followingCount(followingCount)
+                .feedCount(feedCount)
+                .withdrawalRequestedAt(withdrawalRequestedAt)
+                .deletedAt(deletedAt)
+                .lastLoginAt(lastLoginAt)
+                .createdAt(createdAt)
+                .updatedAt(updatedAt)
+                .build();
+    }
 }

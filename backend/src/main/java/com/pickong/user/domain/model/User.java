@@ -37,4 +37,12 @@ public class User {
     private OffsetDateTime lastLoginAt;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
+
+    /**
+     * 로그인(토큰 재발급 포함)을 허용하는 상태인지. 지금은 ACTIVE만 허용합니다.
+     * (정지 회원이 무엇을 할 수 있는지는 blueprint 8.5 #7에서 정해지면 바꿉니다)
+     */
+    public boolean canLogin() {
+        return status == UserStatus.ACTIVE;
+    }
 }

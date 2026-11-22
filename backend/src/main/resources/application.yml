@@ -30,6 +30,14 @@ pickong:
       # 기본값 없음: 없거나 32바이트보다 짧으면 앱이 시작하지 않습니다. (backend/.env.example 참고)
       secret: ${JWT_SECRET:}
       access-token-ttl: 15m
+    refresh-token:
+      # 재발급할 때마다 '지금 + 14일'로 연장됩니다(슬라이딩).
+      ttl: 14d
+    cookie:
+      # HTTPS에서만 쿠키 전송. 기본 true(운영), 로컬 http://localhost만 backend/.env에서 COOKIE_SECURE=false
+      secure: ${COOKIE_SECURE:true}
+      # 비우면 지금 도메인에만 저장. 백엔드 하위 도메인과 쿠키를 나눠 써야 할 때만 .pickong.app처럼 넣습니다.
+      domain: ${COOKIE_DOMAIN:}
 
 server:
   port: 8080
