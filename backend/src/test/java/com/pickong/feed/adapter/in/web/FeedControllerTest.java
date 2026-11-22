@@ -3,7 +3,7 @@ package com.pickong.feed.adapter.in.web;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pickong.common.domain.Visibility;
 import com.pickong.common.error.BusinessException;
-import com.pickong.common.error.ErrorCode;
+import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.common.error.GlobalExceptionHandler;
 import com.pickong.feed.application.port.in.FeedUseCase;
 import com.pickong.feed.domain.model.Feed;
@@ -118,7 +118,7 @@ class FeedControllerTest {
     void getFeed_존재하지않는id_404반환() throws Exception {
         // given: 없는 id → BusinessException → GlobalExceptionHandler가 404로 변환
         given(feedUseCase.getFeed(999L))
-                .willThrow(new BusinessException(ErrorCode.FEED_NOT_FOUND));
+                .willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND));
 
         // when & then
         mockMvc.perform(get("/feeds/999"))
@@ -164,7 +164,7 @@ class FeedControllerTest {
     @Test
     void deleteFeed_존재하지않는id_404반환() throws Exception {
         // given
-        willThrow(new BusinessException(ErrorCode.FEED_NOT_FOUND))
+        willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND))
                 .given(feedUseCase).deleteFeed(999L);
 
         // when & then

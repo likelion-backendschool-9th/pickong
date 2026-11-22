@@ -6,36 +6,29 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.util.Map;
 import java.util.stream.Collectors;
 
-// 전체 컨트롤러에서 발생하는 예외를 한 곳에서 처리함
+// 전체 컨트롤러에서 발생하는 예외를 한 곳에서 처리함. 응답 형식은 ErrorResponse {status, code, message}
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    // BusinessException 발생 시 ErrorCode의 status, message로 응답
+    // BusinessException 발생 시 ErrorCode의 status, code, message로 응답
     @ExceptionHandler(BusinessException.class)
-    public ResponseEntity<Map<String, Object>> handleBusinessException(BusinessException e) {
+    public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException e) {
         ErrorCode errorCode = e.getErrorCode();
         return ResponseEntity
                 .status(errorCode.getStatus())
-                .body(Map.of(
-                        "status", errorCode.getStatus(),
-                        "message", errorCode.getMessage()
-                ));
+                .body(ErrorResponse.of(errorCode));
     }
 
-    // @Valid 검증 실패 시 400으로 응답 (필드별 오류 메시지 포함)
+    // @Valid 검증 실패 시 400 INVALID_INPUT으로 응답 (필드별 오류 메시지를 이어 붙임)
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, Object>> handleValidationException(MethodArgumentNotValidException e) {
+    public ResponseEntity<ErrorResponse> handleValidationException(MethodArgumentNotValidException e) {
         String message = e.getBindingResult().getFieldErrors().stream()
                 .map(FieldError::getDefaultMessage)
                 .collect(Collectors.joining(", "));
         return ResponseEntity
-                .status(400)
-                .body(Map.of(
-                        "status", 400,
-                        "message", message
-                ));
+                .status(CommonErrorCode.INVALID_INPUT.getStatus())
+                .body(ErrorResponse.of(CommonErrorCode.INVALID_INPUT, message));
     }
 }
