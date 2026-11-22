@@ -35,10 +35,10 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | 프레임워크 | Spring Boot | ⚠️ **버전 확정 필요**: 요청서는 3.4, 현재 `backend/build.gradle`은 4.1.2 (8.7 #1) |
 | DB | PostgreSQL 16 + PostGIS | `GEOGRAPHY(Point, 4326)`, GiST 인덱스, 부분 UNIQUE 인덱스 |
 | 영속성 | Spring Data JPA (+ Hibernate Spatial) | 화면 조회는 JdbcClient 네이티브 SQL 또는 QueryDSL (팀 결정) |
-| 마이그레이션 | Flyway | `resources/db/migration` |
-| 보안 | Spring Security, OAuth2 Client(Google), JWT | |
+| 마이그레이션 | Flyway (`spring-boot-starter-flyway`) | `resources/db/migration`. V1은 인증 테이블만, 나머지는 각 모듈이 V2부터 추가. 스키마는 Flyway만 만들고 `ddl-auto: none` |
+| 보안 | Spring Security, OAuth2 Client(카카오 · Google), JWT | 이메일 · 비밀번호 로그인 없음 |
 | 실시간 | Spring WebSocket + STOMP | DM |
-| 테스트 | JUnit 5, ArchUnit, Testcontainers(PostGIS 16) | |
+| 테스트 | JUnit 5, ArchUnit, Testcontainers(PostGIS 16) | `TestcontainersConfiguration`. Docker가 없으면 DB 테스트는 실패(건너뛰지 않음) |
 
 패키지 구조는 Spring Boot 3.4와 4.x 어느 쪽이어도 똑같이 적용됩니다.
 
@@ -176,6 +176,11 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | POST | `/auth/password-reset/request` | `PasswordResetUseCase.request` | |
 | POST | `/auth/password-reset/confirm` | `PasswordResetUseCase.confirm` | |
 | WS | `/ws` (CONNECT) | `auth/adapter/in/websocket` 인증 인터셉터 | 5.4 |
+
+> **소셜 로그인 스키마 결정 (V1)**
+> - 로그인 수단은 카카오 · Google만. `user_social_accounts`의 `(provider, provider_id)` UNIQUE(같은 소셜 계정은 한 찜콩 계정에만), `(user_id, provider)` UNIQUE(제공자마다 하나만 연결).
+> - 이메일 1인 1계정: 제공자가 준 **인증된** 이메일만 저장합니다 (가입 계정 → `users.email`, 연결 계정마다 → `user_social_accounts.email`, ERD에 컬럼 추가). 가입 · 연결하려는 소셜 계정의 이메일이 다른 회원의 이메일과 겹치면 "이미 가입된 이메일"로 막고 자동 연결은 하지 않습니다. `users.email`은 대소문자 무시 UNIQUE로 DB가 보장하고, 연결 계정 이메일은 같은 회원의 카카오 · Google 이메일이 같을 수 있어 서비스에서 확인합니다. 카카오는 이메일을 주지 않을 수 있어 확실한 1인 1계정은 이후 휴대폰 본인확인으로 보장합니다.
+> - 닉네임(`username`)은 대소문자 무시 UNIQUE, 이름(`display_name`)은 NULL 허용. 회원 행은 온보딩을 마칠 때 만들어지므로 온보딩 완료 여부 컬럼은 두지 않습니다.
 
 ### user
 | 메서드 | 경로 | 입력 포트 · 메서드 | 비고 |
