@@ -1,6 +1,12 @@
 spring:
   application:
     name: pickong-backend
+  # 로컬 비밀값(JWT_SECRET 등)은 git에 올라가지 않는 backend/.env에서 읽습니다. 운영은 환경변수로 넣습니다.
+  config:
+    import: optional:file:.env[.properties]
+  # 아이디 · 비밀번호 로그인을 쓰지 않으므로, Spring Boot가 만드는 임시 계정(로그에 비밀번호 출력)을 끕니다.
+  autoconfigure:
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
   mvc:
     servlet:
       path: /api/v1
@@ -18,16 +24,27 @@ spring:
       # V1에는 인증 테이블만 있고 JPA 엔티티는 전 테이블에 있어서, 스키마 검증(validate)은 쓰지 않습니다.
       ddl-auto: none
 
+pickong:
+  auth:
+    jwt:
+      # 기본값 없음: 없거나 32바이트보다 짧으면 앱이 시작하지 않습니다. (backend/.env.example 참고)
+      secret: ${JWT_SECRET:}
+      access-token-ttl: 15m
+
 server:
   port: 8080
 
-# 상태 확인: GET /actuator/health
+# 상태 확인: GET /api/v1/actuator/health (servlet path가 /api/v1)
 management:
   endpoints:
     web:
       exposure:
         include: health
 
-# API 문서: /swagger-ui.html (스펙 JSON: /v3/api-docs)
+# API 문서: /api/v1/swagger-ui.html (스펙 JSON: /api/v1/v3/api-docs)
 springdoc:
   paths-to-match: /api/v1/**
+  # Swagger UI에서 POST · PATCH · DELETE를 보낼 때 XSRF-TOKEN 쿠키 값을 헤더로 자동으로 붙입니다.
+  swagger-ui:
+    csrf:
+      enabled: true
