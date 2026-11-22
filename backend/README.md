@@ -20,6 +20,16 @@ docker compose up -d db   # 저장소 루트에서. 로컬 PostgreSQL(PostGIS) �
 | `DB_URL` | `jdbc:postgresql://localhost:5432/pickong` |
 | `DB_USERNAME` | `pickong` |
 | `DB_PASSWORD` | `pickong` |
+| `JWT_SECRET` | **없음 (필수).** 없거나 32바이트보다 짧으면 앱이 시작하지 않습니다 |
+
+### 처음 실행할 때: `backend/.env`
+
+비밀값은 git에 올라가지 않는 `backend/.env`에 넣으면 Spring이 직접 읽습니다. (운영은 환경변수로 넣습니다)
+
+```bash
+cp .env.example .env
+echo "JWT_SECRET=$(openssl rand -base64 32)" >> .env   # 또는 .env를 열어 직접 채움
+```
 
 ### 스키마 (Flyway)
 
@@ -40,14 +50,31 @@ Gradle을 따로 설치하지 않아도 `./gradlew`가 필요한 버전(9.8.2)�
 | 주소 | 내용 |
 | --- | --- |
 | `GET /api/v1/actuator/health` | 상태 확인 (servlet path가 `/api/v1`이라 actuator도 그 아래에 있습니다) |
-| `/swagger-ui.html` | API 문서 (`/api/**` 경로만 표시) |
-| `/v3/api-docs` | OpenAPI 스펙 JSON. 프론트는 이 스펙으로 DTO 타입을 생성할 수 있습니다 |
+| `/api/v1/swagger-ui.html` | API 문서. POST · PATCH · DELETE를 보낼 때 CSRF 헤더를 자동으로 붙입니다 |
+| `/api/v1/v3/api-docs` | OpenAPI 스펙 JSON. 프론트는 이 스펙으로 DTO 타입을 생성할 수 있습니다 |
+
+## 인증 · 보안
+
+- **인증:** 쿠키 `pickong_at`의 Access Token(JWT, HS256, 15분)을 매 요청 검증합니다. 세션은 쓰지 않습니다.
+- **기본은 로그인 필요**이고, 공개 경로는 `auth/adapter/in/security/SecurityConfig`의 `PUBLIC_PATHS`에만 둡니다.
+  - 경로는 `/api/v1`을 빼고 적습니다. DispatcherServlet이 `/api/v1`에 매핑되어 있으면 Spring Boot가 보안 경로의 기준을 `/api/v1`로 잡기 때문입니다 (`"/auth/**"` = `/api/v1/auth/**`).
+  - `/feeds/**`는 #38(피드 인증 연동) 전까지 임시로 공개입니다.
+- **컨트롤러에서 로그인 회원 받기:**
+  ```java
+  @PostMapping("/feeds")
+  FeedResponse create(@CurrentUser LoginUser user, ...)                       // 비로그인이면 401
+  @GetMapping("/feeds/{feedId}")
+  FeedResponse get(@CurrentUser(required = false) LoginUser viewer, ...)      // 비로그인이면 null
+  ```
+- **권한 없음:** `throw new BusinessException(CommonErrorCode.FORBIDDEN)` → 403
+- **CSRF:** 상태를 바꾸는 요청(POST · PUT · PATCH · DELETE)은 `XSRF-TOKEN` 쿠키 값을 `X-XSRF-TOKEN` 헤더로 보내야 합니다. 없으면 403 `INVALID_CSRF_TOKEN`. Swagger UI는 자동으로 붙이고, Postman은 GET 응답의 `XSRF-TOKEN` 쿠키 값을 헤더에 넣습니다.
+- **오류 응답:** `{ "status", "code", "message" }`. 오류 코드는 모듈마다 `ErrorCode`를 구현한 enum으로 둡니다 (`feed/domain/FeedErrorCode`, 공통은 `common/error/CommonErrorCode`).
 
 ## 프론트엔드와 맞출 것
 
 - **API 계약**: 프론트는 지금 `frontend/mocks/`의 mock 서버로 동작합니다. 엔드포인트와 응답 형태는 `frontend/mocks/handlers/`, 샘플 데이터는 `frontend/mocks/fixtures/`가 기준입니다.
 - **경로**: 모든 API는 `/api/`로 시작합니다. 프론트는 같은 도메인의 `/api/*`로 요청하고 Next가 백엔드로 전달하므로 CORS 설정은 필요 없습니다.
-- **오류 응답**: `{ "code": "NOT_FOUND", "message": "사용자에게 보여줄 문장" }` 형태로 보냅니다. 프론트는 HTTP 상태와 `code`로 분기하고 `message`를 그대로 표시합니다.
+- **오류 응답**: `{ "status": 404, "code": "FEED_NOT_FOUND", "message": "사용자에게 보여줄 문장" }` 형태로 보냅니다. 프론트는 HTTP 상태와 `code`로 분기하고 `message`를 그대로 표시합니다.
 - **권한**: 비공개·팔로워 공개 리소스의 접근 판단은 백엔드가 합니다. 볼 수 없으면 403 또는 404를 보냅니다.
 
 프론트를 이 서버에 연결하려면 `frontend/.env.local`에 `API_BASE_URL=http://localhost:8080`을 넣고 `npm run next`로 Next만 실행합니다.

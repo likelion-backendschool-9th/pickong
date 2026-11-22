@@ -36,7 +36,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | DB | PostgreSQL 16 + PostGIS | `GEOGRAPHY(Point, 4326)`, GiST 인덱스, 부분 UNIQUE 인덱스 |
 | 영속성 | Spring Data JPA (+ Hibernate Spatial) | 화면 조회는 JdbcClient 네이티브 SQL 또는 QueryDSL (팀 결정) |
 | 마이그레이션 | Flyway (`spring-boot-starter-flyway`) | `resources/db/migration`. V1은 인증 테이블만, 나머지는 각 모듈이 V2부터 추가. 스키마는 Flyway만 만들고 `ddl-auto: none` |
-| 보안 | Spring Security, OAuth2 Client(카카오 · Google), JWT | 이메일 · 비밀번호 로그인 없음 |
+| 보안 | Spring Security 7, OAuth2 Client(카카오 · Google), JWT(Spring Security의 Nimbus 인코더 · 디코더) | 이메일 · 비밀번호 로그인 없음. 보안 설정 상세는 아래 '보안 결정' |
 | 실시간 | Spring WebSocket + STOMP | DM |
 | 테스트 | JUnit 5, ArchUnit, Testcontainers(PostGIS 16) | `TestcontainersConfiguration`. Docker가 없으면 DB 테스트는 실패(건너뛰지 않음) |
 
@@ -181,6 +181,15 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 > - 로그인 수단은 카카오 · Google만. `user_social_accounts`의 `(provider, provider_id)` UNIQUE(같은 소셜 계정은 한 찜콩 계정에만), `(user_id, provider)` UNIQUE(제공자마다 하나만 연결).
 > - 이메일 1인 1계정: 제공자가 준 **인증된** 이메일만 저장합니다 (가입 계정 → `users.email`, 연결 계정마다 → `user_social_accounts.email`, ERD에 컬럼 추가). 가입 · 연결하려는 소셜 계정의 이메일이 다른 회원의 이메일과 겹치면 "이미 가입된 이메일"로 막고 자동 연결은 하지 않습니다. `users.email`은 대소문자 무시 UNIQUE로 DB가 보장하고, 연결 계정 이메일은 같은 회원의 카카오 · Google 이메일이 같을 수 있어 서비스에서 확인합니다. 카카오는 이메일을 주지 않을 수 있어 확실한 1인 1계정은 이후 휴대폰 본인확인으로 보장합니다.
 > - 닉네임(`username`)은 대소문자 무시 UNIQUE, 이름(`display_name`)은 NULL 허용. 회원 행은 온보딩을 마칠 때 만들어지므로 온보딩 완료 여부 컬럼은 두지 않습니다.
+
+> **보안 결정 (2단계)**
+> - **Access Token:** JWT · HS256 · 15분, 쿠키 `pickong_at`. 내용은 `iss=pickong`, `sub=회원 id`, `iat`, `exp`만 (개인정보 없음). 비밀값은 환경변수 `JWT_SECRET` 또는 `backend/.env`, 기본값 없음(없으면 시작 실패).
+>   - 백엔드와 **별개인 서버**(예: 분리된 WebSocket 서버, 다른 서비스)가 토큰을 직접 검증하게 되면 비밀값을 나눠 주지 않도록 **RS256(공개키 검증)으로 바꿉니다.** Refresh Token은 DB에 있는 별개 값이라 바꿔도 사용자는 로그아웃되지 않습니다.
+> - **인증 필터:** `JwtCookieAuthenticationFilter`가 쿠키 토큰을 검증하고, 실패하면 거절하지 않고 비로그인으로 통과시킵니다. 로그인이 필요한 경로는 인가 단계가 401로 막고, 공개 경로(재발급 등)는 만료된 쿠키가 있어도 동작해야 하기 때문입니다. (Resource Server 필터는 잘못된 토큰이면 공개 경로에서도 401을 내서 쓰지 않음)
+> - **세션 없음(STATELESS)**, 폼 로그인 · Basic · 기본 로그아웃 끔. 401 · 403은 공통 오류 형식 JSON.
+> - **CSRF:** 쿠키 SameSite=Lax + Spring CSRF 토큰(SPA 방식: `XSRF-TOKEN` 쿠키 → `X-XSRF-TOKEN` 헤더). 토큰 오류는 403 `INVALID_CSRF_TOKEN`으로 권한 오류와 구분합니다. GET으로 상태를 바꾸지 않습니다.
+> - **경로 기준:** DispatcherServlet이 `/api/v1`이라 Spring Boot가 보안 경로 패턴의 basePath를 `/api/v1`로 잡습니다. 보안 설정의 경로는 `/api/v1`을 빼고 적습니다.
+> - **`@CurrentUser LoginUser`**(common/security) + `CurrentUserArgumentResolver`(common/web). `required = false`면 비로그인 시 null.
 
 ### user
 | 메서드 | 경로 | 입력 포트 · 메서드 | 비고 |
