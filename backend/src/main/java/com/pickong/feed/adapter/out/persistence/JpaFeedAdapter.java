@@ -1,5 +1,7 @@
 package com.pickong.feed.adapter.out.persistence;
 
+import com.pickong.common.error.BusinessException;
+import com.pickong.common.error.ErrorCode;
 import com.pickong.feed.adapter.out.persistence.entity.FeedJpaEntity;
 import com.pickong.feed.adapter.out.persistence.entity.FeedPhotoJpaEntity;
 import com.pickong.feed.adapter.out.persistence.entity.FeedPlaceJpaEntity;
@@ -77,7 +79,7 @@ public class JpaFeedAdapter implements FeedRepository {
     @Override
     public Feed findById(Long feedId) {
         FeedJpaEntity entity = feedJpaRepository.findById(feedId)
-                .orElseThrow(() -> new RuntimeException("피드를 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.FEED_NOT_FOUND));
         return toDomain(List.of(entity)).getFirst();
     }
 
