@@ -139,12 +139,17 @@ pickong/
     │   │   │   │   ├── page.tsx
     │   │   │   │   └── _components/LoginForm.tsx
     │   │   │   └── signup/
-    │   │   │       ├── page.tsx
-    │   │   │       ├── _lib/               # signup.ts(닉네임·비밀번호·약관), phone.ts(번호 형식·타이머)
+    │   │   │       ├── page.tsx                # 전화번호로 회원가입 (기본)
+    │   │   │       ├── email/page.tsx          # 이메일로 회원가입 (첫 단계 하단 버튼으로 서로 전환)
+    │   │   │       ├── _api/signupApi.ts   # 닉네임 중복 확인 (useNicknameAvailability)
+    │   │   │       ├── _lib/               # signup.ts(단계 순서·닉네임 검증·중복 확인 상태·약관), phone.ts(번호 형식), verification.ts(인증번호·타이머)
     │   │   │       └── _components/
-    │   │   │           ├── SignupFlow.tsx      # 정보 입력 → 휴대폰 인증 단계
-    │   │   │           ├── SignupForm.tsx
-    │   │   │           └── PhoneVerifyStep.tsx
+    │   │   │           ├── SignupFlow.tsx      # 인증 → 비밀번호 → 닉네임 → 약관 동의 시트 (한 화면에 한 단계)
+    │   │   │           ├── SignupUi.tsx        # 단계 화면 틀, o──o──o──o 진행 표시, 가입 방법 전환 버튼
+    │   │   │           ├── VerifyStep.tsx      # 휴대폰 번호 또는 이메일 인증
+    │   │   │           ├── PasswordStep.tsx    # 비밀번호 + 비밀번호 확인
+    │   │   │           ├── NicknameStep.tsx    # 입력이 멈추면 중복 확인, 입력칸 옆 초록 체크 / 빨간 X
+    │   │   │           └── TermsSheet.tsx      # 아래에서 올라오는 약관 동의 시트
     │   │   │
     │   │   └── (main)/                     # 앱 셸 레이아웃 (헤더 + 하단 탭)
     │   │       ├── layout.tsx
@@ -936,7 +941,7 @@ entities/plan/model/            # React import 금지. 입력 → 출력만 있�
 | 경로 | 화면 | 접근 | 주요 렌더링 | 단계 |
 | --- | --- | --- | --- | --- |
 | `/` | 시작 화면 (로그인 시 `/feed`로) | 공개 | Server | 껍데기 |
-| `/login`, `/signup` | 로그인 · 회원가입 (회원가입은 정보 입력 → 휴대폰 인증 단계) | 공개 | Server + 폼(Client) | 껍데기 |
+| `/login`, `/signup`, `/signup/email` | 로그인(이메일 또는 닉네임) · 회원가입. 전화번호 가입(기본, 이메일 없음)과 이메일 가입으로 나뉘고, 인증 → 비밀번호 → 닉네임(실시간 중복 확인) → 약관 동의 시트 단계로 진행. 모바일 한 화면 안에 들어가게 구성 | 공개 | Server + 폼(Client) | 껍데기 |
 | `/feed` | 팔로잉 피드 | 로그인 | Server prefetch + 무한 스크롤(Client) | 껍데기 |
 | `/explore` | 탐색 | 공개 | Server + 버튼(Client) | 껍데기 |
 | `/map` | 나만의 지도 | 로그인 | Server prefetch + 지도(Client) | 껍데기 |
@@ -972,7 +977,7 @@ entities/plan/model/            # React import 금지. 입력 → 출력만 있�
 **하단 탭 (모바일 우선):** 홈(`/feed`) · 내 지도(`/map`, `/collections`) · ➕ · DM(`/messages`) · 프로필(`/users/[username]`, 일정 탭 포함).
 ➕는 게시물 올리기(`/posts/new`) · 장소 직접 추가(`/places/new`) · AI 링크로 가져오기(`/import`) 세 갈래로 분기합니다. 탐색은 홈의 ‘추천’ 탭과 통합 검색(`/search`)이 대신합니다.
 하단 탭이 있는 화면은 `app/(main)/(tabs)`, 뒤로가기 중심의 세부 작업 화면은 `app/(main)/(sub)`에 둡니다 (URL에는 영향 없음).
-관리자 화면은 회원 화면과 섞이지 않도록 `app/(admin)/admin`에 둡니다. 관리자 계정으로 로그인하면 `/admin`으로 이동합니다 (mock 계정 `admin` / `123123123`).
+관리자 화면은 회원 화면과 섞이지 않도록 `app/(admin)/admin`에 둡니다. 관리자 계정으로 로그인하면 `/admin`으로 이동합니다 (mock 계정 `admin` / `123123123`. 회원 계정은 `test` 또는 닉네임 `서연` / `123123123`).
 
 ---
 
