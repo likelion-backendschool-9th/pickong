@@ -46,6 +46,7 @@ public class FeedController {
 
     // 피드 목록 조회. tab=recommended(추천) | tab=following(팔로잉). limit은 1~50 사이만 허용
     // cursor: 이전 응답의 nextCursor 값 (첫 요청 시 생략)
+    // TODO(JWT): JWT 도입 후 @RequestParam userId 제거 — SecurityContext에서 인증된 userId 사용
     @GetMapping
     public FeedPageResponse getFeeds(
             @RequestParam @NotNull String tab,

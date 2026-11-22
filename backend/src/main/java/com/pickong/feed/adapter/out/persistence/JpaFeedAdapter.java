@@ -74,6 +74,10 @@ public class JpaFeedAdapter implements FeedRepository {
     @Override
     @Transactional
     public void deleteById(Long feedId) {
+        // 존재하지 않는 feedId 삭제 시 404 반환
+        if (!feedJpaRepository.existsById(feedId)) {
+            throw new BusinessException(ErrorCode.FEED_NOT_FOUND);
+        }
         feedPhotoJpaRepository.deleteAllByFeedId(feedId);
         feedPlaceJpaRepository.deleteAllByFeedId(feedId);
         feedJpaRepository.deleteById(feedId);
