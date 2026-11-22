@@ -11,6 +11,9 @@ const TEST_ACCOUNTS = [
   { email: "admin", password: "123123123", role: "ADMIN" as const },
 ];
 
+/** 회원이 아닌데도 쓸 수 없는 닉네임 (소문자로 비교) */
+const RESERVED_NICKNAMES = ["관리자", "admin", "찜콩", "pickong"];
+
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_PATTERN = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
 
@@ -40,6 +43,18 @@ export const authRoutes: Route[] = [
     },
   },
   { method: "POST", path: "/api/auth/logout", handler: () => undefined },
+  {
+    /** 회원가입 닉네임 중복 확인. 대소문자와 앞뒤 공백은 무시하고 비교합니다. */
+    method: "GET",
+    path: "/api/auth/nickname-availability",
+    delay: 300,
+    handler: ({ query }) => {
+      const nickname = (query.get("nickname") ?? "").trim().toLowerCase();
+      if (!nickname) throw new HttpError(400, "INVALID_INPUT", "닉네임을 입력해 주세요.");
+      const taken = RESERVED_NICKNAMES.includes(nickname) || db.users.some((u) => u.nickname.toLowerCase() === nickname);
+      return { available: !taken };
+    },
+  },
 
   // ── 비밀번호 재설정: 이메일 → 인증번호 → 새 비밀번호 ──────────
   {

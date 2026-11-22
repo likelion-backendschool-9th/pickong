@@ -1,8 +1,4 @@
-/** 휴대폰 번호 인증 입력 처리 */
-
-export const CODE_LENGTH = 6;
-/** 인증번호 유효 시간(초) */
-export const CODE_TTL_SECONDS = 180;
+/** 휴대폰 번호 입력 처리 */
 
 export function digitsOnly(value: string): string {
   return value.replace(/\D/g, "");
@@ -20,14 +16,4 @@ export function formatPhone(value: string): string {
 
 export function isValidPhone(value: string): boolean {
   return /^01[016789]\d{7,8}$/.test(digitsOnly(value));
-}
-
-export function normalizeCode(value: string): string {
-  return digitsOnly(value).slice(0, CODE_LENGTH);
-}
-
-/** 남은 초를 mm:ss로 표시합니다. */
-export function formatCountdown(seconds: number): string {
-  const s = Math.max(0, Math.floor(seconds));
-  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }

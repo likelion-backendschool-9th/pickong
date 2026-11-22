@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { emailError, passwordError } from "./validation";
+import { emailError, passwordConfirmError, passwordError } from "./validation";
 
 describe("emailError", () => {
   it("비어 있으면 입력을 요청한다", () => {
@@ -23,5 +23,13 @@ describe("passwordError", () => {
     expect(passwordError("abcdefgh")).not.toBeNull();
     expect(passwordError("12345678")).not.toBeNull();
     expect(passwordError("pickong1")).toBeNull();
+  });
+});
+
+describe("passwordConfirmError", () => {
+  it("비어 있거나 다르면 오류, 같으면 통과", () => {
+    expect(passwordConfirmError("pickong1", "")).toBe("비밀번호를 한 번 더 입력해 주세요.");
+    expect(passwordConfirmError("pickong1", "pickong2")).toBe("비밀번호가 서로 달라요.");
+    expect(passwordConfirmError("pickong1", "pickong1")).toBeNull();
   });
 });

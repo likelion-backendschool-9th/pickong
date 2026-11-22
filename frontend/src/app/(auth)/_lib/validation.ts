@@ -16,3 +16,10 @@ export function passwordError(password: string): string | null {
   }
   return null;
 }
+
+/** 비밀번호 확인란: 비어 있거나 위에 입력한 비밀번호와 다르면 오류 */
+export function passwordConfirmError(password: string, confirm: string): string | null {
+  if (!confirm) return "비밀번호를 한 번 더 입력해 주세요.";
+  if (confirm !== password) return "비밀번호가 서로 달라요.";
+  return null;
+}

@@ -8,7 +8,7 @@ import { errorMessage } from "@/shared/api/errors";
 import { routes } from "@/shared/config/routes";
 import { TopBar } from "@/shared/ui/layout";
 import { AuthField, AuthHeading, AuthInput, pillButtonClass } from "../../../_components/AuthUi";
-import { emailError, passwordError } from "../../../_lib/validation";
+import { emailError, passwordConfirmError, passwordError } from "../../../_lib/validation";
 import { passwordResetApi } from "../_api/passwordResetApi";
 
 type Step = { name: "email" } | { name: "code"; requestId: string; sentTo: string } | { name: "password"; requestId: string } | { name: "done" };
@@ -121,12 +121,12 @@ function PasswordStep({ requestId, onDone }: { requestId: string; onDone: () => 
   const [submitted, setSubmitted] = useState(false);
   const save = useMutation({ mutationFn: () => passwordResetApi.confirm(requestId, password), onSuccess: onDone });
   const pwError = submitted ? passwordError(password) : null;
-  const confirmError = submitted && confirm !== password ? "비밀번호가 서로 달라요." : null;
+  const confirmError = submitted ? passwordConfirmError(password, confirm) : null;
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     setSubmitted(true);
-    if (!passwordError(password) && confirm === password) save.mutate();
+    if (!passwordError(password) && !passwordConfirmError(password, confirm)) save.mutate();
   };
 
   return (

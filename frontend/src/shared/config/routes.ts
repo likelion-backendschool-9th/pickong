@@ -2,7 +2,9 @@
 export const routes = {
   start: () => "/",
   login: () => "/login",
+  /** 전화번호로 회원가입(기본) */
   signup: () => "/signup",
+  signupEmail: () => "/signup/email",
   passwordReset: () => "/password/reset",
   terms: (type: "service" | "privacy" | "marketing") => `/terms/${type}`,
   feed: () => "/feed",
