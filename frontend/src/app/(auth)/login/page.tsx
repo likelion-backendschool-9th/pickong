@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "로그인" };
 
 export default function LoginPage() {
   return (
-    <div className="min-h-dvh">
+    <div className="flex min-h-dvh flex-col">
       <TopBar title="로그인" backHref={routes.start()} />
       <LoginForm />
     </div>

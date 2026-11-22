@@ -1,7 +1,8 @@
 import { http } from "@/shared/api/http";
 
 export interface LoginInput {
-  email: string;
+  /** 이메일 또는 닉네임. @가 있으면 이메일로 봅니다. (닉네임에는 @를 쓸 수 없음) */
+  loginId: string;
   password: string;
   keepSignedIn: boolean;
 }

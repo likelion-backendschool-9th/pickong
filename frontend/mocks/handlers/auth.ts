@@ -3,7 +3,7 @@ import { HttpError, type Route } from "../router.ts";
 
 /**
  * 개발용 테스트 계정. 실제 백엔드에는 없는 계정입니다.
- * - test: mock의 ‘나’(ME_ID) 회원으로 들어갑니다.
+ * - test: mock의 ‘나’(ME_ID) 회원으로 들어갑니다. ‘나’의 닉네임(서연)으로도 로그인할 수 있습니다.
  * - admin: 회원과 별개인 관리자 계정으로, 로그인하면 관리 페이지로 이동합니다.
  */
 const TEST_ACCOUNTS = [
@@ -28,12 +28,14 @@ export const authRoutes: Route[] = [
     method: "POST",
     path: "/api/auth/login",
     handler: ({ body }) => {
-      const email = typeof body?.email === "string" ? body.email.trim() : "";
+      // loginId: 이메일 또는 닉네임
+      const loginId = typeof body?.loginId === "string" ? body.loginId.trim() : "";
       const password = typeof body?.password === "string" ? body.password : "";
-      const account = TEST_ACCOUNTS.find((a) => a.email === email && a.password === password);
-      if (!account) throw new HttpError(401, "INVALID_CREDENTIALS", "이메일 또는 비밀번호가 맞지 않아요.");
-      if (account.role === "ADMIN") return { role: "ADMIN", nickname: "관리자" };
       const me = userDto(db.users.find((u) => u.id === ME_ID)!);
+      const matches = (a: (typeof TEST_ACCOUNTS)[number]) => a.email === loginId || (a.role === "USER" && me.nickname === loginId);
+      const account = TEST_ACCOUNTS.find((a) => matches(a) && a.password === password);
+      if (!account) throw new HttpError(401, "INVALID_CREDENTIALS", "이메일(닉네임) 또는 비밀번호가 맞지 않아요.");
+      if (account.role === "ADMIN") return { role: "ADMIN", nickname: "관리자" };
       return { role: "USER", nickname: me.nickname };
     },
   },

@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* 세로가 짧은 화면(작은 휴대폰 · 브라우저 주소창이 보이는 상태): 한 화면에 담아야 하는 로그인 · 회원가입에서 여백을 줄입니다. */
+@custom-variant short (@media (max-height: 680px));
+
 /*
  * 찜콩 디자인 토큰 — 색상 값은 이 파일에서만 정의합니다.
  * 컴포넌트에서는 hex 대신 토큰 이름(bg-primary, text-ink 등)을 사용합니다.
