@@ -191,6 +191,16 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 > - **경로 기준:** DispatcherServlet이 `/api/v1`이라 Spring Boot가 보안 경로 패턴의 basePath를 `/api/v1`로 잡습니다. 보안 설정의 경로는 `/api/v1`을 빼고 적습니다.
 > - **`@CurrentUser LoginUser`**(common/security) + `CurrentUserArgumentResolver`(common/web). `required = false`면 비로그인 시 null.
 
+> **Refresh Token 결정 (3단계)**
+> - 랜덤 256비트 문자열(JWT 아님), DB에는 SHA-256 해시만. 수명 14일, 재발급할 때마다 '지금 + 14일'로 연장(슬라이딩).
+> - **로테이션 · 재사용 감지:** 재발급하면 쓴 토큰을 폐기(`revoked_at`)하고 같은 family로 새 토큰 발급. 폐기된 토큰이 다시 오면 family 전체 폐기. 폐기는 조건부 UPDATE(`WHERE revoked_at IS NULL`)라 같은 토큰으로 동시에 와도 한 요청만 성공합니다. 별도 '로테이션됨' 컬럼 없이 `revoked_at` 하나로 판단합니다.
+> - 세션 폐기 후 401을 던질 때 폐기가 롤백되지 않도록 `refresh`는 `@Transactional(noRollbackFor = BusinessException.class)`.
+> - **동시 재발급:** 서버는 엄격(유예 시간 없음). 여러 탭이 같은 토큰으로 동시에 재발급하지 않도록 프론트가 Web Locks API로 줄을 세웁니다(프론트 연동 단계).
+> - **재발급 시 회원 상태 확인:** `UserAccountUseCase.canLogin`(user 모듈의 auth 전용 in-port). ACTIVE가 아니면 세션 폐기 + 401. 정지 회원 정책(8.5 #7)은 '로그인 불가'로 가정.
+> - **로그아웃:** 이 기기(family)만 폐기. 모든 기기 로그아웃은 필요해지면 추가.
+> - **쿠키:** `pickong_at`(Path=/, Max-Age 15분), `pickong_rt`(Path=/api/v1/auth, Max-Age 14일), 모두 HttpOnly · SameSite=Lax. Secure(`COOKIE_SECURE`, 기본 true) · Domain(`COOKIE_DOMAIN`, 기본 비움)은 설정값.
+> - 만료 · 폐기된 토큰 행을 지우는 `ExpiredTokenCleanupScheduler`는 아직 없음 (후속).
+
 ### user
 | 메서드 | 경로 | 입력 포트 · 메서드 | 비고 |
 | --- | --- | --- | --- |
