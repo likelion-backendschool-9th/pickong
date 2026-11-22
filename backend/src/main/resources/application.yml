@@ -5,6 +5,19 @@ spring:
     servlet:
       path: /api/v1
 
+  # DB 접속 정보는 환경변수로 받습니다. 기본값은 로컬 개발용(compose.override.yml의 db 서비스)이고,
+  # 운영에서는 DB_URL · DB_USERNAME · DB_PASSWORD를 반드시 넣습니다.
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/pickong}
+    username: ${DB_USERNAME:pickong}
+    password: ${DB_PASSWORD:pickong}
+
+  jpa:
+    hibernate:
+      # 스키마는 Flyway(resources/db/migration)만 만듭니다.
+      # V1에는 인증 테이블만 있고 JPA 엔티티는 전 테이블에 있어서, 스키마 검증(validate)은 쓰지 않습니다.
+      ddl-auto: none
+
 server:
   port: 8080
 

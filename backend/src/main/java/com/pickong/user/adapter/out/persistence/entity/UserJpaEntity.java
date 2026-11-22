@@ -34,11 +34,11 @@ public class UserJpaEntity {
     @Column(name = "public_id", nullable = false, unique = true, updatable = false)
     private UUID publicId;
 
-    /** 로그인 ID. 대소문자 무시 UNIQUE (DB에서 lower() 함수 인덱스로 처리). */
+    /** 닉네임 = 사용자 ID. 영문 소문자로 저장, 대소문자 무시 UNIQUE (DB에서 lower() 함수 인덱스로 처리). */
     @Column(name = "username", nullable = false, unique = true, length = 20)
     private String username;
 
-    /** 이메일. 소셜 전용 계정은 NULL 가능. */
+    /** 가입한 소셜 계정의 인증된 이메일. 제공자가 주지 않으면 NULL. 대소문자 무시 UNIQUE (1인 1계정). */
     @Column(name = "email", unique = true)
     private String email;
 
@@ -47,7 +47,8 @@ public class UserJpaEntity {
     private String passwordHash;
 
     // ───────────── 프로필 ─────────────
-    @Column(name = "display_name", nullable = false, length = 30)
+    /** 이름. 중복 가능, 정하지 않으면 NULL (화면에는 닉네임이 대신 보임). */
+    @Column(name = "display_name", length = 30)
     private String displayName;
 
     @Column(name = "bio", columnDefinition = "TEXT")

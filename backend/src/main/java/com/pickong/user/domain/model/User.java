@@ -18,9 +18,12 @@ import lombok.Getter;
 public class User {
     private Long id;
     private UUID publicId;
+    /** 닉네임 = 사용자 ID (영문, 중복 불가) */
     private String username;
+    /** 가입한 소셜 계정의 인증된 이메일 (없으면 null) */
     private String email;
     private String passwordHash;
+    /** 이름 (중복 가능, 없으면 null) */
     private String displayName;
     private String bio;
     private String profileImageUrl;
