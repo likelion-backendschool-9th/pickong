@@ -33,6 +33,24 @@ services:
       retries: 5
       start_period: 5s
 
+  # 백엔드 로컬 개발용 DB. 백엔드는 `./gradlew bootRun`으로 따로 실행합니다. (docker compose up -d db)
+  db:
+    image: postgis/postgis:16-3.5
+    environment:
+      POSTGRES_DB: pickong
+      POSTGRES_USER: pickong
+      POSTGRES_PASSWORD: pickong # 로컬 전용 값. 운영 DB 비밀번호는 환경변수로만 넣습니다.
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pickong -d pickong"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
 volumes:
   frontend_node_modules:
   frontend_next:
+  db_data:

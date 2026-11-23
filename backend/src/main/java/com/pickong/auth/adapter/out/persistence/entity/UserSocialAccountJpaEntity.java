@@ -24,12 +24,17 @@ public class UserSocialAccountJpaEntity {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    /** 소셜 제공자. 값 목록: GOOGLE 등 */
+    /** 소셜 제공자. 값 목록: KAKAO | GOOGLE. 한 회원에 제공자마다 하나만 연결 (user_id, provider UNIQUE). */
     @Column(name = "provider", nullable = false, length = 20)
     private String provider;
 
+    /** 제공자의 고유 사용자 식별자 (카카오 회원번호, Google sub). (provider, provider_id) UNIQUE */
     @Column(name = "provider_id", nullable = false)
     private String providerId;
+
+    /** 이 소셜 계정의 인증된 이메일. 제공자가 주지 않거나 인증되지 않았으면 NULL. */
+    @Column(name = "email")
+    private String email;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

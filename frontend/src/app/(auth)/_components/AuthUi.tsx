@@ -3,11 +3,11 @@ import type { InputHTMLAttributes, ReactNode } from "react";
 import { cn } from "@/shared/lib/cn";
 
 /*
- * 시작 · 로그인 · 회원가입 화면 전용 UI.
+ * 시작 · 로그인 · 온보딩(회원가입) 화면 전용 UI.
  * 앱 안쪽 폼(연한 라임 채움 입력창)과 달리 흰 바탕 + 회색 테두리 입력창, 알약 모양 CTA를 씁니다.
  */
 
-/** 알약 모양 주요 버튼 (시작하기 · 로그인 · 동의하고 시작하기) */
+/** 알약 모양 주요 버튼 (시작하기 · 다음 · 동의하고 시작하기) */
 export const pillButtonClass =
   "inline-flex h-14 w-full items-center justify-center rounded-full bg-primary text-[17px] font-bold text-on-primary transition active:brightness-95 disabled:cursor-not-allowed disabled:bg-fill disabled:text-ink-faint";
 
@@ -93,9 +93,4 @@ export function AuthCheckbox({
       <span className="min-w-0">{children}</span>
     </label>
   );
-}
-
-/** 하단 보조 안내: "아직 찜콩 회원이 아니신가요? 회원가입" */
-export function AuthSwitchLine({ children }: { children: ReactNode }) {
-  return <p className="text-center text-[15px] text-ink-sub">{children}</p>;
 }
