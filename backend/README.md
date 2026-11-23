@@ -116,6 +116,17 @@ Gradle을 따로 설치하지 않아도 `./gradlew`가 필요한 버전(9.8.2)�
 - 연결 실패는 `/settings/login-methods?error=…`: `LINK_EXPIRED`(연결 토큰 만료 · 위조, 로그인 쿠키 없음 · 다른 회원) · `SOCIAL_ACCOUNT_ALREADY_LINKED` · `PROVIDER_ALREADY_LINKED` · `EMAIL_ALREADY_REGISTERED` · `ACCOUNT_UNAVAILABLE` · `OAUTH_CANCELLED` · `OAUTH_FAILED`
 - 해제는 찜콩에서만 합니다. 카카오 · Google 쪽 앱 연결은 사용자가 각 계정 설정에서 끊을 수 있습니다.
 
+### 내 정보 · 프로필 수정 (로그인 필요)
+
+| API | 결과 |
+| --- | --- |
+| `GET /api/v1/me` | 200 `{id, username, nickname, name, profileImageUrl, bio, region, postCount, followerCount, followingCount, isFollowing, isMe, isCreator, usernameChangeableAt}` |
+| `PATCH /api/v1/me` `{username?, name?, bio?, region?}` | 200 바뀐 내 정보 · 400 `INVALID_USERNAME` · `INVALID_NAME` · `INVALID_BIO` · `INVALID_REGION` · 409 `USERNAME_TAKEN` · `USERNAME_CHANGE_TOO_SOON` |
+
+- 보낸 항목만 바꾸고, `null`을 보내면 지웁니다(아이디 제외). 한 항목이라도 틀리면 아무것도 저장하지 않습니다.
+- 아이디는 14일에 한 번만 바꿀 수 있습니다(가입 후 첫 변경은 바로). 다음 변경 가능 시각은 `usernameChangeableAt`(지금 가능하면 null).
+- `id`는 `users.public_id`, `nickname`은 이름 ?? 아이디입니다.
+
 ### 개발자 콘솔에서 직접 설정할 것
 
 **카카오** (developers.kakao.com > 내 애플리케이션)
