@@ -14,6 +14,8 @@ public class CommentResponse {
     private String content;
     private long likeCount;
     private boolean reply;
+    // 삭제된 댓글 여부 — true면 프론트에서 "삭제된 댓글입니다" 표시
+    private boolean deleted;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 
@@ -23,7 +25,9 @@ public class CommentResponse {
         response.feedId = comment.getFeedId();
         response.userId = comment.getUserId();
         response.parentId = comment.getParentId();
-        response.content = comment.getContent();
+        response.deleted = comment.getDeletedAt() != null;
+        // 삭제된 댓글은 content를 null로 — 프론트에서 "삭제된 댓글입니다" 표시
+        response.content = response.deleted ? null : comment.getContent();
         response.likeCount = comment.getLikeCount();
         response.reply = comment.isReply();
         response.createdAt = comment.getCreatedAt();

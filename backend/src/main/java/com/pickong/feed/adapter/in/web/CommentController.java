@@ -70,7 +70,7 @@ public class CommentController {
             @PathVariable @Positive Long feedId,
             @PathVariable @Positive Long commentId,
             @Valid @RequestBody UpdateCommentRequest request) {
-        return CommentResponse.from(commentUseCase.updateComment(commentId, request.toCommand()));
+        return CommentResponse.from(commentUseCase.updateComment(feedId, commentId, request.toCommand()));
     }
 
     // 댓글 삭제 — 삭제 성공 시 204 No Content
@@ -79,6 +79,6 @@ public class CommentController {
     public void deleteComment(
             @PathVariable @Positive Long feedId,
             @PathVariable @Positive Long commentId) {
-        commentUseCase.deleteComment(commentId);
+        commentUseCase.deleteComment(feedId, commentId);
     }
 }

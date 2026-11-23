@@ -14,7 +14,7 @@ public interface CommentUseCase {
 
     Comment createComment(Long feedId, CreateCommentCommand command);
 
-    Comment updateComment(Long commentId, UpdateCommentCommand command);
+    Comment updateComment(Long feedId, Long commentId, UpdateCommentCommand command);
 
-    void deleteComment(Long commentId);
+    void deleteComment(Long feedId, Long commentId);
 }

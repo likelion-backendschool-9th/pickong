@@ -110,7 +110,7 @@ class CommentControllerTest {
     @Test
     void updateComment_유효한요청_200반환() throws Exception {
         // given
-        given(commentUseCase.updateComment(anyLong(), any())).willReturn(sampleComment());
+        given(commentUseCase.updateComment(anyLong(), anyLong(), any())).willReturn(sampleComment());
         Map<String, Object> body = Map.of("content", "수정된 댓글");
 
         // when & then
@@ -135,7 +135,7 @@ class CommentControllerTest {
     @Test
     void updateComment_존재하지않는id_404반환() throws Exception {
         // given
-        given(commentUseCase.updateComment(anyLong(), any()))
+        given(commentUseCase.updateComment(anyLong(), anyLong(), any()))
                 .willThrow(new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
         Map<String, Object> body = Map.of("content", "수정된 댓글");
 
@@ -157,7 +157,7 @@ class CommentControllerTest {
     void deleteComment_존재하지않는id_404반환() throws Exception {
         // given
         willThrow(new BusinessException(ErrorCode.COMMENT_NOT_FOUND))
-                .given(commentUseCase).deleteComment(999L);
+                .given(commentUseCase).deleteComment(anyLong(), anyLong());
 
         // when & then
         mockMvc.perform(delete("/feeds/10/comments/999"))

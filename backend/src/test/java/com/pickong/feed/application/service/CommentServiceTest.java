@@ -88,21 +88,58 @@ class CommentServiceTest {
                 .willThrow(new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
 
         // when & then
-        assertThatThrownBy(() -> commentService.updateComment(999L,
+        assertThatThrownBy(() -> commentService.updateComment(10L, 999L,
                 new UpdateCommentCommand("수정 내용")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("댓글을 찾을 수 없습니다");
     }
 
     @Test
-    void deleteComment_존재하지않는id_예외발생() {
-        // given
-        willThrow(new BusinessException(ErrorCode.COMMENT_NOT_FOUND))
-                .given(commentRepository).deleteById(999L);
+    void updateComment_다른피드댓글_수정시_예외발생() {
+        // given: feedId=10인데 댓글은 feedId=99에 속함
+        Comment wrongFeedComment = Comment.builder()
+                .id(1L)
+                .feedId(99L)
+                .userId(1L)
+                .content("다른 피드 댓글")
+                .likeCount(0)
+                .build();
+        given(commentRepository.findById(1L)).willReturn(wrongFeedComment);
 
         // when & then
-        assertThatThrownBy(() -> commentService.deleteComment(999L))
+        assertThatThrownBy(() -> commentService.updateComment(10L, 1L,
+                new UpdateCommentCommand("수정 내용")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("댓글이 해당 피드에 속하지 않습니다");
+    }
+
+    @Test
+    void deleteComment_존재하지않는id_예외발생() {
+        // given
+        given(commentRepository.findById(999L))
+                .willThrow(new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
+
+        // when & then
+        assertThatThrownBy(() -> commentService.deleteComment(10L, 999L))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void deleteComment_다른피드댓글_삭제시_예외발생() {
+        // given: feedId=10인데 댓글은 feedId=99에 속함
+        Comment wrongFeedComment = Comment.builder()
+                .id(1L)
+                .feedId(99L)
+                .userId(1L)
+                .content("다른 피드 댓글")
+                .likeCount(0)
+                .build();
+        given(commentRepository.findById(1L)).willReturn(wrongFeedComment);
+
+        // when & then
+        assertThatThrownBy(() -> commentService.deleteComment(10L, 1L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("댓글이 해당 피드에 속하지 않습니다");
     }
 
     @Test
