@@ -15,6 +15,8 @@ export interface NaverMapViewProps {
   markers?: MapMarker[];
   selectedId?: string | null;
   onMarkerClick?: (id: string) => void;
+  /** 마커가 아닌 지도 빈 곳을 눌렀을 때 */
+  onMapClick?: () => void;
   /** 처음 중심. 없으면 마커 전체가 보이도록 맞춤 */
   center?: LatLng;
   /** 처음 축척 (m/px). center와 함께 사용 */
@@ -45,6 +47,7 @@ export function NaverMapView({
   markers = [],
   selectedId,
   onMarkerClick,
+  onMapClick,
   center: initialCenter,
   metersPerPixel: initialMpp,
   path,
@@ -72,10 +75,12 @@ export function NaverMapView({
   const onCenterChangeRef = useRef(onCenterChange);
   const onBoundsChangeRef = useRef(onBoundsChange);
   const onMarkerClickRef = useRef(onMarkerClick);
+  const onMapClickRef = useRef(onMapClick);
   useEffect(() => {
     onCenterChangeRef.current = onCenterChange;
     onBoundsChangeRef.current = onBoundsChange;
     onMarkerClickRef.current = onMarkerClick;
+    onMapClickRef.current = onMapClick;
   });
 
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -126,6 +131,8 @@ export function NaverMapView({
         listeners.push(naver.maps.Event.addListener(map, "idle", onIdle));
         listeners.push(naver.maps.Event.addListener(map, "center_changed", emitCenter));
         listeners.push(naver.maps.Event.addListener(map, "zoom_changed", emitBounds));
+        // 마커 클릭은 Marker 이벤트로만 가고, 여기 click은 지도 빈 곳
+        listeners.push(naver.maps.Event.addListener(map, "click", () => onMapClickRef.current?.()));
 
         emitBounds();
 

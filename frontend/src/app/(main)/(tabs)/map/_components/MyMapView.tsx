@@ -81,6 +81,12 @@ export function MyMapView({
     if (place) setMapFocus({ key: `tap:${id}:${Date.now()}`, position: place.location, keepZoom: true });
   };
 
+  /** 지도 빈 곳을 누르면 하단 장소 카드를 닫습니다. */
+  const clearSelection = () => {
+    setSelectedId(null);
+    setExpanded(false);
+  };
+
   /** 버튼을 누를 때마다 GPS를 읽고 지도 중심을 그곳으로 옮깁니다. 조회 중에는 중복 클릭을 막습니다. */
   const goToMyLocation = async () => {
     if (locating) return;
@@ -140,6 +146,7 @@ export function MyMapView({
         ]}
         selectedId={selectedId}
         onMarkerClick={select}
+        onMapClick={clearSelection}
         onBoundsChange={setBounds}
         focus={mapFocus}
         userLocation={userLocation}
