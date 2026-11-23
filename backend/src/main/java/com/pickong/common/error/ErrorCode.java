@@ -5,7 +5,13 @@ import lombok.Getter;
 @Getter
 public enum ErrorCode {
 
-    FEED_NOT_FOUND(404, "피드를 찾을 수 없습니다");
+    FEED_NOT_FOUND(404, "피드를 찾을 수 없습니다"),
+    COMMENT_NOT_FOUND(404, "댓글을 찾을 수 없습니다"),
+    COMMENT_REPLY_DEPTH_EXCEEDED(400, "대댓글에는 답글을 달 수 없습니다"),
+    ALREADY_LIKED(409, "이미 좋아요를 눌렀습니다"),
+    LIKE_NOT_FOUND(404, "좋아요를 누르지 않았습니다"),
+    ALREADY_BOOKMARKED(409, "이미 북마크했습니다"),
+    BOOKMARK_NOT_FOUND(404, "북마크하지 않았습니다");
 
     private final int status;
     private final String message;
