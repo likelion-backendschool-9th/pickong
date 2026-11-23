@@ -3,6 +3,7 @@
 import { Crosshair, ImagePlus, X } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 import { CATEGORY_LABEL, FILTER_CATEGORIES, useCreateCustomPlace, type Place, type PlaceCategory } from "@/entities/place";
+import { useSubmitPlace, type PlaceSubmission } from "@/entities/place-submission";
 import { errorMessage } from "@/shared/api/errors";
 import { visibilityLabel, type Visibility } from "@/shared/config/visibility";
 import { MapView, type LatLng } from "@/shared/map";
@@ -14,9 +15,7 @@ import { VisibilitySheet } from "@/shared/ui/VisibilitySheet";
 
 const DEFAULT_CENTER: LatLng = { lat: 37.5446, lng: 127.0525 };
 
-interface CustomPlaceFlowProps {
-  /** 장소가 만들어진 뒤 호출. Promise를 돌려주면 끝날 때까지 버튼이 로딩 상태입니다. */
-  onCreated: (place: Place) => void | Promise<void>;
+type FlowBase = {
   initialName?: string;
   submitLabel?: string;
   /** 입력 단계 하단에 추가로 보여줄 내용 (예: 컬렉션 선택) */
@@ -25,29 +24,44 @@ interface CustomPlaceFlowProps {
   location?: LatLng;
   /** 위치를 바깥에서 고른 경우 ‘좌표 다시 선택’을 눌렀을 때 */
   onRepick?: () => void;
-}
+};
+
+type CustomPlaceFlowProps = FlowBase &
+  (
+    | {
+        /** 바로 장소를 만들고 내 지도 등에 연결합니다. */
+        mode?: "save";
+        onCreated: (place: Place) => void | Promise<void>;
+      }
+    | {
+        /** 관리자 심사 대기 제보만 만듭니다. 공개 지도에는 바로 나오지 않습니다. */
+        mode: "report";
+        onSubmitted: (submission: PlaceSubmission) => void | Promise<void>;
+      }
+  );
 
 /**
- * 미등록 장소 직접 추가: 지도에서 좌표 확정 → 이름·설명·사진·공개 범위 입력.
- * 개인 좌표로 만든 장소는 비공개가 기본값입니다.
+ * 미등록 장소 직접 추가: 지도에서 좌표 확정 → 이름·설명·사진 입력.
+ * save는 곧바로 장소를 만들고, report는 관리자 심사 제보만 접수합니다.
  */
 export function CustomPlaceFlow({
-  onCreated,
   initialName = "",
-  submitLabel = "내 지도에 저장",
+  submitLabel,
   extra,
   location,
   onRepick,
+  ...modeProps
 }: CustomPlaceFlowProps) {
   const [step, setStep] = useState<"pick" | "form">(location ? "form" : "pick");
   const [center, setCenter] = useState<LatLng>(location ?? DEFAULT_CENTER);
   const [confirmed, setConfirmed] = useState<LatLng | null>(location ?? null);
+  const reporting = modeProps.mode === "report";
 
   if (step === "pick" || !confirmed) {
     return (
       <div>
         <h2 className="text-[18px] font-bold">지도를 움직여 위치를 맞춰 주세요</h2>
-        <p className="mt-1 text-[13px] text-ink-sub">가운데 핀이 가리키는 곳으로 저장돼요.</p>
+        <p className="mt-1 text-[13px] text-ink-sub">가운데 핀이 가리키는 곳으로 {reporting ? "제보해요" : "저장돼요"}.</p>
         <MapView
           className="-mx-5 mt-4 h-[46dvh] min-h-72"
           center={confirmed ?? DEFAULT_CENTER}
@@ -77,34 +91,39 @@ export function CustomPlaceFlow({
     );
   }
 
-  return (
-    <DetailsForm
-      location={confirmed}
-      onRepick={onRepick ?? (() => setStep("pick"))}
-      onCreated={onCreated}
-      initialName={initialName}
-      submitLabel={submitLabel}
-      extra={extra}
-    />
-  );
+  const form = {
+    location: confirmed,
+    onRepick: onRepick ?? (() => setStep("pick")),
+    initialName,
+    submitLabel: submitLabel ?? (reporting ? "제보하기" : "내 지도에 저장"),
+    extra,
+  };
+
+  if (modeProps.mode === "report") {
+    return <DetailsForm {...form} mode="report" onSubmitted={modeProps.onSubmitted} />;
+  }
+  return <DetailsForm {...form} mode="save" onCreated={modeProps.onCreated} />;
 }
 
 function DetailsForm({
   location,
   onRepick,
-  onCreated,
   initialName,
   submitLabel,
   extra,
+  ...action
 }: {
   location: LatLng;
   onRepick: () => void;
-  onCreated: CustomPlaceFlowProps["onCreated"];
   initialName: string;
   submitLabel: string;
   extra?: ReactNode;
-}) {
+} & (
+  | { mode: "save"; onCreated: (place: Place) => void | Promise<void> }
+  | { mode: "report"; onSubmitted: (submission: PlaceSubmission) => void | Promise<void> }
+)) {
   const create = useCreateCustomPlace();
+  const report = useSubmitPlace();
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<PlaceCategory>("ETC");
@@ -113,21 +132,37 @@ function DetailsForm({
   const [visibilityOpen, setVisibilityOpen] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const pending = action.mode === "report" ? report : create;
 
-  const submit = () =>
+  const submit = () => {
+    const input = { name: name.trim(), lat: location.lat, lng: location.lng, description, category, imageUrl };
+    if (action.mode === "report") {
+      report.mutate(input, {
+        onSuccess: async (submission) => {
+          setFinishing(true);
+          try {
+            await action.onSubmitted(submission);
+          } finally {
+            setFinishing(false);
+          }
+        },
+      });
+      return;
+    }
     create.mutate(
-      { name: name.trim(), lat: location.lat, lng: location.lng, description, category, visibility, imageUrl },
+      { ...input, visibility },
       {
         onSuccess: async (place) => {
           setFinishing(true);
           try {
-            await onCreated(place);
+            await action.onCreated(place);
           } finally {
             setFinishing(false);
           }
         },
       },
     );
+  };
 
   return (
     <div className="space-y-6">
@@ -180,15 +215,18 @@ function DetailsForm({
           ))}
         </div>
       </Field>
-      <Field label="공개 범위" htmlFor="cp-vis" hint="직접 지정한 장소는 기본적으로 나만 볼 수 있어요.">
-        <SelectTrigger id="cp-vis" value={visibilityLabel(visibility)} onClick={() => setVisibilityOpen(true)} />
-      </Field>
+      {action.mode === "save" && (
+        <Field label="공개 범위" htmlFor="cp-vis" hint="직접 지정한 장소는 기본적으로 나만 볼 수 있어요.">
+          <SelectTrigger id="cp-vis" value={visibilityLabel(visibility)} onClick={() => setVisibilityOpen(true)} />
+        </Field>
+      )}
       {extra}
-      {create.isError && <Notice tone="danger">{errorMessage(create.error)}</Notice>}
-      <Button block onClick={submit} disabled={!name.trim()} loading={create.isPending || finishing}>
+      {action.mode === "report" && <p className="text-[13px] leading-relaxed text-ink-sub">관리자 검토 후 승인되면 지도에 표시됩니다.</p>}
+      {pending.isError && <Notice tone="danger">{errorMessage(pending.error)}</Notice>}
+      <Button block onClick={submit} disabled={!name.trim()} loading={pending.isPending || finishing}>
         {submitLabel}
       </Button>
-      <VisibilitySheet open={visibilityOpen} value={visibility} onClose={() => setVisibilityOpen(false)} onChange={setVisibility} />
+      {action.mode === "save" && <VisibilitySheet open={visibilityOpen} value={visibility} onClose={() => setVisibilityOpen(false)} onChange={setVisibility} />}
     </div>
   );
 }

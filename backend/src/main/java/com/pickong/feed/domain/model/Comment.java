@@ -20,10 +20,26 @@ public class Comment {
     private Long parentId;
     private String content;
     private long likeCount;
+    // DB에 저장되지 않는 집계 필드 — 목록 조회 시 서브쿼리로 계산됨
+    private long replyCount;
     private OffsetDateTime hiddenAt;
     private OffsetDateTime deletedAt;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
+
+    public static Comment create(Long feedId, Long userId, Long parentId, String content) {
+        return Comment.builder()
+                .feedId(feedId)
+                .userId(userId)
+                .parentId(parentId)
+                .content(content)
+                .likeCount(0)
+                .build();
+    }
+
+    public void update(String content) {
+        this.content = content;
+    }
 
     public boolean isReply() {
         return parentId != null;

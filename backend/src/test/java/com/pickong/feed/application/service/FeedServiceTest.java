@@ -15,10 +15,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 
+import org.mockito.ArgumentCaptor;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willDoNothing;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
 
@@ -43,17 +46,62 @@ class FeedServiceTest {
 
     @Test
     void createFeed_성공() {
-        // given: 저장소가 Feed를 반환하도록 설정
+        // given
         CreateFeedCommand command = new CreateFeedCommand(1L, "테스트 게시물", Visibility.PUBLIC, List.of(1L), List.of(10L));
         given(feedRepository.save(any(Feed.class))).willReturn(sampleFeed());
 
         // when
         Feed result = feedService.createFeed(command);
 
-        // then: 반환된 피드 id·내용 확인, save() 호출 여부 확인
+        // then: 반환된 피드 id·내용 확인
         assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getContent()).isEqualTo("테스트 게시물");
-        verify(feedRepository).save(any(Feed.class));
+    }
+
+    @Test
+    void createFeed_저장되는_피드_내용이_커맨드와_일치() {
+        // given
+        CreateFeedCommand command = new CreateFeedCommand(1L, "테스트 게시물", Visibility.PUBLIC, List.of(1L), List.of(10L));
+        ArgumentCaptor<Feed> captor = ArgumentCaptor.forClass(Feed.class);
+        given(feedRepository.save(captor.capture())).willReturn(sampleFeed());
+
+        // when
+        feedService.createFeed(command);
+
+        // then: save()에 전달된 Feed의 필드가 command 값과 일치하는지 검증
+        Feed saved = captor.getValue();
+        assertThat(saved.getUserId()).isEqualTo(1L);
+        assertThat(saved.getContent()).isEqualTo("테스트 게시물");
+        assertThat(saved.getVisibility()).isEqualTo(Visibility.PUBLIC);
+    }
+
+    @Test
+    void updateFeed_성공() {
+        // given
+        UpdateFeedCommand command = new UpdateFeedCommand("수정된 내용", Visibility.PRIVATE, List.of(), List.of());
+        given(feedRepository.findById(1L)).willReturn(sampleFeed());
+        given(feedRepository.save(any(Feed.class))).willReturn(
+                Feed.builder().id(1L).userId(1L).content("수정된 내용").visibility(Visibility.PRIVATE).build()
+        );
+
+        // when
+        Feed result = feedService.updateFeed(1L, command);
+
+        // then
+        assertThat(result.getContent()).isEqualTo("수정된 내용");
+        assertThat(result.getVisibility()).isEqualTo(Visibility.PRIVATE);
+    }
+
+    @Test
+    void deleteFeed_성공() {
+        // given
+        willDoNothing().given(feedRepository).deleteById(1L);
+
+        // when
+        feedService.deleteFeed(1L);
+
+        // then: deleteById()가 호출됐는지 확인
+        verify(feedRepository).deleteById(1L);
     }
 
     @Test

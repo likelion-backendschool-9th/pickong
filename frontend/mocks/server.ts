@@ -16,6 +16,7 @@ import { importRoutes } from "./handlers/imports.ts";
 import { messageRoutes } from "./handlers/messages.ts";
 import { myPlaceRoutes } from "./handlers/myPlaces.ts";
 import { paymentRoutes } from "./handlers/payments.ts";
+import { placeSubmissionRoutes } from "./handlers/placeSubmissions.ts";
 import { placeRoutes } from "./handlers/places.ts";
 import { planRoutes } from "./handlers/plans.ts";
 import { postRoutes } from "./handlers/posts.ts";
@@ -29,6 +30,7 @@ const handle = createRouter([
   ...userRoutes,
   ...postRoutes,
   ...placeRoutes,
+  ...placeSubmissionRoutes,
   ...importRoutes,
   ...planRoutes,
   ...discoverRoutes,
