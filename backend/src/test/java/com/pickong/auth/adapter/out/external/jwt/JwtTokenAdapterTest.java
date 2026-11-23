@@ -18,7 +18,12 @@ class JwtTokenAdapterTest {
     private static final Instant NOW = Instant.parse("2026-11-23T00:00:00Z");
 
     private JwtTokenAdapter adapterAt(Instant now, String secret) {
-        return new JwtTokenAdapter(new JwtProperties(secret, Duration.ofMinutes(15)), Clock.fixed(now, ZoneOffset.UTC));
+        JwtProperties properties = new JwtProperties(secret, Duration.ofMinutes(15));
+        return new JwtTokenAdapter(new JwtCodec(properties, Clock.fixed(now, ZoneOffset.UTC)), properties);
+    }
+
+    private JwtCodec codecAt(Instant now) {
+        return new JwtCodec(new JwtProperties(SECRET, Duration.ofMinutes(15)), Clock.fixed(now, ZoneOffset.UTC));
     }
 
     @Test
@@ -56,6 +61,16 @@ class JwtTokenAdapterTest {
         String otherPayload = adapter.issueAccessToken(1L).split("\\.")[1];
 
         assertThat(adapter.verify(parts[0] + "." + otherPayload + "." + parts[2])).isEmpty();
+    }
+
+    @Test
+    @DisplayName("같은 비밀값으로 서명했어도 Access Token이 아닌 종류(임시 가입 · state)는 인증되지 않는다")
+    void otherTokenTypesRejected() {
+        String signupToken = codecAt(NOW).encode(JwtCodec.TokenType.SIGNUP, "4242", java.util.Map.of(), Duration.ofMinutes(30));
+        String stateToken = codecAt(NOW).encode(JwtCodec.TokenType.OAUTH_STATE, "kakao", java.util.Map.of(), Duration.ofMinutes(10));
+
+        assertThat(adapterAt(NOW, SECRET).verify(signupToken)).isEmpty();
+        assertThat(adapterAt(NOW, SECRET).verify(stateToken)).isEmpty();
     }
 
     @Test

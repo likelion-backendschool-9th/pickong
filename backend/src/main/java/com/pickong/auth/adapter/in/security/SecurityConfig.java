@@ -29,7 +29,7 @@ import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
  */
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, FrontendProperties.class})
 public class SecurityConfig {
 
     /**
@@ -53,9 +53,26 @@ public class SecurityConfig {
      * </ol>
      * 파라미터는 Spring이 빈으로 넣어 줍니다. (verifier = JwtTokenAdapter)
      */
+    /**
+     * 소셜 로그인 시작 주소의 앞부분: /api/v1/auth/oauth2/authorization/{kakao|google}
+     * <p>
+     * <b>OAuth2 경로 두 개(시작 · 콜백)는 /api/v1을 포함한 전체 경로로 적습니다.</b> 아래 PUBLIC_PATHS 같은 인가 규칙과 달리,
+     * OAuth2 로그인 필터의 matcher에는 Spring Boot의 basePath(/api/v1)가 붙지 않기 때문입니다.
+     * (실제 서버 TRACE 로그에서 확인: 콜백 matcher가 "PathPattern [/auth/oauth2/callback/*]"로 만들어져 매칭 실패)
+     */
+    static final String OAUTH2_AUTHORIZATION_BASE_URI = "/api/v1/auth/oauth2/authorization";
+
+    /**
+     * 소셜 로그인 콜백 주소: /api/v1/auth/oauth2/callback/{kakao|google} (위와 같은 이유로 전체 경로)
+     * 카카오 · Google에 등록하는 Redirect URI는 application.yml에서 FRONTEND_BASE_URL로 만듭니다.
+     */
+    static final String OAUTH2_CALLBACK_URI = "/api/v1/auth/oauth2/callback/*";
+
     @Bean
     SecurityFilterChain apiSecurityFilterChain(HttpSecurity http, AccessTokenVerifier verifier,
-            RestAuthenticationEntryPoint authenticationEntryPoint, RestAccessDeniedHandler accessDeniedHandler) {
+            RestAuthenticationEntryPoint authenticationEntryPoint, RestAccessDeniedHandler accessDeniedHandler,
+            SignedCookieAuthorizationRequestRepository authorizationRequestRepository,
+            OAuth2LoginSuccessHandler oauth2SuccessHandler, OAuth2LoginFailureHandler oauth2FailureHandler) {
         http
                 // ① CSRF: SPA용 설정(spa) + SameSite=Lax 쿠키 저장소. POST · PUT · PATCH · DELETE에 X-XSRF-TOKEN 헤더가 필요해집니다.
                 .csrf(csrf -> csrf.spa().csrfTokenRepository(csrfTokenRepository()))
@@ -69,6 +86,17 @@ public class SecurityConfig {
                 .requestCache(AbstractHttpConfigurer::disable)
                 // ③ 쿠키 토큰 검증 필터. '비로그인 사용자' 표시를 붙이는 필터(Anonymous)보다 먼저 실행되어야 합니다.
                 .addFilterBefore(new JwtCookieAuthenticationFilter(verifier), AnonymousAuthenticationFilter.class)
+                // ③-2 카카오 · Google 소셜 로그인 (OAuth2). 시작 → 제공자 동의 화면 → 콜백 → 성공 · 실패 처리
+                .oauth2Login(oauth2 -> oauth2
+                        // 시작 주소 + 중간 상태(state)를 세션 대신 서명된 쿠키에 보관 (로그인 CSRF 방어)
+                        .authorizationEndpoint(authorization -> authorization
+                                .baseUri(OAUTH2_AUTHORIZATION_BASE_URI)
+                                .authorizationRequestRepository(authorizationRequestRepository))
+                        .redirectionEndpoint(redirection -> redirection.baseUri(OAUTH2_CALLBACK_URI))
+                        // 제공자가 준 Access Token은 쓰지 않으므로 저장하지 않습니다.
+                        .authorizedClientRepository(new NoOpAuthorizedClientRepository())
+                        .successHandler(oauth2SuccessHandler)
+                        .failureHandler(oauth2FailureHandler))
                 // ④ 로그인 필요(401) · 권한 없음 · CSRF 오류(403)를 JSON으로 응답합니다. (기본값은 로그인 페이지 리다이렉트)
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(authenticationEntryPoint)

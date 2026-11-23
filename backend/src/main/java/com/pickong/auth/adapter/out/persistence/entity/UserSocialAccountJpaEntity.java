@@ -1,5 +1,8 @@
 package com.pickong.auth.adapter.out.persistence.entity;
 
+import com.pickong.auth.application.dto.LinkedSocialAccount;
+import com.pickong.auth.domain.vo.SocialProvider;
+
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -38,4 +41,9 @@ public class UserSocialAccountJpaEntity {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
+
+    /** DB 행을 application dto로 바꿉니다. (이 테이블은 domain 모델 없이 dto로 주고받음) */
+    public LinkedSocialAccount toDto() {
+        return new LinkedSocialAccount(userId, SocialProvider.valueOf(provider), providerId, email);
+    }
 }

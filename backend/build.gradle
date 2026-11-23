@@ -32,6 +32,8 @@ dependencies {
     // Security / JWT: Spring Security의 JWT 인코더 · 디코더(Nimbus)만 쓰고, 쿠키 검증 필터는 직접 둡니다.
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.security:spring-security-oauth2-jose'
+    // 카카오 · Google 소셜 로그인 (OAuth2 Client). Boot 4의 새 starter 이름입니다.
+    implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-client'
 
     // JPA / DB
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
