@@ -41,7 +41,7 @@
 13. **필터, 탭, 검색어처럼 공유 가능한 화면 상태는 URL(`searchParams`)에 둡니다.**
 14. **계산·검증 로직은 React를 import하지 않는 순수 함수로 작성하고, 바로 옆에 테스트를 둡니다.**
 15. **단순 UI에는 UseCase, Port, Adapter 같은 추상화를 만들지 않습니다.**
-16. **`kakao.maps`는 `shared/map/kakao/` 밖에서 사용하지 않습니다.**
+16. **지도 SDK 전역(`naver.maps`, `kakao.maps` 등)은 `shared/map/{provider}/` 밖에서 사용하지 않습니다.**
 17. **색상은 `app/globals.css`의 `@theme` 토큰 이름으로만 사용하고, hex 값을 컴포넌트에 직접 쓰지 않습니다.**
 18. **Mock 분기(`USE_MOCK`)를 코드에 넣지 않습니다.** mock과 실제 API 전환은 환경변수로만 합니다.
 
