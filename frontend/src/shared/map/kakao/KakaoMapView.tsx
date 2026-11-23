@@ -30,6 +30,8 @@ export interface KakaoMapViewProps {
   focus?: { key: string; position: LatLng; keepZoom?: boolean } | null;
   /** 중앙 고정 핀 표시 (좌표 직접 지정용) */
   crosshair?: boolean;
+  /** GPS로 확인한 내 위치 (파란 점). 장소 마커와 별도 */
+  userLocation?: LatLng | null;
   caption?: string;
   className?: string;
   children?: ReactNode;
@@ -51,6 +53,7 @@ export function KakaoMapView({
   onBoundsChange,
   focus,
   crosshair,
+  userLocation,
   caption,
   className,
   children,
@@ -59,6 +62,7 @@ export function KakaoMapView({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<kakao.maps.Map | null>(null);
   const overlaysRef = useRef<kakao.maps.CustomOverlay[]>([]);
+  const userLocationOverlayRef = useRef<kakao.maps.CustomOverlay | null>(null);
   const polylineRef = useRef<kakao.maps.Polyline | null>(null);
   const focusedKeyRef = useRef<string | null>(null);
   const fittedKeyRef = useRef<string | null>(null);
@@ -144,6 +148,8 @@ export function KakaoMapView({
       removeZoom?.();
       ro?.disconnect();
       clearOverlays(overlaysRef);
+      userLocationOverlayRef.current?.setMap(null);
+      userLocationOverlayRef.current = null;
       polylineRef.current?.setMap(null);
       polylineRef.current = null;
       mapRef.current = null;
@@ -196,6 +202,35 @@ export function KakaoMapView({
       overlaysRef.current.push(overlay);
     }
   }, [markers, selectedId, pinCount, status]);
+
+  // 내 위치 (GPS)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== "ready") return;
+
+    if (!userLocation) {
+      userLocationOverlayRef.current?.setMap(null);
+      userLocationOverlayRef.current = null;
+      return;
+    }
+
+    const position = toKakaoLatLng(userLocation);
+    if (userLocationOverlayRef.current) {
+      userLocationOverlayRef.current.setPosition(position);
+      userLocationOverlayRef.current.setMap(map);
+      return;
+    }
+
+    userLocationOverlayRef.current = new kakao.maps.CustomOverlay({
+      map,
+      position,
+      content: createUserLocationElement(),
+      xAnchor: 0.5,
+      yAnchor: 0.5,
+      zIndex: 4,
+      clickable: false,
+    });
+  }, [userLocation, status]);
 
   // 경로선
   useEffect(() => {
@@ -288,6 +323,23 @@ export function KakaoMapView({
 function clearOverlays(ref: { current: kakao.maps.CustomOverlay[] }) {
   for (const overlay of ref.current) overlay.setMap(null);
   ref.current = [];
+}
+
+function createUserLocationElement(): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.setAttribute("aria-label", "내 위치");
+  wrap.className = "relative flex size-5 items-center justify-center";
+
+  const pulse = document.createElement("span");
+  pulse.className = "absolute size-5 rounded-full bg-map-me animate-map-me-pulse";
+  pulse.setAttribute("aria-hidden", "true");
+
+  const dot = document.createElement("span");
+  dot.className =
+    "relative size-3.5 rounded-full border-2 border-white bg-map-me shadow-[0_1px_4px_rgba(0,0,0,0.3)]";
+
+  wrap.append(pulse, dot);
+  return wrap;
 }
 
 function createMarkerElement(
