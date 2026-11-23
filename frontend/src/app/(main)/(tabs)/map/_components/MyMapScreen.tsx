@@ -3,7 +3,7 @@
 import { Folder, List, Map as MapIcon, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMyCollections } from "@/entities/collection";
 import { FILTER_CATEGORIES, useMapCategories, useSavedPlaces, type Place, type PlaceCategory } from "@/entities/place";
 import { errorMessage } from "@/shared/api/errors";
@@ -13,6 +13,7 @@ import { Chip } from "@/shared/ui/controls";
 import { ErrorState, Skeleton } from "@/shared/ui/display";
 import { SearchInput } from "@/shared/ui/form";
 import { PageHeader } from "@/shared/ui/layout";
+import { useToast } from "@/shared/ui/Toast";
 import { EMPTY_FILTER, filterSavedPlaces, type SavedPlaceFilter } from "../_lib/filterSavedPlaces";
 import { CategoryChipEditor } from "./CategoryChipEditor";
 import { activeFilterCount, MapFilterSheet } from "./MapFilterSheet";
@@ -30,6 +31,20 @@ export function MyMapScreen() {
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const toast = useToast();
+
+  useEffect(() => {
+    if (sessionStorage.getItem("pickong:place-reported") !== "1") return;
+    // 지도로 이동하는 동안 화면이 한 번 더 마운트되어도 안내가 남도록, 주소 정리가 끝난 뒤에 띄웁니다.
+    const id = window.setTimeout(() => {
+      sessionStorage.removeItem("pickong:place-reported");
+      toast({
+        message: "장소 제보가 접수되었습니다.",
+        detail: "관리자 검토 후 승인되면 지도에 표시됩니다.",
+      });
+    }, 600);
+    return () => window.clearTimeout(id);
+  }, [toast]);
   const view = params.get("view") === "list" ? "list" : "map";
   const [filter, setFilter] = useState<SavedPlaceFilter>(() => ({
     ...EMPTY_FILTER,
