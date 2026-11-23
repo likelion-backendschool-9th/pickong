@@ -7,8 +7,7 @@ import { categoryLabel, formatHours, usePlacesInBounds, type Place, type PlaceCa
 import { SavePlaceButton } from "@/features/save-place";
 import { routes } from "@/shared/config/routes";
 import { cn } from "@/shared/lib/cn";
-import type { LatLng, LatLngBounds } from "@/shared/lib/geo";
-import { getCurrentPosition } from "@/shared/lib/geolocation";
+import { getCurrentPosition, type LatLng, type LatLngBounds } from "@/shared/lib/geo";
 import { MapView } from "@/shared/map";
 import { BottomSheet } from "@/shared/ui/BottomSheet";
 import { Button, ButtonLink } from "@/shared/ui/Button";
