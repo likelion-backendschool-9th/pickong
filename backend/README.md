@@ -92,6 +92,18 @@ Gradle을 따로 설치하지 않아도 `./gradlew`가 필요한 버전(9.8.2)�
 - OAuth state는 서버 세션 대신 서명된 쿠키 `pickong_oauth`(10분)에 보관하고, 콜백의 state와 비교합니다(로그인 CSRF 방어).
 - **OAuth2 경로(시작 · 콜백)는 보안 설정에서 `/api/v1`을 포함한 전체 경로로 적습니다.** 인가 규칙(`PUBLIC_PATHS`)과 달리 OAuth2 필터에는 Spring Boot의 basePath가 붙지 않습니다.
 
+### 최초 가입 온보딩 (임시 가입 쿠키 `pickong_signup`로 동작)
+
+| API | 결과 |
+| --- | --- |
+| `GET /api/v1/auth/signup` | 200 소셜 계정 정보 `{provider, name, profileImageUrl, email}` · 401 `SIGNUP_SESSION_EXPIRED` · 409 `ALREADY_REGISTERED`(이미 로그인) |
+| `GET /api/v1/auth/username-availability?username=` | 200 `{available}` (대소문자 무시, 예약어는 false) · 400 `INVALID_USERNAME` |
+| `POST /api/v1/auth/signup` `{username, name, useSocialProfileImage, agreedTerms}` | 200 `{username}` + 세션 쿠키, 가입 쿠키 삭제 · 400 `INVALID_USERNAME` · `INVALID_NAME` · `REQUIRED_TERMS_NOT_AGREED` · `UNKNOWN_TERMS` · 409 `USERNAME_TAKEN` · `EMAIL_ALREADY_REGISTERED` · `SOCIAL_ACCOUNT_ALREADY_LINKED` · `ALREADY_REGISTERED` · 401 `SIGNUP_SESSION_EXPIRED` |
+| `DELETE /api/v1/auth/signup` | 204, 가입 쿠키 삭제 |
+
+- 회원 생성 · 소셜 계정 연결 · 약관 동의가 한 트랜잭션이라, 하나라도 실패하면 아무것도 남지 않습니다.
+- 약관 데이터는 Flyway `V2__seed_terms.sql`에 있습니다. 약관을 바꿀 때는 새 버전 행을 넣는 새 마이그레이션을 추가합니다.
+
 ### 개발자 콘솔에서 직접 설정할 것
 
 **카카오** (developers.kakao.com > 내 애플리케이션)

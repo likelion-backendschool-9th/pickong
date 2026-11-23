@@ -136,7 +136,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | 관리자 API | **업무 규칙과 컨트롤러는 담당 모듈, `admin`은 인증 · 역할 · 작업 기록** | 1.3 #1 |
 | `/me/**` API | 경로가 아니라 **반환 데이터의 소유자**로 배정 | `/me/purchases` → `collection`, `/me/payments` → `payment`, `/me/creator/settlements` → `settlement`, `/me/bookmarked-feeds` → `feed` |
 | `/users/{username}/**` API | 마찬가지로 반환 데이터 기준 | `/feeds` → `feed`, `/collections` → `collection`, `/plans` → `plan`, `/saved-places` → `savedplace` |
-| `GET /auth/check-username` | **`user`** | `users.username`의 규칙과 UNIQUE는 `user`가 소유합니다 |
+| `GET /auth/username-availability` | **`user`** | `users.username`의 규칙과 UNIQUE는 `user`가 소유합니다 (`UsernameController`) |
 
 ### 2.3 다른 모듈의 요청으로 바뀌는 컬럼
 
@@ -168,13 +168,12 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 ### auth
 | 메서드 | 경로 | 입력 포트 · 메서드 | 비고 |
 | --- | --- | --- | --- |
-| POST | `/auth/signup` | `SignUpUseCase.signUp` | 필수 약관 확인(terms) → 회원 생성(user) → 토큰 |
-| POST | `/auth/login` | `LoginUseCase.login` | |
+| GET | `/auth/signup` | `SignUpUseCase.getSession` | 임시 가입 쿠키의 소셜 계정 정보 (온보딩 기본값) |
+| POST | `/auth/signup` | `SignUpUseCase.signUp` + `TokenUseCase.issue` | 회원 생성(user) → 소셜 계정 연결 → 약관 동의(terms), 한 트랜잭션 → 세션 쿠키 |
+| DELETE | `/auth/signup` | 컨트롤러만 (가입 쿠키 삭제) | 서버에 남는 것 없음 |
 | GET | `/auth/oauth2/authorization/{kakao\|google}` → 콜백 `/auth/oauth2/callback/{provider}` | Spring Security → `OAuth2LoginSuccessHandler` → `LoginUseCase.loginWithSocial` + `TokenUseCase.issue` | 컨트롤러 없음 |
 | POST | `/auth/refresh` | `TokenUseCase.refresh` | 로테이션 · 재사용 감지 |
 | POST | `/auth/logout` | `TokenUseCase.logout` | |
-| POST | `/auth/password-reset/request` | `PasswordResetUseCase.request` | |
-| POST | `/auth/password-reset/confirm` | `PasswordResetUseCase.confirm` | |
 | WS | `/ws` (CONNECT) | `auth/adapter/in/websocket` 인증 인터셉터 | 5.4 |
 
 > **소셜 로그인 스키마 결정 (V1)**
@@ -212,10 +211,18 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 > - 이메일: 제공자가 인증한 것만(카카오 `is_email_valid` · `is_email_verified`, Google `email_verified`), 소문자로 저장 · 비교. 신규 소셜 계정의 이메일이 이미 연결된 소셜 계정 이메일과 같으면 가입 차단(자동 연결 안 함).
 > - 제공자의 Access Token은 저장하지 않음(`NoOpAuthorizedClientRepository`). 프로필 사진은 제공자 URL을 https로 바꿔 그대로 사용(업로드 기능 생기면 복사 검토).
 
+> **온보딩 결정 (5단계)**
+> - 이메일 · 비밀번호 로그인과 비밀번호 재설정은 소셜 로그인 전환으로 없앴습니다(위 표에서 제거). `password_reset_tokens` 엔티티는 남아 있지만 V1에 테이블이 없습니다.
+> - 가입 흐름은 `auth.SignUpService`가 맡고, 회원 생성은 `user`의 `UserAccountUseCase.register`, 약관 동의는 `terms`의 `TermsUseCase.agreeOnSignup`으로 처리합니다. 회원 생성 · 소셜 계정 연결 · 약관 동의가 **한 트랜잭션**이라 하나라도 실패하면 아무것도 남지 않습니다. 세션 발급은 커밋 뒤 컨트롤러가 `TokenUseCase.issue`로.
+> - **닉네임(= ID) 규칙은 `user.domain.vo.Username`**: 영문으로 시작 3~20자, 영문 소문자 · 숫자 · `_` · `.`, 끝 · 연속 마침표 금지, 소문자로 저장. 예약어(admin · pickong · official 등)는 '사용 중'. 이름은 `User.register`에서 공백 정리 · 비면 null · 20자(코드 포인트) 초과 금지.
+> - **약관 초기 데이터는 Flyway `V2__seed_terms.sql`**(SERVICE · PRIVACY 필수, MARKETING 선택, 1.0). 필수 여부는 DB(`is_required`)를 따르고, 종류마다 시행일이 지난 최신 버전으로 동의를 기록. 약관을 바꿀 때는 새 버전 행을 넣는 새 마이그레이션 추가.
+> - **동시 가입:** 서비스가 먼저 확인해 정확한 사유를 알려 주고, 동시에 사전 확인을 통과한 경우는 DB UNIQUE가 막습니다. 어댑터가 `saveAndFlush` 후 제약 이름(`uk_users_username_lower` · `uk_users_email_lower` · `uk_user_social_accounts_provider_id`)으로 `USERNAME_TAKEN` · `EMAIL_ALREADY_REGISTERED` · `SOCIAL_ACCOUNT_ALREADY_LINKED`로 바꿉니다.
+> - 사진은 클라이언트가 주소를 보내지 않고 `useSocialProfileImage` 여부만 보내며, 서버는 임시 가입 토큰에 있는 주소만 씁니다(임의 URL 저장 방지).
+
 ### user
 | 메서드 | 경로 | 입력 포트 · 메서드 | 비고 |
 | --- | --- | --- | --- |
-| GET | `/auth/check-username` | `UserQueryUseCase.isUsernameAvailable` | 경로는 auth지만 데이터는 user |
+| GET | `/auth/username-availability` | `UserQueryUseCase.isUsernameAvailable` | 경로는 auth지만 데이터는 user. 대소문자 무시, 예약어는 사용 중 |
 | GET | `/me` | `UserQueryUseCase.getMe` | |
 | PUT | `/me` | `UserCommandUseCase.updateProfile` | |
 | DELETE | `/me` | `UserCommandUseCase.requestWithdrawal` | WITHDRAWN_PENDING, 30일 후 익명화 |
