@@ -1,6 +1,7 @@
 package com.pickong.feed.adapter.out.persistence.repository;
 
 import com.pickong.feed.adapter.out.persistence.entity.CommentJpaEntity;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -9,19 +10,20 @@ import java.util.List;
 
 public interface CommentJpaRepository extends JpaRepository<CommentJpaEntity, Long> {
 
-    // feedId에 속한 최상위 댓글 — cursor(commentId) 이후 오래된 순으로 limit개 조회
+    // feedId에 속한 최상위 댓글 — cursor(commentId) 이전 최신순으로 조회
+    // JPQL은 LIMIT를 직접 지원하지 않으므로 Pageable로 개수 제한
     @Query("SELECT c FROM CommentJpaEntity c WHERE c.feedId = :feedId AND c.parentId IS NULL " +
-            "AND (:cursor IS NULL OR c.id > :cursor) AND c.deletedAt IS NULL " +
-            "ORDER BY c.id ASC LIMIT :limit")
+            "AND (:cursor IS NULL OR c.id < :cursor) AND c.deletedAt IS NULL AND c.hiddenAt IS NULL " +
+            "ORDER BY c.id DESC")
     List<CommentJpaEntity> findTopLevelByFeedId(@Param("feedId") Long feedId,
             @Param("cursor") Long cursor,
-            @Param("limit") int limit);
+            Pageable pageable);
 
-    // 대댓글 — parentId 기준 오래된 순으로 limit개 조회
+    // 대댓글 — parentId 기준 최신순으로 조회
     @Query("SELECT c FROM CommentJpaEntity c WHERE c.parentId = :parentId " +
-            "AND (:cursor IS NULL OR c.id > :cursor) AND c.deletedAt IS NULL " +
-            "ORDER BY c.id ASC LIMIT :limit")
+            "AND (:cursor IS NULL OR c.id < :cursor) AND c.deletedAt IS NULL AND c.hiddenAt IS NULL " +
+            "ORDER BY c.id DESC")
     List<CommentJpaEntity> findRepliesByParentId(@Param("parentId") Long parentId,
             @Param("cursor") Long cursor,
-            @Param("limit") int limit);
+            Pageable pageable);
 }
