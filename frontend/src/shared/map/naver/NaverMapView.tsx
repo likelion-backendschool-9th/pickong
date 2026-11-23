@@ -30,6 +30,8 @@ export interface NaverMapViewProps {
   focus?: { key: string; position: LatLng; keepZoom?: boolean } | null;
   /** 중앙 고정 핀 표시 (좌표 직접 지정용) */
   crosshair?: boolean;
+  /** GPS로 확인한 내 위치 (파란 점). 장소 마커와 별도 */
+  userLocation?: LatLng | null;
   caption?: string;
   className?: string;
   children?: ReactNode;
@@ -51,6 +53,7 @@ export function NaverMapView({
   onBoundsChange,
   focus,
   crosshair,
+  userLocation,
   caption,
   className,
   children,
@@ -60,6 +63,7 @@ export function NaverMapView({
   const mapRef = useRef<naver.maps.Map | null>(null);
   const markersRef = useRef<naver.maps.Marker[]>([]);
   const markerListenersRef = useRef<object[]>([]);
+  const userLocationMarkerRef = useRef<naver.maps.Marker | null>(null);
   const polylineRef = useRef<naver.maps.Polyline | null>(null);
   const focusedKeyRef = useRef<string | null>(null);
   const fittedKeyRef = useRef<string | null>(null);
@@ -142,6 +146,8 @@ export function NaverMapView({
       for (const listener of listeners) naver.maps.Event.removeListener(listener);
       ro?.disconnect();
       clearMarkers(markersRef, markerListenersRef);
+      userLocationMarkerRef.current?.setMap(null);
+      userLocationMarkerRef.current = null;
       polylineRef.current?.setMap(null);
       polylineRef.current = null;
       mapRef.current?.destroy();
@@ -203,6 +209,39 @@ export function NaverMapView({
       markerListenersRef.current.push(listener);
     }
   }, [markers, selectedId, pinCount, status]);
+
+  // 내 위치 (GPS)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== "ready") return;
+
+    if (!userLocation) {
+      userLocationMarkerRef.current?.setMap(null);
+      userLocationMarkerRef.current = null;
+      return;
+    }
+
+    const position = toNaverLatLng(userLocation);
+    if (userLocationMarkerRef.current) {
+      userLocationMarkerRef.current.setPosition(position);
+      userLocationMarkerRef.current.setMap(map);
+      return;
+    }
+
+    const size = 20;
+    userLocationMarkerRef.current = new naver.maps.Marker({
+      map,
+      position,
+      icon: {
+        content: createUserLocationElement(),
+        size: new naver.maps.Size(size, size),
+        anchor: new naver.maps.Point(size / 2, size / 2),
+      },
+      title: "내 위치",
+      zIndex: 4,
+      clickable: false,
+    });
+  }, [userLocation, status]);
 
   // 경로선
   useEffect(() => {
@@ -301,6 +340,23 @@ function clearMarkers(
   listenersRef.current = [];
   for (const marker of markersRef.current) marker.setMap(null);
   markersRef.current = [];
+}
+
+function createUserLocationElement(): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.setAttribute("aria-label", "내 위치");
+  wrap.className = "relative flex size-5 items-center justify-center";
+
+  const pulse = document.createElement("span");
+  pulse.className = "absolute size-5 rounded-full bg-map-me animate-map-me-pulse";
+  pulse.setAttribute("aria-hidden", "true");
+
+  const dot = document.createElement("span");
+  dot.className =
+    "relative size-3.5 rounded-full border-2 border-white bg-map-me shadow-[0_1px_4px_rgba(0,0,0,0.3)]";
+
+  wrap.append(pulse, dot);
+  return wrap;
 }
 
 function estimateMarkerSize(m: MapMarker, selected: boolean, pinCount: number): { w: number; h: number } {

@@ -1,16 +1,19 @@
 "use client";
 
-import { ChevronDown, ChevronUp, Info, Link2, MapPinPlus } from "lucide-react";
+import { ChevronDown, ChevronUp, Info, Link2, LocateFixed, MapPinPlus } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 import { categoryLabel, formatHours, usePlacesInBounds, type Place, type PlaceCategory, type SavedPlace } from "@/entities/place";
 import { SavePlaceButton } from "@/features/save-place";
 import { routes } from "@/shared/config/routes";
+import { cn } from "@/shared/lib/cn";
 import type { LatLng, LatLngBounds } from "@/shared/lib/geo";
+import { getCurrentPosition } from "@/shared/lib/geolocation";
 import { MapView } from "@/shared/map";
 import { BottomSheet } from "@/shared/ui/BottomSheet";
 import { Button, ButtonLink } from "@/shared/ui/Button";
 import { Badge, Thumb } from "@/shared/ui/display";
+import { useToast } from "@/shared/ui/Toast";
 
 const POI = "poi:";
 
@@ -37,6 +40,7 @@ export function MyMapView({
   /** 검색에서 고른 장소: 그곳으로 이동하고 선택 */
   focus: Place | null;
 }) {
+  const toast = useToast();
   const [bounds, setBounds] = useState<LatLngBounds | null>(null);
   const { data: nearby = [] } = usePlacesInBounds(bounds);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -44,6 +48,8 @@ export function MyMapView({
   const [legendOpen, setLegendOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [mapFocus, setMapFocus] = useState<FocusRequest>(null);
+  const [userLocation, setUserLocation] = useState<LatLng | null>(null);
+  const [locating, setLocating] = useState(false);
 
   // 검색에서 장소를 고르면 그 장소로 이동해 선택 (렌더 중 상태 보정: 고른 장소가 바뀐 경우에만)
   const [focusedId, setFocusedId] = useState<string | null>(null);
@@ -76,6 +82,24 @@ export function MyMapView({
     if (place) setMapFocus({ key: `tap:${id}:${Date.now()}`, position: place.location, keepZoom: true });
   };
 
+  /** 버튼을 누를 때마다 GPS를 읽고 지도 중심을 그곳으로 옮깁니다. 조회 중에는 중복 클릭을 막습니다. */
+  const goToMyLocation = async () => {
+    if (locating) return;
+    setLocating(true);
+    try {
+      const position = await getCurrentPosition();
+      setUserLocation(position);
+      setMapFocus({ key: `me:${position.lat},${position.lng}:${Date.now()}`, position });
+    } catch (err) {
+      toast({
+        message: "위치를 찾지 못했어요",
+        detail: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setLocating(false);
+    }
+  };
+
   return (
     <div className="relative">
       {/* 범례는 작은 안내 버튼으로 접어 지도를 덜 가리게 */}
@@ -97,6 +121,9 @@ export function MyMapView({
             <p className="flex items-center gap-1.5 text-ink-sub">
               <span className="size-2 rounded-full bg-ink-faint" /> 주변 장소
             </p>
+            <p className="flex items-center gap-1.5 text-ink-sub">
+              <span className="size-2.5 rounded-full border border-white bg-map-me" /> 내 위치
+            </p>
           </div>
         )}
       </div>
@@ -116,8 +143,23 @@ export function MyMapView({
         onMarkerClick={select}
         onBoundsChange={setBounds}
         focus={mapFocus}
-        caption="예시 지도"
-      />
+        userLocation={userLocation}
+        caption={undefined}
+      >
+        <button
+          type="button"
+          onClick={goToMyLocation}
+          disabled={locating}
+          aria-label="내 위치로 이동"
+          aria-busy={locating}
+          className={cn(
+            "absolute right-3 bottom-28 z-10 inline-flex size-9 items-center justify-center rounded-lg border border-line bg-white text-ink shadow-sm active:bg-fill disabled:pointer-events-none disabled:opacity-60",
+            userLocation && "text-map-me",
+          )}
+        >
+          <LocateFixed size={18} className={cn(locating && "animate-pulse")} />
+        </button>
+      </MapView>
 
       {selectedSaved && (
         <PlaceCard
