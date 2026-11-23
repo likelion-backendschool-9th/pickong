@@ -32,4 +32,13 @@ public class UserTermsAgreementJpaEntity {
 
     @Column(name = "revoked_at")
     private OffsetDateTime revokedAt;
+
+    /** 새 동의 기록 한 줄을 만듭니다. (철회 시각은 비어 있음) */
+    public static UserTermsAgreementJpaEntity agreed(Long userId, Long termsId, OffsetDateTime agreedAt) {
+        UserTermsAgreementJpaEntity entity = new UserTermsAgreementJpaEntity();
+        entity.userId = userId;
+        entity.termsId = termsId;
+        entity.agreedAt = agreedAt;
+        return entity;
+    }
 }

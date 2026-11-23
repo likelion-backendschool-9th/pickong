@@ -100,6 +100,30 @@ public class UserJpaEntity {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    /** domain 모델을 저장할 행으로 바꿉니다. (새 회원이면 id는 null → DB가 채움) */
+    public static UserJpaEntity from(User user) {
+        UserJpaEntity entity = new UserJpaEntity();
+        entity.id = user.getId();
+        entity.publicId = user.getPublicId();
+        entity.username = user.getUsername();
+        entity.email = user.getEmail();
+        entity.passwordHash = user.getPasswordHash();
+        entity.displayName = user.getDisplayName();
+        entity.bio = user.getBio();
+        entity.profileImageUrl = user.getProfileImageUrl();
+        entity.status = user.getStatus().name();
+        entity.suspendedUntil = user.getSuspendedUntil();
+        entity.followerCount = user.getFollowerCount();
+        entity.followingCount = user.getFollowingCount();
+        entity.feedCount = user.getFeedCount();
+        entity.withdrawalRequestedAt = user.getWithdrawalRequestedAt();
+        entity.deletedAt = user.getDeletedAt();
+        entity.lastLoginAt = user.getLastLoginAt();
+        entity.createdAt = user.getCreatedAt();
+        entity.updatedAt = user.getUpdatedAt();
+        return entity;
+    }
+
     /** DB 행을 domain 모델로 바꿉니다. 상태 문자열은 enum으로 바꿉니다. */
     public User toDomain() {
         return User.builder()

@@ -7,4 +7,16 @@ import java.util.Optional;
 public interface UserPersistencePort {
 
     Optional<User> findById(Long userId);
+
+    /** 이 닉네임(소문자)을 쓰는 회원이 있는지 (lower(username) 인덱스) */
+    boolean existsByUsername(String username);
+
+    /** 이 이메일(대소문자 무시)을 가입 이메일로 쓰는 회원이 있는지 (lower(email) 인덱스) */
+    boolean existsByEmail(String email);
+
+    /**
+     * 새 회원을 저장합니다. 미리 확인했어도 동시에 같은 닉네임 · 이메일로 가입하면 DB UNIQUE가 막고,
+     * 그 경우 USERNAME_TAKEN · EMAIL_ALREADY_REGISTERED로 바꿔 던집니다.
+     */
+    User save(User user);
 }

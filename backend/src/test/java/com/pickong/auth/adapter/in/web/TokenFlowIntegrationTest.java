@@ -59,6 +59,9 @@ class TokenFlowIntegrationTest {
     @BeforeEach
     void setUp() {
         // 테스트마다 깨끗한 상태에서 시작합니다. (요청 처리 트랜잭션을 실제처럼 커밋해야 해서 롤백 방식을 쓰지 않음)
+        // 외래 키 순서대로 지웁니다. (같은 DB를 쓰는 다른 테스트 클래스와 섞이지 않게)
+        jdbc.update("DELETE FROM user_terms_agreements");
+        jdbc.update("DELETE FROM user_social_accounts");
         jdbc.update("DELETE FROM refresh_tokens");
         jdbc.update("DELETE FROM users");
         userId = jdbc.queryForObject("INSERT INTO users (username) VALUES ('seoyeon') RETURNING id", Long.class);

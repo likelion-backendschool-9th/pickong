@@ -12,4 +12,10 @@ public interface SocialAccountPersistencePort {
 
     /** 이 이메일(대소문자 무시)이 연결된 소셜 계정 하나를 찾습니다. 1인 1계정 확인용 */
     Optional<LinkedSocialAccount> findAnyByEmail(String email);
+
+    /**
+     * 소셜 계정을 찜콩 회원에 연결합니다.
+     * 같은 소셜 계정이 동시에 두 번 연결되려 하면 DB UNIQUE(provider, provider_id)가 막고, SOCIAL_ACCOUNT_ALREADY_LINKED로 바꿔 던집니다.
+     */
+    void link(Long userId, SocialProvider provider, String providerUserId, String email);
 }

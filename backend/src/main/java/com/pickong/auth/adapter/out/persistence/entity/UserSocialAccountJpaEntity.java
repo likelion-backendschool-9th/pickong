@@ -42,6 +42,17 @@ public class UserSocialAccountJpaEntity {
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
+    /** 새 연결 한 줄을 만듭니다. */
+    public static UserSocialAccountJpaEntity link(Long userId, String provider, String providerId, String email, OffsetDateTime now) {
+        UserSocialAccountJpaEntity entity = new UserSocialAccountJpaEntity();
+        entity.userId = userId;
+        entity.provider = provider;
+        entity.providerId = providerId;
+        entity.email = email;
+        entity.createdAt = now;
+        return entity;
+    }
+
     /** DB 행을 application dto로 바꿉니다. (이 테이블은 domain 모델 없이 dto로 주고받음) */
     public LinkedSocialAccount toDto() {
         return new LinkedSocialAccount(userId, SocialProvider.valueOf(provider), providerId, email);
