@@ -174,6 +174,10 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | GET | `/auth/oauth2/authorization/{kakao\|google}` → 콜백 `/auth/oauth2/callback/{provider}` | Spring Security → `OAuth2LoginSuccessHandler` → `LoginUseCase.loginWithSocial` + `TokenUseCase.issue` | 컨트롤러 없음 |
 | POST | `/auth/refresh` | `TokenUseCase.refresh` | 로테이션 · 재사용 감지 |
 | POST | `/auth/logout` | `TokenUseCase.logout` | |
+| GET | `/me/social-accounts` | `SocialAccountUseCase.list` | 연결 순서대로, 가입 수단은 `canUnlink=false` |
+| POST | `/me/social-accounts/{kakao\|google}` | `SocialAccountUseCase.startLink` | 연결 토큰(5분)이 붙은 시작 주소 `{authorizationUrl}` |
+| (콜백) | `/auth/oauth2/authorization/{provider}?link=` → 콜백 | `LinkAwareAuthorizationRequestResolver` → `OAuth2LoginSuccessHandler` → `SocialAccountUseCase.link` | 결과는 `/settings/login-methods?linked=` · `?error=` |
+| DELETE | `/me/social-accounts/{kakao\|google}` | `SocialAccountUseCase.unlink` | 찜콩에서만 해제, 가입 수단은 409 |
 | WS | `/ws` (CONNECT) | `auth/adapter/in/websocket` 인증 인터셉터 | 5.4 |
 
 > **소셜 로그인 스키마 결정 (V1)**
@@ -218,6 +222,15 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 > - **약관 초기 데이터는 Flyway `V2__seed_terms.sql`**(SERVICE · PRIVACY 필수, MARKETING 선택, 1.0). 필수 여부는 DB(`is_required`)를 따르고, 종류마다 시행일이 지난 최신 버전으로 동의를 기록. 약관을 바꿀 때는 새 버전 행을 넣는 새 마이그레이션 추가.
 > - **동시 가입:** 서비스가 먼저 확인해 정확한 사유를 알려 주고, 동시에 사전 확인을 통과한 경우는 DB UNIQUE가 막습니다. 어댑터가 `saveAndFlush` 후 제약 이름(`uk_users_username_lower` · `uk_users_email_lower` · `uk_user_social_accounts_provider_id`)으로 `USERNAME_TAKEN` · `EMAIL_ALREADY_REGISTERED` · `SOCIAL_ACCOUNT_ALREADY_LINKED`로 바꿉니다.
 > - 사진은 클라이언트가 주소를 보내지 않고 `useSocialProfileImage` 여부만 보내며, 서버는 임시 가입 토큰에 있는 주소만 씁니다(임의 URL 저장 방지).
+
+> **로그인 수단 연결 결정 (6단계)**
+> - 카카오 · Google을 한 계정에 함께 연결할 수 있고(제공자마다 하나), **가입할 때 쓴 수단은 해제할 수 없습니다.** 가입 수단 = 가장 먼저 연결된 소셜 계정(id가 가장 작은 행). 그 행은 지울 수 없어 계속 첫 번째로 남으므로 DB 컬럼 없이 판별하고, '마지막 남은 수단 해제'도 저절로 생기지 않습니다.
+>   - 검토한 다른 안: 연결 없음(복구 수단 없음), 자체 로그인(비밀번호 · 재설정 메일/SMS · 무차별 대입 방어가 필요하고 소셜 전용 정책이 바뀜), 카카오톡 메시지로 재설정(카카오를 잃으면 받을 수 없음). 소셜과 무관한 복구가 필요해지면 휴대폰 본인확인을 붙입니다.
+> - **연결 시작:** CSRF 보호된 `POST /me/social-accounts/{provider}` → 서명 연결 토큰(`token_type=link`, sub=회원 id, provider, 5분)을 붙인 시작 주소. 시작할 때 `LinkAwareAuthorizationRequestResolver`가 ① 토큰이 유효하고 같은 제공자용인지 ② 로그인 쿠키(`pickong_at`)의 회원과 같은지 확인합니다. 둘 다 맞아야 회원 id를 OAuth 시작 정보에 넣어 서명된 state 쿠키로 콜백까지 가져갑니다. 다른 사이트가 링크로 연결을 시작시키거나, 새어 나간 주소를 남이 쓰는 것을 막습니다. 토큰은 1회용 기록 없이 짧은 만료로만 제한(로그인 쿠키가 함께 있어야 쓸 수 있어서).
+>   - OAuth 시작 필터가 JWT 쿠키 필터보다 앞에 있어 resolver가 쿠키를 직접 검증합니다. 시작 단계 예외는 Spring 기본값이 500이라, 시작 필터에도 `OAuth2LoginFailureHandler`를 연결했습니다(`withObjectPostProcessor`). 그래서 모르는 제공자로 시작해도 이제 `/login?error=OAUTH_FAILED`.
+> - 연결할 때만 `prompt=select_account`로 제공자의 계정 선택 화면을 띄웁니다(브라우저에 다른 사람 계정이 로그인돼 있어도 모르고 연결하지 않게). 일반 로그인은 그대로.
+> - **콜백 규칙(`SocialAccountService.link`):** 회원 상태(ACCOUNT_UNAVAILABLE) → 이미 내 계정에 연결된 같은 계정이면 그대로 성공 → 남의 계정이면 SOCIAL_ACCOUNT_ALREADY_LINKED → 같은 제공자의 다른 계정이 있으면 PROVIDER_ALREADY_LINKED → 인증된 이메일이 다른 회원의 소셜 계정에 있으면 EMAIL_ALREADY_REGISTERED. 동시 요청은 DB UNIQUE가 막고 어댑터가 제약 이름(`uk_user_social_accounts_user_provider` 추가)으로 같은 코드로 바꿉니다. 로그인 세션 쿠키는 건드리지 않습니다.
+> - 해제는 찜콩 DB에서만(카카오 unlink · Google revoke는 호출하지 않음, 제공자 토큰을 저장하지 않으므로). 탈퇴 기능을 만들 때 다시 검토합니다.
 
 ### user
 | 메서드 | 경로 | 입력 포트 · 메서드 | 비고 |

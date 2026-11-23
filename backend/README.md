@@ -104,6 +104,18 @@ Gradle을 따로 설치하지 않아도 `./gradlew`가 필요한 버전(9.8.2)�
 - 회원 생성 · 소셜 계정 연결 · 약관 동의가 한 트랜잭션이라, 하나라도 실패하면 아무것도 남지 않습니다.
 - 약관 데이터는 Flyway `V2__seed_terms.sql`에 있습니다. 약관을 바꿀 때는 새 버전 행을 넣는 새 마이그레이션을 추가합니다.
 
+### 로그인 수단 관리 (로그인 필요, `{provider}`는 `kakao` · `google`)
+
+| API | 결과 |
+| --- | --- |
+| `GET /api/v1/me/social-accounts` | 200 `[{provider, email, connectedAt, canUnlink}]` 연결 순서대로. 가입할 때 쓴 수단만 `canUnlink=false` |
+| `POST /api/v1/me/social-accounts/{provider}` | 200 `{authorizationUrl}` (연결 토큰 5분) · 409 `PROVIDER_ALREADY_LINKED` · 400 `INVALID_INPUT` |
+| `DELETE /api/v1/me/social-accounts/{provider}` | 204 · 404 `SOCIAL_ACCOUNT_NOT_LINKED` · 409 `SIGNUP_METHOD_CANNOT_BE_UNLINKED` |
+
+- 연결 흐름: `POST`로 받은 `authorizationUrl`(`/api/v1/auth/oauth2/authorization/{provider}?link=…`)로 이동 → 제공자 계정 선택 · 동의 → 같은 콜백 → `{FRONTEND_BASE_URL}/settings/login-methods?linked=kakao`
+- 연결 실패는 `/settings/login-methods?error=…`: `LINK_EXPIRED`(연결 토큰 만료 · 위조, 로그인 쿠키 없음 · 다른 회원) · `SOCIAL_ACCOUNT_ALREADY_LINKED` · `PROVIDER_ALREADY_LINKED` · `EMAIL_ALREADY_REGISTERED` · `ACCOUNT_UNAVAILABLE` · `OAUTH_CANCELLED` · `OAUTH_FAILED`
+- 해제는 찜콩에서만 합니다. 카카오 · Google 쪽 앱 연결은 사용자가 각 계정 설정에서 끊을 수 있습니다.
+
 ### 개발자 콘솔에서 직접 설정할 것
 
 **카카오** (developers.kakao.com > 내 애플리케이션)
