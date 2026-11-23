@@ -75,4 +75,16 @@ class ConcurrentSignupConstraintTest {
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(AuthErrorCode.SOCIAL_ACCOUNT_ALREADY_LINKED);
     }
+
+    @Test
+    @DisplayName("한 회원에 같은 제공자의 다른 계정 두 개를 동시에 연결하려 하면 PROVIDER_ALREADY_LINKED로 바뀐다")
+    void userProviderUniqueMapped() {
+        Long seoyeon = users.save(newUser("seoyeon", null)).getId();
+        socialAccounts.link(seoyeon, SocialProvider.KAKAO, "4242", null);
+
+        assertThatThrownBy(() -> socialAccounts.link(seoyeon, SocialProvider.KAKAO, "5353", null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(AuthErrorCode.PROVIDER_ALREADY_LINKED);
+    }
 }

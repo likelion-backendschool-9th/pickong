@@ -75,11 +75,15 @@ public class SignedCookieAuthorizationRequestRepository implements Authorization
         cookieWriter.writeOAuthState(response, toToken(authorizationRequest), TTL);
     }
 
-    /** 콜백에서 한 번 꺼내고 쿠키는 바로 지웁니다. 같은 state로 두 번 로그인할 수 없게 하기 위해서입니다. */
+    /**
+     * 콜백에서 한 번 꺼내고 쿠키는 바로 지웁니다. 같은 state로 두 번 로그인할 수 없게 하기 위해서입니다.
+     * 계정 연결로 시작한 것이면 연결할 회원 id를 이번 요청에 옮겨 둡니다(성공 · 실패 처리기가 읽음).
+     */
     @Override
     public OAuth2AuthorizationRequest removeAuthorizationRequest(HttpServletRequest request, HttpServletResponse response) {
         OAuth2AuthorizationRequest saved = loadAuthorizationRequest(request);
         cookieWriter.clearOAuthState(response);
+        OAuth2LinkRequests.remember(request, saved);
         return saved;
     }
 

@@ -23,7 +23,13 @@ public enum AuthErrorCode implements ErrorCode {
     /** 이 소셜 계정이 이미 찜콩 계정에 연결됨 (같은 가입을 동시에 두 번 제출한 경우 등) */
     SOCIAL_ACCOUNT_ALREADY_LINKED(409, "이미 가입된 소셜 계정이에요. 다시 로그인해 주세요."),
     /** 소셜 계정의 이메일이 이미 다른 찜콩 계정에 연결됨 (1인 1계정) */
-    EMAIL_ALREADY_REGISTERED(409, "이미 가입된 이메일이에요.");
+    EMAIL_ALREADY_REGISTERED(409, "이미 가입된 이메일이에요."),
+    /** 내 계정에 이 제공자의 계정이 이미 연결됨 (제공자마다 하나만 연결) */
+    PROVIDER_ALREADY_LINKED(409, "이 로그인 수단은 이미 연결돼 있어요."),
+    /** 연결 해제하려는 제공자가 내 계정에 연결돼 있지 않음 */
+    SOCIAL_ACCOUNT_NOT_LINKED(404, "연결되지 않은 로그인 수단이에요."),
+    /** 가입할 때 쓴 로그인 수단은 해제할 수 없음 (가입 수단 = 가장 먼저 연결된 소셜 계정) */
+    SIGNUP_METHOD_CANNOT_BE_UNLINKED(409, "가입할 때 사용한 로그인 수단은 해제할 수 없어요.");
 
     private final int status;
     private final String message;

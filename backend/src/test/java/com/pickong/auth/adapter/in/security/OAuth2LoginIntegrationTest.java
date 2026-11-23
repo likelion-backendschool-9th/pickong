@@ -9,17 +9,12 @@ import com.pickong.auth.application.port.out.SignupTokenPort;
 import com.pickong.auth.domain.vo.SocialProvider;
 import com.pickong.common.security.AccessTokenVerifier;
 import com.pickong.common.security.LoginUser;
-import com.sun.net.httpserver.HttpServer;
 import jakarta.servlet.http.Cookie;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,7 +32,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 /**
  * 소셜 로그인 전체 흐름 통합 테스트: 시작 → (제공자) → 콜백 → 토큰 교환 → 사용자 정보 → 판단 → 쿠키 · 이동.
  * <p>
- * 실제 카카오 대신 테스트 안에서 <b>가짜 카카오 서버</b>(JDK 내장 HttpServer)를 띄워 토큰 · 사용자 정보 API를 흉내 냅니다.
+ * 실제 카카오 대신 테스트 안에서 <b>가짜 카카오 서버</b>({@link FakeKakao})를 띄워 토큰 · 사용자 정보 API를 흉내 냅니다.
  * 동의 화면은 브라우저 단계라 건너뛰고, 시작 응답의 state로 콜백을 직접 호출합니다.
  * (실제 카카오 · Google 인증은 자동 테스트로 검증할 수 없어 PR에 미검증으로 표시합니다)
  */
@@ -46,46 +41,10 @@ import org.springframework.web.util.UriComponentsBuilder;
 @Import(TestcontainersConfiguration.class)
 class OAuth2LoginIntegrationTest {
 
-    /** 가짜 카카오 사용자 정보 응답(JSON). 테스트마다 바꿉니다. */
-    private static volatile String kakaoUserJson;
-
-    private static final HttpServer FAKE_KAKAO = startFakeKakao();
-
-    private static HttpServer startFakeKakao() {
-        try {
-            HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-            server.createContext("/oauth/token", exchange -> respond(exchange,
-                    "{\"access_token\":\"fake-kakao-access-token\",\"token_type\":\"bearer\",\"expires_in\":3600}"));
-            server.createContext("/v2/user/me", exchange -> respond(exchange, kakaoUserJson));
-            server.start();
-            return server;
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private static void respond(com.sun.net.httpserver.HttpExchange exchange, String json) throws IOException {
-        byte[] body = json.getBytes(StandardCharsets.UTF_8);
-        exchange.getResponseHeaders().add("Content-Type", "application/json;charset=UTF-8");
-        exchange.sendResponseHeaders(200, body.length);
-        try (OutputStream out = exchange.getResponseBody()) {
-            out.write(body);
-        }
-    }
-
-    /** 카카오의 토큰 · 사용자 정보 주소만 가짜 서버로 바꿉니다. (동의 화면 주소는 그대로) */
+    /** 카카오의 토큰 · 사용자 정보 주소만 가짜 서버로 바꿉니다. */
     @DynamicPropertySource
     static void fakeKakaoEndpoints(DynamicPropertyRegistry registry) {
-        String base = "http://127.0.0.1:" + FAKE_KAKAO.getAddress().getPort();
-        registry.add("spring.security.oauth2.client.provider.kakao.token-uri", () -> base + "/oauth/token");
-        registry.add("spring.security.oauth2.client.provider.kakao.user-info-uri", () -> base + "/v2/user/me");
-        registry.add("spring.security.oauth2.client.registration.kakao.client-id", () -> "test-kakao-client");
-        registry.add("spring.security.oauth2.client.registration.kakao.client-secret", () -> "test-kakao-secret");
-    }
-
-    @AfterAll
-    static void stopFakeKakao() {
-        FAKE_KAKAO.stop(0);
+        FakeKakao.register(registry);
     }
 
     @Autowired
@@ -105,15 +64,7 @@ class OAuth2LoginIntegrationTest {
         jdbc.update("DELETE FROM refresh_tokens");
         jdbc.update("DELETE FROM user_social_accounts");
         jdbc.update("DELETE FROM users");
-        kakaoUserJson = kakaoUser(4242, "kong@kakao.com", true);
-    }
-
-    private static String kakaoUser(long id, String email, boolean verified) {
-        return """
-                {"id": %d,
-                 "kakao_account": {"email": "%s", "is_email_valid": true, "is_email_verified": %s,
-                   "profile": {"nickname": "콩이", "profile_image_url": "http://k.kakaocdn.net/dn/a.jpg", "is_default_image": false}}}
-                """.formatted(id, email, verified);
+        FakeKakao.respondWith(FakeKakao.user(4242, "kong@kakao.com", true));
     }
 
     private long insertUser(String username, String status) {
@@ -191,7 +142,8 @@ class OAuth2LoginIntegrationTest {
         assertThat(query).containsEntry("client_id", "test-kakao-client")
                 .containsEntry("redirect_uri", "http://localhost:3000/api/v1/auth/oauth2/callback/kakao")
                 .containsEntry("response_type", "code")
-                .containsKey("state");
+                .containsKey("state")
+                .as("일반 로그인은 계정 선택 화면을 강제하지 않음").doesNotContainKey("prompt");
         assertThat(query.get("scope")).contains("account_email");
         assertThat(setCookie(result, AuthCookies.OAUTH_STATE)).contains("Path=/api/v1/auth/oauth2", "HttpOnly", "SameSite=Lax", "Max-Age=600");
         assertThat(result.getRequest().getSession(false)).as("세션을 만들지 않음").isNull();
@@ -205,6 +157,14 @@ class OAuth2LoginIntegrationTest {
         assertThat(started.location().getHost()).isEqualTo("accounts.google.com");
         assertThat(started.location().getRawQuery()).contains("scope=openid", "nonce=",
                 "redirect_uri=http://localhost:3000/api/v1/auth/oauth2/callback/google");
+    }
+
+    @Test
+    @DisplayName("지원하지 않는 제공자로 시작하면 500이 아니라 /login?error=OAUTH_FAILED")
+    void unknownProviderStart() throws Exception {
+        MvcResult result = mvc.perform(get("/api/v1/auth/oauth2/authorization/naver")).andReturn();
+
+        assertThat(result.getResponse().getRedirectedUrl()).isEqualTo("http://localhost:3000/login?error=OAUTH_FAILED");
     }
 
     // ── 콜백: 결과별 ───────────────────────────────────────
@@ -269,7 +229,7 @@ class OAuth2LoginIntegrationTest {
     void unverifiedEmailIgnored() throws Exception {
         long other = insertUser("jimin", "ACTIVE");
         linkSocial(other, "GOOGLE", "1089", "kong@kakao.com");
-        kakaoUserJson = kakaoUser(4242, "kong@kakao.com", false);
+        FakeKakao.respondWith(FakeKakao.user(4242, "kong@kakao.com", false));
 
         MvcResult result = loginWithKakao();
 

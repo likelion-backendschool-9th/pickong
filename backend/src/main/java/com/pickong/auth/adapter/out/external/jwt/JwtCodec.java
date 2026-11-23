@@ -26,7 +26,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * 서명된 토큰(JWT, HS256)을 만들고 읽는 공통 도구.
- * Access Token · 임시 가입 토큰 · OAuth state 쿠키가 모두 이 클래스로 서명합니다.
+ * Access Token · 임시 가입 토큰 · OAuth state 쿠키 · 계정 연결 토큰이 모두 이 클래스로 서명합니다.
  * <p>
  * <b>토큰 종류({@link TokenType}) 구분이 핵심입니다.</b> 셋 다 같은 비밀값으로 서명하므로, 종류를 확인하지 않으면
  * 임시 가입 토큰(subject = 카카오 회원번호)이 Access Token(subject = 찜콩 회원 id)으로 통과할 수 있습니다.
@@ -110,7 +110,9 @@ public class JwtCodec {
         /** 신규 회원의 임시 가입 세션 (30분, 쿠키 pickong_signup) */
         SIGNUP("signup"),
         /** OAuth 로그인 시작 ~ 콜백 사이의 state (10분, 쿠키 pickong_oauth) */
-        OAUTH_STATE("oauth_state");
+        OAUTH_STATE("oauth_state"),
+        /** 로그인한 회원의 계정 연결 시작 (5분, OAuth 시작 주소의 ?link=) */
+        LINK("link");
 
         private final String value;
 

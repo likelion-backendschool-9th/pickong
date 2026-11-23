@@ -6,10 +6,12 @@ import jakarta.servlet.DispatcherType;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
@@ -72,6 +74,7 @@ public class SecurityConfig {
     SecurityFilterChain apiSecurityFilterChain(HttpSecurity http, AccessTokenVerifier verifier,
             RestAuthenticationEntryPoint authenticationEntryPoint, RestAccessDeniedHandler accessDeniedHandler,
             SignedCookieAuthorizationRequestRepository authorizationRequestRepository,
+            LinkAwareAuthorizationRequestResolver authorizationRequestResolver,
             OAuth2LoginSuccessHandler oauth2SuccessHandler, OAuth2LoginFailureHandler oauth2FailureHandler) {
         http
                 // ① CSRF: SPA용 설정(spa) + SameSite=Lax 쿠키 저장소. POST · PUT · PATCH · DELETE에 X-XSRF-TOKEN 헤더가 필요해집니다.
@@ -89,9 +92,19 @@ public class SecurityConfig {
                 // ③-2 카카오 · Google 소셜 로그인 (OAuth2). 시작 → 제공자 동의 화면 → 콜백 → 성공 · 실패 처리
                 .oauth2Login(oauth2 -> oauth2
                         // 시작 주소 + 중간 상태(state)를 세션 대신 서명된 쿠키에 보관 (로그인 CSRF 방어)
+                        // resolver: ?link=가 있으면 계정 연결로 시작 (연결 토큰 · 로그인 쿠키 확인)
                         .authorizationEndpoint(authorization -> authorization
                                 .baseUri(OAUTH2_AUTHORIZATION_BASE_URI)
+                                .authorizationRequestResolver(authorizationRequestResolver)
                                 .authorizationRequestRepository(authorizationRequestRepository))
+                        // 시작 단계 실패(연결 거절 등)도 화면으로 돌려보냅니다. 설정하지 않으면 Spring 기본값인 500 응답이 나갑니다.
+                        .withObjectPostProcessor(new ObjectPostProcessor<OAuth2AuthorizationRequestRedirectFilter>() {
+                            @Override
+                            public <O extends OAuth2AuthorizationRequestRedirectFilter> O postProcess(O filter) {
+                                filter.setAuthenticationFailureHandler(oauth2FailureHandler);
+                                return filter;
+                            }
+                        })
                         .redirectionEndpoint(redirection -> redirection.baseUri(OAUTH2_CALLBACK_URI))
                         // 제공자가 준 Access Token은 쓰지 않으므로 저장하지 않습니다.
                         .authorizedClientRepository(new NoOpAuthorizedClientRepository())
