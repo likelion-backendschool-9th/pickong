@@ -7,7 +7,7 @@ import { routes } from "@/shared/config/routes";
 import { Button } from "@/shared/ui/Button";
 import { CheckMark, RadioMark } from "@/shared/ui/controls";
 import { Notice } from "@/shared/ui/display";
-import { Field, Input, Textarea } from "@/shared/ui/form";
+import { Textarea } from "@/shared/ui/form";
 import { BottomCta, Screen, TopBar } from "@/shared/ui/layout";
 import { useToast } from "@/shared/ui/Toast";
 import { useWithdraw } from "../_api/accountApi";
@@ -24,7 +24,7 @@ const LOSSES = [
   "저장한 장소 · 컬렉션 · 일정 · 게시물이 모두 지워져요.",
   "구매한 유료 컬렉션도 다시 볼 수 없어요. 결제 기록은 법령에 따라 5년간 보관돼요.",
   "크리에이터라면 정산 전 수익은 탈퇴 후 다음 정산일에 지급돼요.",
-  "탈퇴 후 30일 동안은 같은 이메일로 다시 가입할 수 없어요.",
+  "탈퇴 후 30일 동안은 같은 소셜 계정으로 다시 가입할 수 없어요.",
 ];
 
 export function WithdrawScreen() {
@@ -33,10 +33,9 @@ export function WithdrawScreen() {
   const withdraw = useWithdraw();
   const [reason, setReason] = useState("");
   const [detail, setDetail] = useState("");
-  const [password, setPassword] = useState("");
   const [confirmed, setConfirmed] = useState(false);
 
-  const ready = !!reason && !!password && confirmed && (reason !== "ETC" || !!detail.trim());
+  const ready = !!reason && confirmed && (reason !== "ETC" || !!detail.trim());
 
   return (
     <Screen>
@@ -81,17 +80,6 @@ export function WithdrawScreen() {
           )}
         </fieldset>
 
-        <Field label="비밀번호 확인" htmlFor="withdraw-password" className="mt-6">
-          <Input
-            id="withdraw-password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="본인 확인을 위해 비밀번호를 입력해 주세요"
-          />
-        </Field>
-
         <button
           type="button"
           role="checkbox"
@@ -113,7 +101,7 @@ export function WithdrawScreen() {
           loading={withdraw.isPending}
           onClick={() =>
             withdraw.mutate(
-              { reason, detail, password },
+              { reason, detail },
               {
                 onSuccess: () => {
                   toast({ message: "탈퇴가 완료됐어요. 그동안 고마웠어요." });

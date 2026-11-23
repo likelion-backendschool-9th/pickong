@@ -57,7 +57,7 @@ pickong/
 | DB | PostgreSQL + PostGIS (`GEOGRAPHY(Point, 4326)`, GiST 인덱스) | |
 | 파일 저장소 | Cloudflare R2 (S3 호환, Presigned URL 업로드) | |
 | 지도 · 장소 | Kakao Maps JS SDK (프론트), Kakao 로컬 API (백엔드 프록시) | REST 키는 백엔드에만 둠 |
-| 소셜 로그인 | Google OAuth2 | |
+| 소셜 로그인 | 카카오 · Google OAuth2 (Spring Security) | 이메일 · 닉네임 + 비밀번호 로그인과 일반 회원가입은 지원하지 않음 |
 | 결제 | PG 연동 예정 (지금은 테스트 결제) | 제공자 확정 필요 |
 | AI 링크 추출 | LLM API (제공자 미정, 실행 기록은 `import_extraction_runs`) | |
 | API 문서 | springdoc OpenAPI (`/v3/api-docs`, `/swagger-ui.html`) | 프론트는 이 스펙으로 DTO 타입 생성 가능 |
@@ -90,11 +90,12 @@ pickong/
 | --- | --- |
 | REST API | `/api/v1/**` |
 | 관리자 API | `/api/v1/admin/**` (회원과 별개인 관리자 계정으로 접근) |
-| 소셜 로그인 시작 | `/oauth2/authorization/{provider}` (지금은 `google`) |
+| 소셜 로그인 시작 · 콜백 | `/api/v1/auth/oauth2/authorization/{provider}`, `/api/v1/auth/oauth2/callback/{provider}` (`kakao` · `google`) |
 | WebSocket (STOMP) | 연결 `/ws`, 보내기 `/app/**`, 받기 `/user/queue/**` |
 | 상태 확인 · 문서 | `/actuator/health`, `/swagger-ui.html`, `/v3/api-docs` |
 
 - 브라우저는 같은 도메인의 `/api/*`로 요청하고, Next의 rewrites가 백엔드로 전달합니다. CORS 설정이 필요 없고 httpOnly 쿠키를 그대로 씁니다.
+- 소셜 로그인 경로는 Spring 기본값(`/oauth2/**`, `/login/oauth2/**`) 대신 `/api/v1/auth/oauth2/**`에 둡니다. 같은 rewrites를 타서 콜백에서 내려준 쿠키가 프론트 도메인에 저장되고, 프론트의 `/login` 페이지와도 겹치지 않습니다. 제공자 콘솔에 등록하는 Redirect URI도 프론트 도메인 기준입니다 (예: `https://{프론트 도메인}/api/v1/auth/oauth2/callback/kakao`).
 - **URL에는 DB 테이블 이름이 아니라 화면 용어를 씁니다.** 예: 게시물 테이블은 `posts`지만 경로는 `/feeds`입니다 (6장 용어표).
 
 > **지금 프론트 mock과 명세서의 경로가 다릅니다.** 프론트 mock 핸들러(`frontend/mocks/handlers/`)는 이전 경로를 쓰고 있으므로, 백엔드 연결 전에 명세서 기준으로 맞춥니다.
@@ -135,8 +136,13 @@ pickong/
 | 재발급 | Refresh Token은 쓸 때마다 새로 발급(로테이션). 이미 교체된 토큰이 다시 오면 같은 family 전체를 폐기 |
 | WebSocket | STOMP `CONNECT` 때 같은 쿠키로 인증 |
 | 관리자 | `admins` 테이블의 별도 계정. 회원 토큰으로는 `/api/v1/admin/**`에 접근할 수 없습니다 |
+| 로그인 수단 | 카카오 · Google만. 회원(`users`)과 로그인 수단(`user_social_accounts`)을 분리하고 `(provider, provider_id)`는 UNIQUE. 이메일이 같다는 이유로 계정을 자동 연결하지 않습니다 |
+| 최초 가입 | 처음 온 소셜 계정은 정식 토큰 대신 **임시 가입 세션 쿠키**만 받고 온보딩(`/signup`)으로 갑니다. 이 세션으로는 `/api/v1/auth/signup`, `/auth/username-availability`만 쓸 수 있고, 온보딩을 마쳐야 Access · Refresh Token이 발급됩니다 |
+| 로그인 CSRF | OAuth2 `state`를 서버와 브라우저 쿠키에 함께 두고 콜백에서 비교합니다 |
+| 계정 연결 | 로그인한 상태에서 `POST /me/social-accounts/{provider}`로 1회용 연결 주소를 받아 제공자 인증을 한 번 더 거칩니다. 다른 찜콩 계정에 연결된 소셜 계정은 거절하고, 마지막 남은 로그인 수단은 해제할 수 없습니다 |
+| 동시 재발급 | 프론트는 한 탭 안에서 재발급 요청을 하나로 묶습니다. 여러 탭이 동시에 재발급할 때의 유예 시간은 백엔드 구현 시 정합니다 |
 
-쿠키 이름, 만료 시간, CSRF 대책(SameSite + Origin 검사 등)은 백엔드 구현 시 확정해서 이 표에 추가합니다.
+쿠키 이름, 만료 시간, CSRF 대책(SameSite + Origin 검사 등)은 백엔드 구현 시 확정해서 이 표에 추가합니다. (mock 쿠키 이름: `pickong_at` · `pickong_rt` · `pickong_signup` · `pickong_oauth_state`)
 
 ### 5.4 식별자
 
@@ -219,7 +225,17 @@ API 명세서에서 **'보류'**로 표시한 기능입니다. 프론트·백엔
 기획서 7장의 출시 단계 기준입니다. **[껍데기]** 표시는 지금 프론트 기본 틀 단계에서 화면과 mock 데이터로 먼저 만들 대상입니다.
 
 ### A.1 인증·프로필 (1차 MVP)
-- [껍데기] 회원가입 / 로그인 / 로그아웃
+- [껍데기] 로그인 · 회원가입 / 로그아웃: 카카오 · Google 소셜 로그인만 지원하고, 로그인과 회원가입을 한 화면(`/login`)으로 합침
+  - 기존 회원이면 바로 피드로, 처음이면 온보딩(`/signup`): 닉네임(= 사용자 ID) → 프로필 사진 · 이름(선택, 건너뛰기) → 약관 동의. 비밀번호 · 전화번호는 받지 않음
+  - 닉네임 = 사용자 ID(`users.username`): 영문으로 시작하는 3~20자(영문 소문자 · 숫자 · `_` · `.`), 중복 불가, 대소문자 무시. 프로필 주소(`/users/{닉네임}`)로 쓰임
+  - 이름(`users.display_name`): 20자까지, 중복 가능, 비우면 null. 화면의 표시 이름(API `nickname` 필드)은 이름 ?? 닉네임으로 서버가 계산해 보냄
+  - 소셜 로그인 실패 · 가입 세션 만료 · 세션 만료는 `/login?error={코드}`로 돌아와 사유를 보여 줌
+  - API (mock 기준 경로, 백엔드는 `/api/v1`): `GET /auth/oauth2/authorization/{provider}`(페이지 이동) · `GET·POST·DELETE /auth/signup`(가입 세션 조회 · 완료 `{ username, name, useSocialProfileImage, agreedTerms }` · 그만두기) · `GET /auth/username-availability?username=` · `POST /auth/refresh` · `POST /auth/logout`
+  - 오류 코드: `SIGNUP_SESSION_EXPIRED`(401) · `ALREADY_REGISTERED`(409) · `USERNAME_TAKEN`(409) · `INVALID_USERNAME` · `INVALID_NAME` · `REQUIRED_TERMS_NOT_AGREED`(400)
+  - 전화번호 인증 · 본인확인은 지금 만들지 않음 (나중에 온보딩 단계로 추가할 수 있게 단계 목록을 분리해 둠)
+- [껍데기] 로그인 수단 관리(`/settings/login-methods`): 카카오 · Google 연결 · 해제, 마지막 수단 해제 막기
+  - API: `GET /me/social-accounts` · `POST /me/social-accounts/{provider}` → `{ authorizationUrl }` · `DELETE /me/social-accounts/{provider}` (마지막 수단이면 409 `LAST_LOGIN_METHOD`)
+  - 연결 결과는 `/settings/login-methods?linked={provider}` 또는 `?error=SOCIAL_ACCOUNT_ALREADY_LINKED | PROVIDER_ALREADY_LINKED | LINK_EXPIRED | OAUTH_CANCELLED | OAUTH_FAILED`
 - [껍데기] 프로필 페이지: 게시물 · 컬렉션 · 방문 탭 (본인 프로필에는 일정 탭 추가)
   - 방문: 그 사용자가 게시물에 연결한 장소를 기록(목록) ↔ 지도로 전환해서 봄 (`GET /api/users/:username/posts`, `GET /api/users/:username/places`, 내가 볼 수 있는 게시물만). 저장한 장소 전체를 다루는 ‘내 지도’와 별개
   - 일정: 곧 떠나는 하루 + 지난 일정(방문 기록). 본인만 조회. `/plans`는 내 프로필 일정 탭으로 이동
@@ -227,7 +243,7 @@ API 명세서에서 **'보류'**로 표시한 기능입니다. 프론트·백엔
   - API: `GET/POST /api/conversations`, `GET /api/conversations/unread-count`(하단바 배지), `GET /api/conversations/:id`, `GET/POST /api/conversations/:id/messages` (목록 조회 시 읽음 처리, 보낼 때 `attachment: { type: "IMAGE", url } | { type: "PLACE", placeId }`). 사진은 업로드 API 연결 전까지 브라우저 임시 URL
   - 실시간 연결 전까지 열린 대화방은 5초마다 새 메시지를 확인
 - [껍데기] 팔로우 / 언팔로우, 팔로워·팔로잉 목록
-- 프로필 편집 (사진, 소개)
+- 프로필 편집: 닉네임(= 사용자 ID, 바꾸면 프로필 주소도 바뀜) · 이름 · 소개 · 활동 지역 (`PATCH /me` `{ username, name, bio, region }`). 사진은 업로드 API 연결 후
 
 ### A.2 위치 기반 소셜 피드 (1차 MVP)
 - [껍데기] 팔로잉 피드 (무한 스크롤) · 위에서 당겨서 새로고침 · 피드에서 하단바 홈을 다시 누르면 맨 위로 + 새로고침. 목록 · 지도 전환은 `?view=map`에 남겨 홈 버튼은 언제나 피드 목록으로

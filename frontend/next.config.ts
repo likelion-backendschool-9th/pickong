@@ -11,6 +11,13 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   devIndicators: false,
   partialPrefetching: true,
+  images: {
+    // 온보딩에서 기본값으로 보여 주는 소셜 계정 프로필 사진 (카카오 · Google)
+    remotePatterns: [
+      { protocol: "https", hostname: "*.kakaocdn.net" },
+      { protocol: "https", hostname: "lh3.googleusercontent.com" },
+    ],
+  },
   turbopack: {
     rules: {
       "*.css": {

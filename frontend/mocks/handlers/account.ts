@@ -17,7 +17,7 @@ const TERMS: Record<TermsType, { title: string; required: boolean; version: stri
       { heading: "제2조 (회원 가입)", body: "회원 가입은 이용자가 약관에 동의하고 가입 신청을 한 뒤, 서비스가 이를 승낙하면 완료됩니다." },
       { heading: "제3조 (게시물)", body: "회원이 올린 사진 · 후기 · 컬렉션의 권리는 회원에게 있습니다. 다른 사람의 권리를 침해하는 게시물은 신고에 따라 숨김 처리될 수 있습니다." },
       { heading: "제4조 (유료 콘텐츠)", body: "유료 컬렉션은 구매 후 7일 이내, 장소 목록을 열람하지 않은 경우 환불을 신청할 수 있습니다." },
-      { heading: "제5조 (탈퇴)", body: "회원은 언제든지 탈퇴할 수 있으며, 탈퇴 후 30일 동안은 같은 이메일로 다시 가입할 수 없습니다." },
+      { heading: "제5조 (탈퇴)", body: "회원은 언제든지 탈퇴할 수 있으며, 탈퇴 후 30일 동안은 같은 소셜 계정으로 다시 가입할 수 없습니다." },
     ],
   },
   PRIVACY: {
@@ -26,7 +26,7 @@ const TERMS: Record<TermsType, { title: string; required: boolean; version: stri
     version: "1.0",
     effectiveDate: "2026-11-01",
     sections: [
-      { heading: "수집 항목", body: "필수: 이메일, 비밀번호, 닉네임, 휴대폰 번호\n선택: 프로필 사진, 소개, 활동 지역" },
+      { heading: "수집 항목", body: "필수: 소셜 계정 식별자(카카오 · Google 회원번호), 닉네임, 사용자 ID\n선택: 이메일 · 프로필 사진(소셜 계정에서 제공하는 경우), 소개, 활동 지역" },
       { heading: "이용 목적", body: "회원 식별, 본인 확인, 서비스 제공, 부정 이용 방지" },
       { heading: "보관 기간", body: "탈퇴 시 바로 파기합니다. 단, 관련 법령에 따라 보관해야 하는 정보(결제 기록 5년 등)는 해당 기간 동안 보관합니다." },
     ],
@@ -98,12 +98,11 @@ export const accountRoutes: Route[] = [
     },
   },
   {
-    /** 탈퇴: 사유와 비밀번호 확인. mock은 비밀번호가 비어 있지 않으면 통과합니다. */
+    /** 탈퇴: 사유 확인. 소셜 로그인 전용이라 비밀번호는 받지 않습니다. */
     method: "POST",
     path: "/api/me/withdrawal",
     delay: 600,
     handler: ({ body }) => {
-      if (!String(body?.password ?? "")) throw new HttpError(400, "INVALID_INPUT", "비밀번호를 입력해 주세요.");
       if (!String(body?.reason ?? "")) throw new HttpError(400, "INVALID_INPUT", "탈퇴 사유를 선택해 주세요.");
       return undefined;
     },
