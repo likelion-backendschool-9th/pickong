@@ -20,6 +20,8 @@ public class Comment {
     private Long parentId;
     private String content;
     private long likeCount;
+    // DB에 저장되지 않는 집계 필드 — 목록 조회 시 서브쿼리로 계산됨
+    private long replyCount;
     private OffsetDateTime hiddenAt;
     private OffsetDateTime deletedAt;
     private OffsetDateTime createdAt;

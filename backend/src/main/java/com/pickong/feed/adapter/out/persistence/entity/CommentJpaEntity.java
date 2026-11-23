@@ -75,6 +75,11 @@ public class CommentJpaEntity {
 
     // JPA 엔티티 → Comment 도메인 객체 변환 (조회 시 사용)
     public Comment toDomain() {
+        return toDomainWithReplyCount(0L);
+    }
+
+    // 대댓글 개수를 함께 주입하는 변환 — 목록 조회 시 서브쿼리 결과를 받아 설정
+    public Comment toDomainWithReplyCount(long replyCount) {
         return Comment.builder()
                 .id(id)
                 .feedId(feedId)
@@ -82,6 +87,7 @@ public class CommentJpaEntity {
                 .parentId(parentId)
                 .content(content)
                 .likeCount(likeCount)
+                .replyCount(replyCount)
                 .hiddenAt(hiddenAt)
                 .deletedAt(deletedAt)
                 .createdAt(createdAt)

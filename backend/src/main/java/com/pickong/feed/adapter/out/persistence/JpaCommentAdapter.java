@@ -29,8 +29,15 @@ public class JpaCommentAdapter implements CommentRepository {
 
     @Override
     public List<Comment> findByFeedId(Long feedId, Long cursor, int limit) {
+        // Object[0] = CommentJpaEntity, Object[1] = 대댓글 수(Long)
         return commentJpaRepository.findTopLevelByFeedId(feedId, cursor, PageRequest.of(0, limit))
-                .stream().map(CommentJpaEntity::toDomain).toList();
+                .stream()
+                .map(row -> {
+                    CommentJpaEntity entity = (CommentJpaEntity) row[0];
+                    long replyCount = (Long) row[1];
+                    return entity.toDomainWithReplyCount(replyCount);
+                })
+                .toList();
     }
 
     @Override

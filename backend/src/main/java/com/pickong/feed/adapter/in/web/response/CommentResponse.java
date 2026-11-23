@@ -13,6 +13,8 @@ public class CommentResponse {
     private Long parentId;
     private String content;
     private long likeCount;
+    // 살아있는 대댓글 수 — 프론트에서 "답글 N개 보기" UI에 사용
+    private long replyCount;
     private boolean reply;
     // 삭제된 댓글 여부 — true면 프론트에서 "삭제된 댓글입니다" 표시
     private boolean deleted;
@@ -29,6 +31,7 @@ public class CommentResponse {
         // 삭제된 댓글은 content를 null로 — 프론트에서 "삭제된 댓글입니다" 표시
         response.content = response.deleted ? null : comment.getContent();
         response.likeCount = comment.getLikeCount();
+        response.replyCount = comment.getReplyCount();
         response.reply = comment.isReply();
         response.createdAt = comment.getCreatedAt();
         response.updatedAt = comment.getUpdatedAt();
