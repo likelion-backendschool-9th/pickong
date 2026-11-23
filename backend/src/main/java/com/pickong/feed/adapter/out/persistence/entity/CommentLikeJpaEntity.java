@@ -29,4 +29,13 @@ public class CommentLikeJpaEntity {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
+
+    // 댓글 좋아요 생성 — commentId와 userId를 받아 엔티티를 만듦
+    public static CommentLikeJpaEntity create(Long commentId, Long userId) {
+        CommentLikeJpaEntity entity = new CommentLikeJpaEntity();
+        entity.commentId = commentId;
+        entity.userId = userId;
+        entity.createdAt = OffsetDateTime.now();
+        return entity;
+    }
 }

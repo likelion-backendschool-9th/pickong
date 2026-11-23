@@ -1,6 +1,7 @@
 package com.pickong.common.error;
 
 import jakarta.validation.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -37,6 +38,17 @@ public class GlobalExceptionHandler {
                 .body(Map.of(
                         "status", 400,
                         "message", message
+                ));
+    }
+
+    // DB UNIQUE 제약 위반(동시 중복 요청 등) 시 409로 응답
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(DataIntegrityViolationException e) {
+        return ResponseEntity
+                .status(409)
+                .body(Map.of(
+                        "status", 409,
+                        "message", "이미 존재하는 요청입니다"
                 ));
     }
 
