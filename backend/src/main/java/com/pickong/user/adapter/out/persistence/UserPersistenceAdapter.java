@@ -9,6 +9,7 @@ import com.pickong.user.domain.model.User;
 import java.util.Optional;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /** 회원 저장소. JPA 엔티티는 이 어댑터 밖으로 내보내지 않고 domain 모델로 바꿔서 돌려줍니다. */
 @Component
@@ -48,14 +49,31 @@ public class UserPersistenceAdapter implements UserPersistencePort {
         try {
             return userJpaRepository.saveAndFlush(UserJpaEntity.from(user)).toDomain();
         } catch (DataIntegrityViolationException e) {
-            String message = String.valueOf(e.getMostSpecificCause().getMessage());
-            if (message.contains(USERNAME_UNIQUE)) {
-                throw new BusinessException(UserErrorCode.USERNAME_TAKEN);
-            }
-            if (message.contains(EMAIL_UNIQUE)) {
-                throw new BusinessException(UserErrorCode.EMAIL_ALREADY_REGISTERED);
-            }
-            throw e;
+            throw translate(e);
         }
+    }
+
+    /** UPDATE 문을 바로 실행하므로 아이디 UNIQUE 위반도 여기서 납니다. */
+    @Override
+    @Transactional
+    public void updateProfile(User user) {
+        try {
+            userJpaRepository.updateProfile(user.getId(), user.getUsername(), user.getDisplayName(), user.getBio(),
+                    user.getRegion(), user.getUsernameChangedAt(), user.getUpdatedAt());
+        } catch (DataIntegrityViolationException e) {
+            throw translate(e);
+        }
+    }
+
+    /** UNIQUE 위반을 어느 값이 겹쳤는지에 따라 오류 코드로 바꿉니다. 모르는 위반은 그대로 둡니다(500). */
+    private static RuntimeException translate(DataIntegrityViolationException e) {
+        String message = String.valueOf(e.getMostSpecificCause().getMessage());
+        if (message.contains(USERNAME_UNIQUE)) {
+            return new BusinessException(UserErrorCode.USERNAME_TAKEN);
+        }
+        if (message.contains(EMAIL_UNIQUE)) {
+            return new BusinessException(UserErrorCode.EMAIL_ALREADY_REGISTERED);
+        }
+        return e;
     }
 }

@@ -59,6 +59,14 @@ public class UserJpaEntity {
     @Column(name = "profile_image_url")
     private String profileImageUrl;
 
+    /** 활동 지역 (V3) */
+    @Column(name = "region", length = 20)
+    private String region;
+
+    /** 마지막으로 아이디를 바꾼 시각 (V3). 14일에 한 번 제한에 씀 */
+    @Column(name = "username_changed_at")
+    private OffsetDateTime usernameChangedAt;
+
     // ───────────── 상태 ─────────────
     /**
      * 계정 상태.
@@ -111,6 +119,8 @@ public class UserJpaEntity {
         entity.displayName = user.getDisplayName();
         entity.bio = user.getBio();
         entity.profileImageUrl = user.getProfileImageUrl();
+        entity.region = user.getRegion();
+        entity.usernameChangedAt = user.getUsernameChangedAt();
         entity.status = user.getStatus().name();
         entity.suspendedUntil = user.getSuspendedUntil();
         entity.followerCount = user.getFollowerCount();
@@ -135,6 +145,8 @@ public class UserJpaEntity {
                 .displayName(displayName)
                 .bio(bio)
                 .profileImageUrl(profileImageUrl)
+                .region(region)
+                .usernameChangedAt(usernameChangedAt)
                 .status(UserStatus.valueOf(status))
                 .suspendedUntil(suspendedUntil)
                 .followerCount(followerCount)
