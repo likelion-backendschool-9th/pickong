@@ -10,6 +10,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -53,12 +55,13 @@ public class CommentController {
         );
     }
 
-    // 댓글 작성 (parentId 있으면 대댓글)
+    // 댓글 작성 (parentId 있으면 대댓글) — 생성 성공 시 201 Created
     @PostMapping
-    public CommentResponse createComment(
+    public ResponseEntity<CommentResponse> createComment(
             @PathVariable @Positive Long feedId,
             @Valid @RequestBody CreateCommentRequest request) {
-        return CommentResponse.from(commentUseCase.createComment(feedId, request.toCommand()));
+        CommentResponse response = CommentResponse.from(commentUseCase.createComment(feedId, request.toCommand()));
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     // 댓글 수정
@@ -70,8 +73,9 @@ public class CommentController {
         return CommentResponse.from(commentUseCase.updateComment(commentId, request.toCommand()));
     }
 
-    // 댓글 삭제
+    // 댓글 삭제 — 삭제 성공 시 204 No Content
     @DeleteMapping("/{commentId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteComment(
             @PathVariable @Positive Long feedId,
             @PathVariable @Positive Long commentId) {

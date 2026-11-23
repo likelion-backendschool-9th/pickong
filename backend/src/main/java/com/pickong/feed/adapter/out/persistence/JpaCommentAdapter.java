@@ -6,6 +6,7 @@ import com.pickong.feed.adapter.out.persistence.entity.CommentJpaEntity;
 import com.pickong.feed.adapter.out.persistence.repository.CommentJpaRepository;
 import com.pickong.feed.application.port.out.CommentRepository;
 import com.pickong.feed.domain.model.Comment;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,13 +29,13 @@ public class JpaCommentAdapter implements CommentRepository {
 
     @Override
     public List<Comment> findByFeedId(Long feedId, Long cursor, int limit) {
-        return commentJpaRepository.findTopLevelByFeedId(feedId, cursor, limit)
+        return commentJpaRepository.findTopLevelByFeedId(feedId, cursor, PageRequest.of(0, limit))
                 .stream().map(CommentJpaEntity::toDomain).toList();
     }
 
     @Override
     public List<Comment> findRepliesByParentId(Long parentId, Long cursor, int limit) {
-        return commentJpaRepository.findRepliesByParentId(parentId, cursor, limit)
+        return commentJpaRepository.findRepliesByParentId(parentId, cursor, PageRequest.of(0, limit))
                 .stream().map(CommentJpaEntity::toDomain).toList();
     }
 
@@ -48,9 +49,9 @@ public class JpaCommentAdapter implements CommentRepository {
     @Override
     @Transactional
     public void deleteById(Long commentId) {
-        if (!commentJpaRepository.existsById(commentId)) {
-            throw new BusinessException(ErrorCode.COMMENT_NOT_FOUND);
-        }
-        commentJpaRepository.deleteById(commentId);
+        // 물리 삭제 대신 deletedAt 설정 (소프트 삭제) — 대댓글 고아 방지
+        CommentJpaEntity entity = commentJpaRepository.findById(commentId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
+        entity.softDelete();
     }
 }

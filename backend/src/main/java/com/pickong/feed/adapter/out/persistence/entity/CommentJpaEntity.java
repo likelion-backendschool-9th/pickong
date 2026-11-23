@@ -68,6 +68,11 @@ public class CommentJpaEntity {
         return entity;
     }
 
+    // deletedAt을 현재 시각으로 설정 — 물리 삭제 대신 소프트 삭제
+    public void softDelete() {
+        this.deletedAt = OffsetDateTime.now();
+    }
+
     // JPA 엔티티 → Comment 도메인 객체 변환 (조회 시 사용)
     public Comment toDomain() {
         return Comment.builder()

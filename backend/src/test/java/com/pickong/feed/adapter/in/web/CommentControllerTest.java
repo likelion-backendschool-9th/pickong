@@ -81,7 +81,7 @@ class CommentControllerTest {
     }
 
     @Test
-    void createComment_유효한요청_200반환() throws Exception {
+    void createComment_유효한요청_201반환() throws Exception {
         // given
         given(commentUseCase.createComment(anyLong(), any())).willReturn(sampleComment());
         Map<String, Object> body = Map.of("userId", 1, "content", "테스트 댓글");
@@ -90,7 +90,7 @@ class CommentControllerTest {
         mockMvc.perform(post("/feeds/10/comments")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.content").value("테스트 댓글"));
     }
@@ -148,9 +148,9 @@ class CommentControllerTest {
     }
 
     @Test
-    void deleteComment_성공_200반환() throws Exception {
+    void deleteComment_성공_204반환() throws Exception {
         mockMvc.perform(delete("/feeds/10/comments/1"))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
     }
 
     @Test

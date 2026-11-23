@@ -1,10 +1,13 @@
 package com.pickong.feed.application.service;
 
+import com.pickong.common.error.BusinessException;
+import com.pickong.common.error.ErrorCode;
 import com.pickong.feed.application.dto.CommentPage;
 import com.pickong.feed.application.dto.CreateCommentCommand;
 import com.pickong.feed.application.dto.UpdateCommentCommand;
 import com.pickong.feed.application.port.in.CommentUseCase;
 import com.pickong.feed.application.port.out.CommentRepository;
+import com.pickong.feed.application.port.out.FeedRepository;
 import com.pickong.feed.domain.model.Comment;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,9 +18,11 @@ import java.util.List;
 public class CommentService implements CommentUseCase {
 
     private final CommentRepository commentRepository;
+    private final FeedRepository feedRepository;
 
-    public CommentService(CommentRepository commentRepository) {
+    public CommentService(CommentRepository commentRepository, FeedRepository feedRepository) {
         this.commentRepository = commentRepository;
+        this.feedRepository = feedRepository;
     }
 
     @Override
@@ -37,6 +42,16 @@ public class CommentService implements CommentUseCase {
     @Override
     @Transactional
     public Comment createComment(Long feedId, CreateCommentCommand command) {
+        // 존재하지 않는 feedId면 FEED_NOT_FOUND 예외 발생
+        feedRepository.findById(feedId);
+
+        // 대댓글인 경우 부모가 이미 대댓글이면 거부 (최대 2단계)
+        if (command.getParentId() != null) {
+            Comment parent = commentRepository.findById(command.getParentId());
+            if (parent.isReply()) {
+                throw new BusinessException(ErrorCode.COMMENT_REPLY_DEPTH_EXCEEDED);
+            }
+        }
         Comment comment = Comment.create(feedId, command.getUserId(), command.getParentId(), command.getContent());
         return commentRepository.save(comment);
     }
