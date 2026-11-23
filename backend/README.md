@@ -23,6 +23,9 @@ docker compose up -d db   # 저장소 루트에서. 로컬 PostgreSQL(PostGIS) �
 | `JWT_SECRET` | **없음 (필수).** 없거나 32바이트보다 짧으면 앱이 시작하지 않습니다 |
 | `COOKIE_SECURE` | `true`. 로컬(http://localhost)은 `.env`에서 `false` |
 | `COOKIE_DOMAIN` | 비움 (지금 도메인에만 쿠키 저장) |
+| `FRONTEND_BASE_URL` | `http://localhost:3000`. 소셜 로그인 콜백 주소 · 로그인 후 이동할 화면의 기준 |
+| `KAKAO_CLIENT_ID` · `KAKAO_CLIENT_SECRET` | 없으면 앱은 뜨지만 카카오 로그인만 실패 |
+| `GOOGLE_CLIENT_ID` · `GOOGLE_CLIENT_SECRET` | 없으면 앱은 뜨지만 Google 로그인만 실패 |
 
 ### 처음 실행할 때: `backend/.env`
 
@@ -76,6 +79,32 @@ Gradle을 따로 설치하지 않아도 `./gradlew`가 필요한 버전(9.8.2)�
 - **권한 없음:** `throw new BusinessException(CommonErrorCode.FORBIDDEN)` → 403
 - **CSRF:** 상태를 바꾸는 요청(POST · PUT · PATCH · DELETE)은 `XSRF-TOKEN` 쿠키 값을 `X-XSRF-TOKEN` 헤더로 보내야 합니다. 없으면 403 `INVALID_CSRF_TOKEN`. Swagger UI는 자동으로 붙이고, Postman은 GET 응답의 `XSRF-TOKEN` 쿠키 값을 헤더에 넣습니다.
 - **오류 응답:** `{ "status", "code", "message" }`. 오류 코드는 모듈마다 `ErrorCode`를 구현한 enum으로 둡니다 (`feed/domain/FeedErrorCode`, 공통은 `common/error/CommonErrorCode`).
+
+## 소셜 로그인 (카카오 · Google)
+
+- 시작: `GET /api/v1/auth/oauth2/authorization/{kakao|google}` (프론트의 버튼이 이 주소로 페이지 이동)
+- 콜백: `/api/v1/auth/oauth2/callback/{kakao|google}` (제공자가 돌려보냄, 프론트 도메인으로 받아 Next가 백엔드로 전달)
+- 결과:
+  - 기존 회원 → Access · Refresh 쿠키 발급 → `{FRONTEND_BASE_URL}/feed`
+  - 신규 회원 → 임시 가입 쿠키 `pickong_signup`(30분) → `{FRONTEND_BASE_URL}/signup`
+  - 정지 · 탈퇴 → `/login?error=ACCOUNT_UNAVAILABLE`, 이메일이 다른 계정에 있음 → `/login?error=EMAIL_ALREADY_REGISTERED&provider=kakao|google`
+  - 취소 → `/login?error=OAUTH_CANCELLED`, state 불일치 · 제공자 오류 → `/login?error=OAUTH_FAILED`
+- OAuth state는 서버 세션 대신 서명된 쿠키 `pickong_oauth`(10분)에 보관하고, 콜백의 state와 비교합니다(로그인 CSRF 방어).
+- **OAuth2 경로(시작 · 콜백)는 보안 설정에서 `/api/v1`을 포함한 전체 경로로 적습니다.** 인가 규칙(`PUBLIC_PATHS`)과 달리 OAuth2 필터에는 Spring Boot의 basePath가 붙지 않습니다.
+
+### 개발자 콘솔에서 직접 설정할 것
+
+**카카오** (developers.kakao.com > 내 애플리케이션)
+1. 앱 키 > REST API 키 → `KAKAO_CLIENT_ID`
+2. 보안 > Client Secret 코드 생성 · 활성화 → `KAKAO_CLIENT_SECRET`
+3. 카카오 로그인 > 활성화, Redirect URI 등록: `http://localhost:3000/api/v1/auth/oauth2/callback/kakao` (운영: `https://프론트도메인/api/v1/auth/oauth2/callback/kakao`)
+4. 카카오 로그인 > 동의항목: 닉네임 · 프로필 사진(필수 또는 선택), 카카오계정(이메일) **선택 동의** (앱 상태에 따라 검수가 필요할 수 있음)
+5. 플랫폼 > Web 사이트 도메인: `http://localhost:3000` (운영 도메인 추가)
+
+**Google** (console.cloud.google.com > API 및 서비스)
+1. OAuth 동의 화면 설정 (범위: `openid`, `email`, `profile`), 테스트 단계에서는 테스트 사용자 추가
+2. 사용자 인증 정보 > OAuth 2.0 클라이언트 ID(웹 애플리케이션) 생성 → `GOOGLE_CLIENT_ID` · `GOOGLE_CLIENT_SECRET`
+3. 승인된 리디렉션 URI: `http://localhost:3000/api/v1/auth/oauth2/callback/google` (운영 주소 추가)
 
 ## 프론트엔드와 맞출 것
 

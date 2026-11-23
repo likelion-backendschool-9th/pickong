@@ -170,7 +170,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | --- | --- | --- | --- |
 | POST | `/auth/signup` | `SignUpUseCase.signUp` | 필수 약관 확인(terms) → 회원 생성(user) → 토큰 |
 | POST | `/auth/login` | `LoginUseCase.login` | |
-| GET | `/oauth2/authorization/google` | Spring Security → `OAuth2LoginSuccessHandler` → `LoginUseCase.loginWithSocial` | 컨트롤러 없음 |
+| GET | `/auth/oauth2/authorization/{kakao\|google}` → 콜백 `/auth/oauth2/callback/{provider}` | Spring Security → `OAuth2LoginSuccessHandler` → `LoginUseCase.loginWithSocial` + `TokenUseCase.issue` | 컨트롤러 없음 |
 | POST | `/auth/refresh` | `TokenUseCase.refresh` | 로테이션 · 재사용 감지 |
 | POST | `/auth/logout` | `TokenUseCase.logout` | |
 | POST | `/auth/password-reset/request` | `PasswordResetUseCase.request` | |
@@ -200,6 +200,17 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 > - **로그아웃:** 이 기기(family)만 폐기. 모든 기기 로그아웃은 필요해지면 추가.
 > - **쿠키:** `pickong_at`(Path=/, Max-Age 15분), `pickong_rt`(Path=/api/v1/auth, Max-Age 14일), 모두 HttpOnly · SameSite=Lax. Secure(`COOKIE_SECURE`, 기본 true) · Domain(`COOKIE_DOMAIN`, 기본 비움)은 설정값.
 > - 만료 · 폐기된 토큰 행을 지우는 `ExpiredTokenCleanupScheduler`는 아직 없음 (후속).
+
+> **소셜 로그인 결정 (4단계)**
+> - Spring Security OAuth2 Client(`spring-boot-starter-security-oauth2-client`). 카카오는 provider 주소를 직접 등록, Google은 기본 등록(OIDC, `openid` scope로 ID 토큰 · nonce 검증).
+> - 경로: 시작 `/api/v1/auth/oauth2/authorization/{provider}`, 콜백 `/api/v1/auth/oauth2/callback/{provider}`. **OAuth2 필터 matcher에는 Boot basePath가 붙지 않아 전체 경로로 설정**(실제 서버 TRACE 로그로 확인).
+> - Redirect URI는 `FRONTEND_BASE_URL` 기준(프론트 도메인으로 받아 Next가 전달 → 쿠키가 프론트 도메인에 저장). Spring 7은 콜백 URL과 등록 주소의 일치가 아니라 state만 비교하므로 백엔드가 Next 뒤에 있어도 동작.
+> - **OAuth state:** 세션 대신 서명된 쿠키(`pickong_oauth`, 10분, `SignedCookieAuthorizationRequestRepository`). 콜백의 state와 쿠키의 state가 같을 때만 진행, 한 번 쓰면 삭제.
+> - **서명 토큰 종류 구분:** Access · 임시 가입 · OAuth state를 모두 같은 키(HS256)로 서명하므로 `token_type` 클레임으로 구분하고(`JwtCodec`), 읽을 때 기대한 종류가 아니면 거절. (임시 가입 토큰의 sub는 카카오 회원번호라, 구분하지 않으면 Access Token으로 통과할 수 있음)
+> - **판단(`LoginService`)과 세션 발급(`TokenService`)을 분리**하고 OAuth2 성공 처리(`OAuth2LoginSuccessHandler`)가 이어 붙임. 서비스끼리 호출하지 않는 규칙(4.3) 때문.
+> - 임시 가입 세션: 서명된 쿠키 토큰(`pickong_signup`, 30분, Path=/api/v1/auth). 회원 행은 온보딩 완료(5단계) 때 생성.
+> - 이메일: 제공자가 인증한 것만(카카오 `is_email_valid` · `is_email_verified`, Google `email_verified`), 소문자로 저장 · 비교. 신규 소셜 계정의 이메일이 이미 연결된 소셜 계정 이메일과 같으면 가입 차단(자동 연결 안 함).
+> - 제공자의 Access Token은 저장하지 않음(`NoOpAuthorizedClientRepository`). 프로필 사진은 제공자 URL을 https로 바꿔 그대로 사용(업로드 기능 생기면 복사 검토).
 
 ### user
 | 메서드 | 경로 | 입력 포트 · 메서드 | 비고 |
