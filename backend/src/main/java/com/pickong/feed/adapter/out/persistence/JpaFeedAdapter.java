@@ -56,9 +56,13 @@ public class JpaFeedAdapter implements FeedRepository {
 
     @Override
     public List<Feed> findRecommendedFeeds(Long userId, Long cursor, int limit) {
-        // userId는 추천 피드에서 사용 안 함 — PUBLIC 피드 최신순 조회
-        List<FeedJpaEntity> entities = feedJpaRepository.findRecommendedFeeds(
-                cursor, PageRequest.of(0, limit));
+        // 비로그인(userId=null): PUBLIC만 / 로그인: PUBLIC + 팔로잉의 FOLLOWERS
+        List<FeedJpaEntity> entities;
+        if (userId == null) {
+            entities = feedJpaRepository.findRecommendedFeeds(cursor, PageRequest.of(0, limit));
+        } else {
+            entities = feedJpaRepository.findRecommendedFeedsForUser(userId, cursor, PageRequest.of(0, limit));
+        }
         return toDomain(entities);
     }
 
