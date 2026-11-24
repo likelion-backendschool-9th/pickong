@@ -123,7 +123,7 @@ function EditForm({ place }: { place: Place }) {
             <b className="text-ink">{place.name}</b>을(를) 지우면 내 지도 · 컬렉션에서 빠지고, 남겨 둔 사진과 태그도 함께 지워져요. 되돌릴 수 없어요.
           </p>
           {remove.isError && <Notice tone="danger" className="mt-3">{errorMessage(remove.error)}</Notice>}
-          <div className="mt-5 flex gap-2">
+          <div className="mt-5 grid grid-cols-2 gap-2">
             <Button variant="outline" block onClick={() => setConfirmDelete(false)}>
               취소
             </Button>
