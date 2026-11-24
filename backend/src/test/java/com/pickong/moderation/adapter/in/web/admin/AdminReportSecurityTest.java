@@ -23,6 +23,7 @@ import com.pickong.common.security.AdminPrincipal;
 import com.pickong.common.security.LoginUser;
 import com.pickong.common.web.WebMvcConfig;
 import com.pickong.moderation.application.port.in.ReportAdminUseCase;
+import com.pickong.terms.application.port.in.TermsUseCase;
 import jakarta.servlet.http.Cookie;
 import java.util.List;
 import java.util.Optional;
@@ -78,6 +79,10 @@ class AdminReportSecurityTest {
 
     @MockitoBean
     OAuth2LoginFailureHandler oauth2FailureHandler;
+
+    /** SecurityConfig의 재동의 필터가 씁니다. 가짜는 항상 false(동의 받을 약관 없음)라 이 테스트의 인가 결과에 영향이 없습니다. */
+    @MockitoBean
+    TermsUseCase termsUseCase;
 
     @Test
     @DisplayName("비로그인 신고 목록은 401")
