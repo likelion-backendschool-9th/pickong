@@ -7,7 +7,6 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
-import java.util.List;
 
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -79,25 +78,29 @@ public class FeedController {
         throw new UnsupportedOperationException("피드 장소 조회는 아직 구현되지 않았습니다");
     }
 
-    // 피드 생성
+    // 피드 생성 — 로그인 필수
     @PostMapping
-    public FeedResponse createFeed(@Valid @RequestBody CreateFeedRequest request) {
-        return FeedResponse.from(feedUseCase.createFeed(request.toCommand()));
+    public FeedResponse createFeed(
+            @CurrentUser LoginUser user,
+            @Valid @RequestBody CreateFeedRequest request) {
+        return FeedResponse.from(feedUseCase.createFeed(request.toCommand(user.userId())));
     }
 
-    // 피드 수정
+    // 피드 수정 — 로그인 필수, 본인 피드만 가능
     @PutMapping("/{feedId}")
     public FeedResponse updateFeed(
             @PathVariable @Positive Long feedId,
+            @CurrentUser LoginUser user,
             @Valid @RequestBody UpdateFeedRequest request) {
-        return FeedResponse.from(feedUseCase.updateFeed(feedId, request.toCommand()));
-
+        return FeedResponse.from(feedUseCase.updateFeed(feedId, user.userId(), request.toCommand()));
     }
 
-    // 피드 삭제
+    // 피드 삭제 — 로그인 필수, 본인 피드만 가능
     @DeleteMapping("/{feedId}")
-    public void deleteFeed(@PathVariable @Positive Long feedId) {
-        feedUseCase.deleteFeed(feedId);
+    public void deleteFeed(
+            @PathVariable @Positive Long feedId,
+            @CurrentUser LoginUser user) {
+        feedUseCase.deleteFeed(feedId, user.userId());
     }
 
 }

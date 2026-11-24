@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willDoNothing;
-import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -85,7 +84,7 @@ class FeedServiceTest {
                 Feed.builder().id(1L).userId(1L).content("수정된 내용").visibility(Visibility.PRIVATE).build());
 
         // when
-        Feed result = feedService.updateFeed(1L, command);
+        Feed result = feedService.updateFeed(1L, 1L, command);
 
         // then
         assertThat(result.getContent()).isEqualTo("수정된 내용");
@@ -93,15 +92,39 @@ class FeedServiceTest {
     }
 
     @Test
+    void updateFeed_타인피드_수정시_예외발생() {
+        // given: 피드 작성자는 userId=1, 요청자는 userId=99
+        given(feedRepository.findById(1L)).willReturn(sampleFeed());
+
+        // when & then
+        assertThatThrownBy(() -> feedService.updateFeed(1L, 99L,
+                new UpdateFeedCommand("수정 내용", Visibility.PUBLIC, List.of(), List.of())))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("피드 작성자만 수정·삭제할 수 있습니다");
+    }
+
+    @Test
     void deleteFeed_성공() {
-        // given
+        // given: 피드가 존재하고 본인 피드
+        given(feedRepository.findById(1L)).willReturn(sampleFeed());
         willDoNothing().given(feedRepository).deleteById(1L);
 
         // when
-        feedService.deleteFeed(1L);
+        feedService.deleteFeed(1L, 1L);
 
         // then: deleteById()가 호출됐는지 확인
         verify(feedRepository).deleteById(1L);
+    }
+
+    @Test
+    void deleteFeed_타인피드_삭제시_예외발생() {
+        // given: 피드 작성자는 userId=1, 요청자는 userId=99
+        given(feedRepository.findById(1L)).willReturn(sampleFeed());
+
+        // when & then
+        assertThatThrownBy(() -> feedService.deleteFeed(1L, 99L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("피드 작성자만 수정·삭제할 수 있습니다");
     }
 
     @Test
@@ -123,19 +146,19 @@ class FeedServiceTest {
                 .willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND));
 
         // when & then
-        assertThatThrownBy(() -> feedService.updateFeed(999L,
+        assertThatThrownBy(() -> feedService.updateFeed(999L, 1L,
                 new UpdateFeedCommand("수정 내용", Visibility.PUBLIC, List.of(), List.of())))
                 .isInstanceOf(BusinessException.class);
     }
 
     @Test
     void deleteFeed_존재하지않는id_예외발생() {
-        // given: 없는 id 삭제 시 BusinessException 던지도록 설정
-        willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND))
-                .given(feedRepository).deleteById(999L);
+        // given: 없는 id 조회 시 BusinessException 던지도록 설정
+        given(feedRepository.findById(999L))
+                .willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND));
 
         // when & then
-        assertThatThrownBy(() -> feedService.deleteFeed(999L))
+        assertThatThrownBy(() -> feedService.deleteFeed(999L, 1L))
                 .isInstanceOf(BusinessException.class);
     }
 
