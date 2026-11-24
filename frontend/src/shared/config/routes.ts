@@ -6,6 +6,8 @@ export const routes = {
   /** 최초 가입 온보딩: 소셜 인증을 마친 신규 회원만 들어옵니다. */
   signup: () => "/signup",
   terms: (type: "service" | "privacy" | "marketing") => `/terms/${type}`,
+  /** 바뀐 약관 재동의. next: 동의한 뒤 돌아갈 찜콩 안 경로 (없으면 피드) */
+  termsConsent: (next?: string) => (next ? `/terms/consent?next=${encodeURIComponent(next)}` : "/terms/consent"),
   feed: () => "/feed",
   search: () => "/search",
   notifications: () => "/notifications",
