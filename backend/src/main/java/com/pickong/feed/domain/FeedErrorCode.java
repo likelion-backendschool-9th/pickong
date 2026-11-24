@@ -8,6 +8,7 @@ import lombok.Getter;
 public enum FeedErrorCode implements ErrorCode {
 
     FEED_NOT_FOUND(404, "피드를 찾을 수 없습니다"),
+    INVALID_TAB(400, "tab은 recommended 또는 following만 허용됩니다"),
     COMMENT_NOT_FOUND(404, "댓글을 찾을 수 없습니다"),
     COMMENT_REPLY_DEPTH_EXCEEDED(400, "대댓글에는 답글을 달 수 없습니다"),
     COMMENT_FEED_MISMATCH(400, "댓글이 해당 피드에 속하지 않습니다"),

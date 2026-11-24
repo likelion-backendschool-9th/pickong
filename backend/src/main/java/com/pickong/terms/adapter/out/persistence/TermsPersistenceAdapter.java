@@ -1,11 +1,15 @@
 package com.pickong.terms.adapter.out.persistence;
 
 import com.pickong.terms.adapter.out.persistence.entity.TermsJpaEntity;
+import com.pickong.terms.adapter.out.persistence.entity.TermsSectionJpaEntity;
 import com.pickong.terms.adapter.out.persistence.entity.UserTermsAgreementJpaEntity;
 import com.pickong.terms.adapter.out.persistence.repository.TermsJpaRepository;
+import com.pickong.terms.adapter.out.persistence.repository.TermsSectionJpaRepository;
 import com.pickong.terms.adapter.out.persistence.repository.UserTermsAgreementJpaRepository;
+import com.pickong.terms.application.dto.AgreedTerms;
 import com.pickong.terms.application.port.out.TermsPersistencePort;
 import com.pickong.terms.domain.model.Terms;
+import com.pickong.terms.domain.vo.TermsSection;
 import com.pickong.terms.domain.vo.TermsType;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -19,10 +23,13 @@ import org.springframework.stereotype.Component;
 public class TermsPersistenceAdapter implements TermsPersistencePort {
 
     private final TermsJpaRepository termsRepository;
+    private final TermsSectionJpaRepository sectionRepository;
     private final UserTermsAgreementJpaRepository agreementRepository;
 
-    public TermsPersistenceAdapter(TermsJpaRepository termsRepository, UserTermsAgreementJpaRepository agreementRepository) {
+    public TermsPersistenceAdapter(TermsJpaRepository termsRepository, TermsSectionJpaRepository sectionRepository,
+                                   UserTermsAgreementJpaRepository agreementRepository) {
         this.termsRepository = termsRepository;
+        this.sectionRepository = sectionRepository;
         this.agreementRepository = agreementRepository;
     }
 
@@ -41,9 +48,33 @@ public class TermsPersistenceAdapter implements TermsPersistencePort {
     }
 
     @Override
+    public List<TermsSection> findSections(Long termsId) {
+        return sectionRepository.findByTermsIdOrderByPositionAsc(termsId).stream()
+                .map(TermsSectionJpaEntity::toDomain)
+                .toList();
+    }
+
+    @Override
     public void saveAgreements(Long userId, List<Long> termsIds, OffsetDateTime agreedAt) {
         agreementRepository.saveAll(termsIds.stream()
                 .map(termsId -> UserTermsAgreementJpaEntity.agreed(userId, termsId, agreedAt))
                 .toList());
+    }
+
+    @Override
+    public void agreeIfAbsent(Long userId, Long termsId, OffsetDateTime agreedAt) {
+        agreementRepository.insertIfAbsent(userId, termsId, agreedAt);
+    }
+
+    @Override
+    public List<AgreedTerms> findActiveAgreements(Long userId) {
+        return agreementRepository.findActive(userId).stream()
+                .map(row -> new AgreedTerms(TermsType.valueOf(row.getType()), row.getVersion(), row.getTitle(), row.getAgreedAt()))
+                .toList();
+    }
+
+    @Override
+    public void revokeAgreements(Long userId, TermsType type, OffsetDateTime revokedAt) {
+        agreementRepository.revokeActive(userId, type.name(), revokedAt);
     }
 }
