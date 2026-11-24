@@ -10,8 +10,6 @@ import lombok.Getter;
 
 @Getter
 public class CreateFeedRequest {
-    // TODO(JWT): JWT 도입 후 이 필드 제거 — userId는 SecurityContext에서 꺼내 써야됨
-    private Long userId;
     @NotBlank(message = "내용은 필수입니다.")
     private String content;
     @NotNull(message = "공개 범위는 필수입니다.")
@@ -19,7 +17,8 @@ public class CreateFeedRequest {
     private List<Long> mediaFileIds;
     private List<Long> placeIds;
 
-    public CreateFeedCommand toCommand() {
+    // userId는 요청 본문에서 받지 않고 SecurityContext의 인증된 사용자로 채움
+    public CreateFeedCommand toCommand(Long userId) {
         return new CreateFeedCommand(userId, content, visibility, mediaFileIds, placeIds);
     }
 }
