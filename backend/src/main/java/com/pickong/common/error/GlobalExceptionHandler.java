@@ -1,6 +1,7 @@
 package com.pickong.common.error;
 
 import jakarta.validation.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -42,5 +43,20 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(CommonErrorCode.INVALID_INPUT.getStatus())
                 .body(ErrorResponse.of(CommonErrorCode.INVALID_INPUT, message));
+    }
+
+    // DB 무결성 오류 처리
+    // UNIQUE 제약 위반(SQLState 23505)이면 409, 그 외(FK·NOT NULL 등)는 500으로 응답
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolationException(DataIntegrityViolationException e) {
+        Throwable cause = e.getMostSpecificCause();
+        if (cause instanceof java.sql.SQLException sqlEx && "23505".equals(sqlEx.getSQLState())) {
+            return ResponseEntity
+                    .status(409)
+                    .body(new ErrorResponse(409, "DUPLICATE_REQUEST", "이미 처리된 요청입니다"));
+        }
+        return ResponseEntity
+                .status(500)
+                .body(new ErrorResponse(500, "INTERNAL_SERVER_ERROR", "서버 오류가 발생했습니다"));
     }
 }

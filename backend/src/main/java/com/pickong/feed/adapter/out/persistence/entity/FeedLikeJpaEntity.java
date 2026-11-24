@@ -29,4 +29,12 @@ public class FeedLikeJpaEntity {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
+
+    public static FeedLikeJpaEntity of(Long feedId, Long userId) {
+        FeedLikeJpaEntity entity = new FeedLikeJpaEntity();
+        entity.feedId = feedId;
+        entity.userId = userId;
+        entity.createdAt = OffsetDateTime.now();
+        return entity;
+    }
 }
