@@ -25,7 +25,7 @@ class SignedCookieAuthorizationRequestRepositoryTest {
     private static final Instant NOW = Instant.parse("2026-11-23T00:00:00Z");
 
     private static SignedCookieAuthorizationRequestRepository repositoryAt(Instant now) {
-        TokenCookieWriter cookieWriter = new TokenCookieWriter(new AuthCookieProperties(true, null), JWT, new RefreshTokenProperties(null));
+        TokenCookieWriter cookieWriter = new TokenCookieWriter(new AuthCookieProperties(true, null), JWT, new RefreshTokenProperties(null, null));
         return new SignedCookieAuthorizationRequestRepository(new JwtCodec(JWT, Clock.fixed(now, ZoneOffset.UTC)), cookieWriter);
     }
 

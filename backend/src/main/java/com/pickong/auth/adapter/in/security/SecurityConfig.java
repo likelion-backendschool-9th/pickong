@@ -122,8 +122,10 @@ public class SecurityConfig {
                         .requestMatchers(PUBLIC_PATHS).permitAll()
                         // 약관 전문: 가입 화면의 '보기'에서 로그인 전에 엽니다. 조회(GET)만 엽니다.
                         .requestMatchers(HttpMethod.GET, "/terms/**").permitAll()
-                        // TODO(#38): 피드 API에 @CurrentUser 연동이 끝나면 이 줄을 지우고, 공개할 조회 API만 따로 엽니다.
-                        .requestMatchers("/feeds/**").permitAll()
+                        // 피드 단건 조회(공유 링크 미리보기) — 비로그인도 볼 수 있음
+                        // 피드 목록·댓글·대댓글 조회·좋아요·북마크·댓글 작성·수정·삭제는 로그인 필요 (anyRequest 규칙 적용)
+                        // 주의: /feeds/* 는 /feeds/places 도 허용하지만, places 엔드포인트는 미구현(UnsupportedOperationException)
+                        .requestMatchers(HttpMethod.GET, "/feeds/*").permitAll()
                         // 관리자 API. 회원(ROLE_USER)은 403, 비로그인은 401. 공개로 열지 않습니다.
                         // 관리자 로그인 필터는 아직 없고, 인증된 AdminPrincipal(ROLE_ADMIN)만 통과합니다.
                         // POST의 CSRF 검사는 이 규칙보다 먼저라, 토큰이 없으면 403 INVALID_CSRF_TOKEN입니다.

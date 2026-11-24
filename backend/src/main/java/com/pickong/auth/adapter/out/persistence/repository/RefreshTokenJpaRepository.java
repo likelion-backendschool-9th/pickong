@@ -21,4 +21,9 @@ public interface RefreshTokenJpaRepository extends JpaRepository<RefreshTokenJpa
     @Modifying(clearAutomatically = true)
     @Query("update RefreshTokenJpaEntity t set t.revokedAt = :now where t.family = :family and t.revokedAt is null")
     int revokeFamily(@Param("family") String family, @Param("now") OffsetDateTime now);
+
+    /** 만료 시각이 기준보다 이전인 행을 한 번에 지웁니다. 지운 행 수를 돌려줍니다. */
+    @Modifying(clearAutomatically = true)
+    @Query("delete from RefreshTokenJpaEntity t where t.expiresAt < :threshold")
+    int deleteExpiredBefore(@Param("threshold") OffsetDateTime threshold);
 }

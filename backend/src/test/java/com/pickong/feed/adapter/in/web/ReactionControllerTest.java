@@ -1,16 +1,23 @@
 package com.pickong.feed.adapter.in.web;
 
 import com.pickong.common.error.BusinessException;
-import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.common.error.GlobalExceptionHandler;
+import com.pickong.common.security.LoginUser;
+import com.pickong.common.web.CurrentUserArgumentResolver;
+import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.feed.application.port.in.FeedReactionUseCase;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
+import java.util.List;
 
 import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -28,11 +35,21 @@ class ReactionControllerTest {
 
     @BeforeEach
     void setUp() {
-        // 컨트롤러 + 전역 예외 처리기를 조합해 MockMvc를 직접 구성
+        // SecurityContextHolder에 인증 정보 주입 — CurrentUserArgumentResolver가 여기서 꺼냄
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(new LoginUser(1L), null, List.of()));
+
         mockMvc = MockMvcBuilders
                 .standaloneSetup(new ReactionController(feedReactionUseCase))
                 .setControllerAdvice(new GlobalExceptionHandler())
+                .setCustomArgumentResolvers(new CurrentUserArgumentResolver())
                 .build();
+    }
+
+    @AfterEach
+    void tearDown() {
+        // 테스트 간 SecurityContext 오염 방지
+        SecurityContextHolder.clearContext();
     }
 
     // ─────────────────────────────────────────────
@@ -42,7 +59,7 @@ class ReactionControllerTest {
     @Test
     void likeFeed_성공_201반환() throws Exception {
         // when & then: 정상 호출 → 201 Created
-        mockMvc.perform(post("/feeds/1/likes").param("userId", "1"))
+        mockMvc.perform(post("/feeds/1/likes"))
                 .andExpect(status().isCreated());
     }
 
@@ -53,7 +70,7 @@ class ReactionControllerTest {
                 .given(feedReactionUseCase).likeFeed(999L, 1L);
 
         // when & then
-        mockMvc.perform(post("/feeds/999/likes").param("userId", "1"))
+        mockMvc.perform(post("/feeds/999/likes"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
     }
@@ -65,7 +82,7 @@ class ReactionControllerTest {
                 .given(feedReactionUseCase).likeFeed(1L, 1L);
 
         // when & then
-        mockMvc.perform(post("/feeds/1/likes").param("userId", "1"))
+        mockMvc.perform(post("/feeds/1/likes"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409));
     }
@@ -77,7 +94,7 @@ class ReactionControllerTest {
     @Test
     void unlikeFeed_성공_204반환() throws Exception {
         // when & then: 정상 호출 → 204 No Content
-        mockMvc.perform(delete("/feeds/1/likes").param("userId", "1"))
+        mockMvc.perform(delete("/feeds/1/likes"))
                 .andExpect(status().isNoContent());
     }
 
@@ -88,7 +105,7 @@ class ReactionControllerTest {
                 .given(feedReactionUseCase).unlikeFeed(1L, 1L);
 
         // when & then
-        mockMvc.perform(delete("/feeds/1/likes").param("userId", "1"))
+        mockMvc.perform(delete("/feeds/1/likes"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
     }
@@ -100,7 +117,7 @@ class ReactionControllerTest {
     @Test
     void bookmarkFeed_성공_201반환() throws Exception {
         // when & then: 정상 호출 → 201 Created
-        mockMvc.perform(post("/feeds/1/bookmarks").param("userId", "1"))
+        mockMvc.perform(post("/feeds/1/bookmarks"))
                 .andExpect(status().isCreated());
     }
 
@@ -111,7 +128,7 @@ class ReactionControllerTest {
                 .given(feedReactionUseCase).bookmarkFeed(999L, 1L);
 
         // when & then
-        mockMvc.perform(post("/feeds/999/bookmarks").param("userId", "1"))
+        mockMvc.perform(post("/feeds/999/bookmarks"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
     }
@@ -123,7 +140,7 @@ class ReactionControllerTest {
                 .given(feedReactionUseCase).bookmarkFeed(1L, 1L);
 
         // when & then
-        mockMvc.perform(post("/feeds/1/bookmarks").param("userId", "1"))
+        mockMvc.perform(post("/feeds/1/bookmarks"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409));
     }
@@ -135,7 +152,7 @@ class ReactionControllerTest {
     @Test
     void unbookmarkFeed_성공_204반환() throws Exception {
         // when & then: 정상 호출 → 204 No Content
-        mockMvc.perform(delete("/feeds/1/bookmarks").param("userId", "1"))
+        mockMvc.perform(delete("/feeds/1/bookmarks"))
                 .andExpect(status().isNoContent());
     }
 
@@ -146,7 +163,7 @@ class ReactionControllerTest {
                 .given(feedReactionUseCase).unbookmarkFeed(1L, 1L);
 
         // when & then
-        mockMvc.perform(delete("/feeds/1/bookmarks").param("userId", "1"))
+        mockMvc.perform(delete("/feeds/1/bookmarks"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
     }
