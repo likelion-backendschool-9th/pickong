@@ -24,4 +24,11 @@ public interface RefreshTokenPersistencePort {
 
     /** 같은 family(그 기기의 로그인 세션)에서 아직 살아 있는 토큰을 모두 폐기합니다. */
     void revokeFamily(String family, OffsetDateTime now);
+
+    /**
+     * 만료 시각이 기준보다 이전인 토큰 행을 폐기 여부와 관계없이 지웁니다. (정리 작업 전용)
+     *
+     * @return 지운 행 수
+     */
+    int deleteExpiredBefore(OffsetDateTime threshold);
 }
