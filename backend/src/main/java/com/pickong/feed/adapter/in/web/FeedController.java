@@ -53,10 +53,10 @@ public class FeedController {
     @GetMapping
     public FeedPageResponse getFeeds(
             @RequestParam @NotNull String tab,
-            @CurrentUser(required = false) LoginUser user,
+            @CurrentUser LoginUser user,
             @RequestParam(required = false) Long cursor,
             @RequestParam @Min(value = 1, message = "limit은 1 이상이어야 합니다") @Max(value = 50, message = "limit은 50 이하이어야 합니다") int limit) {
-        Long userId = user != null ? user.userId() : null;
+        Long userId = user.userId();
         FeedPage page = tab.equals("following")
                 ? feedUseCase.getFollowingFeeds(userId, cursor, limit)
                 : feedUseCase.getRecommendedFeeds(userId, cursor, limit);
@@ -71,10 +71,10 @@ public class FeedController {
     @GetMapping("/places")
     public FeedPageResponse getFeedPlaces(
             @RequestParam @NotNull String tab,
-            @CurrentUser(required = false) LoginUser user,
+            @CurrentUser LoginUser user,
             @RequestParam(required = false) Long cursor,
             @RequestParam @Min(value = 1, message = "limit은 1 이상이어야 합니다") @Max(value = 50, message = "limit은 50 이하이어야 합니다") int limit) {
-        Long userId = user != null ? user.userId() : null;
+        Long userId = user.userId();
         FeedPage page = tab.equals("following")
                 ? feedUseCase.getFollowingFeeds(userId, cursor, limit)
                 : feedUseCase.getRecommendedFeeds(userId, cursor, limit);
