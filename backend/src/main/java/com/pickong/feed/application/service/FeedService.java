@@ -1,10 +1,12 @@
 package com.pickong.feed.application.service;
 
+import com.pickong.common.error.BusinessException;
 import com.pickong.feed.application.dto.CreateFeedCommand;
 import com.pickong.feed.application.dto.FeedPage;
 import com.pickong.feed.application.dto.UpdateFeedCommand;
 import com.pickong.feed.application.port.in.FeedUseCase;
 import com.pickong.feed.application.port.out.FeedRepository;
+import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.feed.domain.model.Feed;
 import java.util.List;
 
@@ -43,7 +45,7 @@ public class FeedService implements FeedUseCase {
     @Override
     @Transactional
     public Feed createFeed(CreateFeedCommand command) {
-        // TODO(JWT): JWT 도입 후 command.getUserId() 대신 SecurityContext에서 인증된 userId 사용
+        // userId는 Controller에서 @CurrentUser로 꺼내 command에 담아 넘어옴
         Feed feed = Feed.create(command.getUserId(), command.getContent(), command.getVisibility(),
                 command.getMediaFileIds(),
                 command.getPlaceIds());
@@ -52,17 +54,24 @@ public class FeedService implements FeedUseCase {
 
     @Override
     @Transactional
-    public Feed updateFeed(Long feedId, UpdateFeedCommand command) {
+    public Feed updateFeed(Long feedId, Long userId, UpdateFeedCommand command) {
         Feed feed = feedRepository.findById(feedId);
-        // TODO(JWT): JWT 도입 후 feed.getUserId()와 인증된 userId가 다르면 403 예외 던져야됨
+        // 본인 피드만 수정 가능
+        if (!feed.getUserId().equals(userId)) {
+            throw new BusinessException(FeedErrorCode.FEED_NOT_OWNER);
+        }
         feed.update(command.getContent(), command.getVisibility(), command.getMediaFileIds(), command.getPlaceIds());
         return feedRepository.save(feed);
     }
 
     @Override
     @Transactional
-    public void deleteFeed(Long feedId) {
-        // TODO(JWT): JWT 도입 후 삭제 전 feed.getUserId()와 인증된 userId 일치 여부 검증해야됨
+    public void deleteFeed(Long feedId, Long userId) {
+        Feed feed = feedRepository.findById(feedId);
+        // 본인 피드만 삭제 가능
+        if (!feed.getUserId().equals(userId)) {
+            throw new BusinessException(FeedErrorCode.FEED_NOT_OWNER);
+        }
         feedRepository.deleteById(feedId);
     }
 

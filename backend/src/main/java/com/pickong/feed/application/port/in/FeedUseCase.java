@@ -15,9 +15,9 @@ public interface FeedUseCase {
 
     Feed createFeed(CreateFeedCommand command);
 
-    Feed updateFeed(Long feedId, UpdateFeedCommand command);
+    Feed updateFeed(Long feedId, Long userId, UpdateFeedCommand command);
 
     Feed getFeed(Long feedId);
 
-    void deleteFeed(Long feedId);
+    void deleteFeed(Long feedId, Long userId);
 }
