@@ -19,6 +19,7 @@ public enum FeedErrorCode implements ErrorCode {
     ALREADY_BOOKMARKED(409, "이미 북마크했습니다"),
     BOOKMARK_NOT_FOUND(404, "북마크하지 않았습니다"),
     ALREADY_COMMENT_LIKED(409, "이미 좋아요한 댓글입니다"),
+    FEED_NOT_OWNER(403, "피드 작성자만 수정·삭제할 수 있습니다"),
     COMMENT_LIKE_NOT_FOUND(404, "댓글 좋아요를 찾을 수 없습니다"),
     COMMENT_NOT_OWNER(403, "댓글 작성자만 수정·삭제할 수 있습니다");
 
