@@ -115,39 +115,37 @@ export function PlaceSubmissionDetailScreen({ id }: { id: string }) {
         }}
         title="이 제보를 승인할까요?"
         description="승인하면 이 장소가 공개 지도에 표시됩니다."
+        footer={
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant="outline"
+              block
+              disabled={approve.isPending}
+              onClick={() => {
+                setApproveOpen(false);
+                approve.reset();
+              }}
+            >
+              취소
+            </Button>
+            <Button
+              block
+              loading={approve.isPending}
+              onClick={() =>
+                approve.mutate(id, {
+                  onSuccess: () => {
+                    setApproveOpen(false);
+                    toast({ message: "장소를 승인했어요", detail: "공개 지도에 표시됩니다." });
+                  },
+                })
+              }
+            >
+              승인
+            </Button>
+          </div>
+        }
       >
-        {approve.isError && (
-          <Notice tone="danger" className="mb-3">
-            {errorMessage(approve.error)}
-          </Notice>
-        )}
-        <div className="flex gap-2 pb-[env(safe-area-inset-bottom)]">
-          <Button
-            variant="outline"
-            block
-            disabled={approve.isPending}
-            onClick={() => {
-              setApproveOpen(false);
-              approve.reset();
-            }}
-          >
-            취소
-          </Button>
-          <Button
-            block
-            loading={approve.isPending}
-            onClick={() =>
-              approve.mutate(id, {
-                onSuccess: () => {
-                  setApproveOpen(false);
-                  toast({ message: "장소를 승인했어요", detail: "공개 지도에 표시됩니다." });
-                },
-              })
-            }
-          >
-            승인
-          </Button>
-        </div>
+        {approve.isError && <Notice tone="danger">{errorMessage(approve.error)}</Notice>}
       </BottomSheet>
 
       <ReasonSheet
