@@ -8,7 +8,9 @@ import java.time.OffsetDateTime;
  *
  * @param version  동의한 약관 버전
  * @param title    동의한 약관 버전의 제목. 새 버전에서 제목이 바뀌어도 회원이 동의한 그때의 제목입니다
+ * @param versionEffectiveAt 동의한 약관 버전의 시행일. 새 버전이 나온 뒤에도 이 동의가 유효한지 판단할 때 씁니다
  * @param agreedAt 동의한 시각
  */
-public record AgreedTerms(TermsType type, String version, String title, OffsetDateTime agreedAt) {
+public record AgreedTerms(TermsType type, String version, String title, OffsetDateTime versionEffectiveAt,
+                          OffsetDateTime agreedAt) {
 }

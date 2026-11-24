@@ -9,6 +9,7 @@ import lombok.Getter;
 
 /**
  * 약관 애그리거트. 버전과 필수 여부, 시행 일시.
+ * {@code requiresReconsent}: 이 버전이 시행되면 이전 버전에 한 동의를 더 이상 인정하지 않음 (규칙은 {@link TermsHistory})
  */
 @Getter
 @Builder
@@ -21,5 +22,6 @@ public class Terms {
     private String contentUrl;
     private boolean required;
     private OffsetDateTime effectiveAt;
+    private boolean requiresReconsent;
     private OffsetDateTime createdAt;
 }
