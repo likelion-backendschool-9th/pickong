@@ -200,6 +200,34 @@ class OAuth2LoginIntegrationTest {
     }
 
     @Test
+    @DisplayName("탈퇴 유예 중(30일 안) 회원: 세션은 주지 않고 탈퇴 취소 쿠키만 발급 → /account/restore")
+    void withdrawalPendingMemberGoesToRestore() throws Exception {
+        long userId = insertUser("seoyeon", "WITHDRAWN_PENDING");
+        jdbc.update("UPDATE users SET withdrawal_requested_at = now() - interval '3 days' WHERE id = ?", userId);
+        linkSocial(userId, "KAKAO", "4242", "kong@kakao.com");
+
+        MvcResult result = loginWithKakao();
+
+        assertThat(result.getResponse().getRedirectedUrl()).isEqualTo("http://localhost:3000/account/restore");
+        assertThat(hasLiveCookie(result, AuthCookies.RESTORE_TOKEN)).isTrue();
+        assertThat(hasLiveCookie(result, AuthCookies.ACCESS_TOKEN)).as("탈퇴 중인 계정에 로그인 세션을 만들지 않음").isFalse();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM refresh_tokens WHERE user_id = ?", Integer.class, userId)).isZero();
+    }
+
+    @Test
+    @DisplayName("탈퇴 신청 후 30일이 지난(익명화 전) 회원: 취소할 수 없어 /login?error=ACCOUNT_UNAVAILABLE")
+    void withdrawalExpiredMemberUnavailable() throws Exception {
+        long userId = insertUser("seoyeon", "WITHDRAWN_PENDING");
+        jdbc.update("UPDATE users SET withdrawal_requested_at = now() - interval '31 days' WHERE id = ?", userId);
+        linkSocial(userId, "KAKAO", "4242", null);
+
+        MvcResult result = loginWithKakao();
+
+        assertThat(result.getResponse().getRedirectedUrl()).isEqualTo("http://localhost:3000/login?error=ACCOUNT_UNAVAILABLE");
+        assertThat(hasLiveCookie(result, AuthCookies.RESTORE_TOKEN)).isFalse();
+    }
+
+    @Test
     @DisplayName("정지된 회원: /login?error=ACCOUNT_UNAVAILABLE, 토큰 없음")
     void suspendedMember() throws Exception {
         long userId = insertUser("seoyeon", "SUSPENDED");

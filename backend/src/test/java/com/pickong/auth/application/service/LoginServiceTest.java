@@ -8,10 +8,14 @@ import static org.mockito.Mockito.verify;
 import com.pickong.auth.application.dto.LinkedSocialAccount;
 import com.pickong.auth.application.dto.SocialLoginResult;
 import com.pickong.auth.application.dto.SocialProfile;
+import com.pickong.auth.application.port.out.RestoreTokenPort;
 import com.pickong.auth.application.port.out.SignupTokenPort;
 import com.pickong.auth.application.port.out.SocialAccountPersistencePort;
 import com.pickong.auth.domain.vo.SocialProvider;
+import com.pickong.user.application.dto.WithdrawalStatus;
 import com.pickong.user.application.port.in.UserAccountUseCase;
+import com.pickong.user.application.port.in.UserWithdrawalUseCase;
+import java.time.OffsetDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,6 +37,12 @@ class LoginServiceTest {
     @Mock
     SignupTokenPort signupTokens;
 
+    @Mock
+    UserWithdrawalUseCase userWithdrawal;
+
+    @Mock
+    RestoreTokenPort restoreTokens;
+
     @InjectMocks
     LoginService loginService;
 
@@ -50,13 +60,28 @@ class LoginServiceTest {
     }
 
     @Test
-    @DisplayName("연결된 회원이 정지 · 탈퇴면 이용 불가")
+    @DisplayName("연결된 회원이 정지 · 탈퇴(취소할 수 없음)면 이용 불가")
     void unavailableMember() {
         given(socialAccounts.findByProvider(SocialProvider.KAKAO, "4242"))
                 .willReturn(Optional.of(new LinkedSocialAccount(7L, SocialProvider.KAKAO, "4242", null)));
         given(userAccount.canLogin(7L)).willReturn(false);
+        given(userWithdrawal.findCancellableWithdrawal(7L)).willReturn(Optional.empty());
 
         assertThat(loginService.loginWithSocial(KAKAO)).isInstanceOf(SocialLoginResult.Unavailable.class);
+        verify(restoreTokens, never()).issue(7L);
+    }
+
+    @Test
+    @DisplayName("연결된 회원이 탈퇴 유예 중(30일 안)이면 로그인 세션 대신 탈퇴 취소 토큰")
+    void withdrawalPendingMember() {
+        given(socialAccounts.findByProvider(SocialProvider.KAKAO, "4242"))
+                .willReturn(Optional.of(new LinkedSocialAccount(7L, SocialProvider.KAKAO, "4242", null)));
+        given(userAccount.canLogin(7L)).willReturn(false);
+        given(userWithdrawal.findCancellableWithdrawal(7L)).willReturn(Optional.of(new WithdrawalStatus("seoyeon",
+                OffsetDateTime.parse("2026-11-20T00:00:00Z"), OffsetDateTime.parse("2026-12-20T00:00:00Z"))));
+        given(restoreTokens.issue(7L)).willReturn("restore-token");
+
+        assertThat(loginService.loginWithSocial(KAKAO)).isEqualTo(new SocialLoginResult.WithdrawalPending("restore-token"));
     }
 
     @Test
