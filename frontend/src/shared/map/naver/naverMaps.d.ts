@@ -34,6 +34,10 @@ declare global {
       mapDataControl?: boolean;
       logoControl?: boolean;
       zoomControl?: boolean;
+      /** GL 벡터맵 (Style Editor 연동 시 필수) */
+      gl?: boolean;
+      /** Style Editor에서 발행한 My Style ID (GL 전용) */
+      customStyleId?: string;
     }
 
     class Map {
@@ -45,6 +49,8 @@ declare global {
       fitBounds(bounds: LatLngBounds, margins?: number | Partial<Record<"top" | "right" | "bottom" | "left", number>>): void;
       getBounds(): LatLngBounds;
       panTo(latlng: LatLng, transitionOptions?: object): void;
+      /** 중심·줌을 한 번에 애니메이션으로 맞춥니다. */
+      morph(latlng: LatLng, zoom?: number, transitionOptions?: object): void;
       autoResize(): void;
       destroy(): void;
     }

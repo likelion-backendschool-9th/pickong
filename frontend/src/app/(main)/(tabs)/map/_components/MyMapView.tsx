@@ -2,7 +2,7 @@
 
 import { ChevronDown, ChevronUp, Info, Link2, LocateFixed, MapPinPlus } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import { categoryLabel, formatHours, usePlacesInBounds, type Place, type PlaceCategory, type SavedPlace } from "@/entities/place";
 import { SavePlaceButton } from "@/features/save-place";
 import { routes } from "@/shared/config/routes";
@@ -11,8 +11,18 @@ import { getCurrentPosition, type LatLng, type LatLngBounds } from "@/shared/lib
 import { MapView } from "@/shared/map";
 import { BottomSheet } from "@/shared/ui/BottomSheet";
 import { Button, ButtonLink } from "@/shared/ui/Button";
-import { Badge, Thumb } from "@/shared/ui/display";
+import { Badge, Skeleton, Thumb } from "@/shared/ui/display";
 import { useToast } from "@/shared/ui/Toast";
+import {
+  DEFAULT_MAP_ZOOM,
+  hasBootstrappedMapGps,
+  markMapGpsBootstrapped,
+  readMapCamera,
+  readUserLocation,
+  writeMapCamera,
+  writeUserLocation,
+  type MapCamera,
+} from "../_lib/mapSession";
 
 const POI = "poi:";
 
@@ -20,9 +30,8 @@ type FocusRequest = { key: string; position: LatLng; keepZoom?: boolean } | null
 
 /**
  * 내 지도 (지도 우선형): 주변 장소는 작은 점, 내가 저장한 곳은 초록 핀.
+ * 세션 최초 진입 때만 GPS로 중심을 잡고, 이후 재진입은 마지막 카메라(중심·줌)를 복원합니다.
  * 장소를 누르면 지도가 그 핀으로 옮겨지고(카드에 가리지 않게), 아래에 작은 요약 카드가 뜹니다.
- * 카드를 누르면 펼쳐져 저장한 곳은 ‘일정에 추가 · 직접 추가/링크’, 주변 장소는 영업시간 · 상세 보기가 보입니다.
- * (카카오 지도 연결 후에는 지도 자체의 장소 표시를 쓰고, 이 화면은 저장 핀만 올리면 됩니다.)
  */
 export function MyMapView({
   saved,
@@ -49,6 +58,93 @@ export function MyMapView({
   const [mapFocus, setMapFocus] = useState<FocusRequest>(null);
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const [locating, setLocating] = useState(false);
+  /**
+   * 클라이언트에서 세션을 읽은 뒤에만 지도를 만듭니다.
+   * (SSR hydrate 때 useState(sessionStorage)는 항상 null로 고정되는 문제를 피합니다.)
+   */
+  const [bootCamera, setBootCamera] = useState<MapCamera | null>(null);
+  const [bootReady, setBootReady] = useState(false);
+  /** 최초 GPS 실패 메시지. 있으면 지도 위에 재시도 UI를 띄웁니다. */
+  const [gpsBootError, setGpsBootError] = useState<string | null>(null);
+  const [gpsBootRetrying, setGpsBootRetrying] = useState(false);
+
+  const applyGpsPosition = (position: LatLng, focusKey: string) => {
+    const camera: MapCamera = { center: position, zoom: DEFAULT_MAP_ZOOM };
+    writeMapCamera(camera);
+    writeUserLocation(position);
+    setUserLocation(position);
+    setBootCamera(camera);
+    setMapFocus({ key: focusKey, position });
+    setGpsBootError(null);
+  };
+
+  /**
+   * cacheComponents(Activity)는 탭을 숨겨도 bootCamera state를 유지합니다.
+   * 지도 effect는 다시 돌지만, 첫 페인트 props가 낡은 bootCamera면 그 좌표로
+   * 지도를 만들고 세션까지 덮어씁니다. 세션 재동기화는 useLayoutEffect로
+   * 지도 생성 effect보다 먼저 반영합니다.
+   */
+  useLayoutEffect(() => {
+    if (!hasBootstrappedMapGps()) return;
+    setBootCamera(readMapCamera());
+    setUserLocation(readUserLocation());
+    setBootReady(true);
+  }, []);
+
+  // 세션 최초 진입만 GPS → 카메라 확정 후에 MapView를 마운트합니다.
+  useEffect(() => {
+    if (hasBootstrappedMapGps()) return;
+
+    let cancelled = false;
+
+    async function boot() {
+      try {
+        const position = await getCurrentPosition();
+        if (cancelled) return;
+        // Strict Mode 재마운트에도 살아남도록 세션에 먼저 남깁니다.
+        const camera: MapCamera = { center: position, zoom: DEFAULT_MAP_ZOOM };
+        writeMapCamera(camera);
+        writeUserLocation(position);
+        setUserLocation(position);
+        setBootCamera(camera);
+      } catch (err) {
+        if (cancelled) return;
+        // 권한 거부·실패 → MapView 기본 지역 + 재시도 안내.
+        setBootCamera(null);
+        setGpsBootError(err instanceof Error ? err.message : "위치를 불러오지 못했어요.");
+      } finally {
+        if (!cancelled) {
+          markMapGpsBootstrapped();
+          setBootReady(true);
+        }
+      }
+    }
+
+    void boot();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /** 팬·줌 때도 bootCamera를 같이 갱신해 Activity 복귀 시 낡은 state를 남기지 않습니다. */
+  const persistCamera = (camera: MapCamera) => {
+    writeMapCamera(camera);
+    setBootCamera(camera);
+  };
+
+  /** 최초 GPS가 실패한 뒤, 같은 화면에서 위치를 다시 요청합니다. */
+  const retryGpsBoot = async () => {
+    if (gpsBootRetrying) return;
+    setGpsBootRetrying(true);
+    try {
+      const position = await getCurrentPosition();
+      applyGpsPosition(position, `gps-retry:${position.lat},${position.lng}:${Date.now()}`);
+    } catch (err) {
+      setGpsBootError(err instanceof Error ? err.message : "위치를 불러오지 못했어요.");
+    } finally {
+      setGpsBootRetrying(false);
+    }
+  };
 
   // 검색에서 장소를 고르면 그 장소로 이동해 선택 (렌더 중 상태 보정: 고른 장소가 바뀐 경우에만)
   const [focusedId, setFocusedId] = useState<string | null>(null);
@@ -93,6 +189,7 @@ export function MyMapView({
     setLocating(true);
     try {
       const position = await getCurrentPosition();
+      writeUserLocation(position);
       setUserLocation(position);
       setMapFocus({ key: `me:${position.lat},${position.lng}:${Date.now()}`, position });
     } catch (err) {
@@ -104,6 +201,10 @@ export function MyMapView({
       setLocating(false);
     }
   };
+
+  if (!bootReady) {
+    return <Skeleton className="h-[calc(100dvh-250px)] min-h-[360px] rounded-none" />;
+  }
 
   return (
     <div className="relative">
@@ -134,6 +235,8 @@ export function MyMapView({
       </div>
       <MapView
         className="h-[calc(100dvh-250px)] min-h-[360px]"
+        center={bootCamera?.center}
+        zoom={bootCamera?.zoom}
         markers={[
           ...pois.map((p) => ({ id: POI + p.id, position: p.location, title: p.name, tone: "poi" as const })),
           ...saved.map((s, i) => ({
@@ -148,14 +251,28 @@ export function MyMapView({
         onMarkerClick={select}
         onMapClick={clearSelection}
         onBoundsChange={setBounds}
+        onCameraChange={persistCamera}
         focus={mapFocus}
         userLocation={userLocation}
         caption={undefined}
       >
+        {gpsBootError && (
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-map-land/95 px-6 text-center">
+            <p className="text-[13px] text-ink-sub">{gpsBootError}</p>
+            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+              <Button type="button" size="sm" onClick={retryGpsBoot} disabled={gpsBootRetrying} aria-busy={gpsBootRetrying}>
+                다시 시도
+              </Button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => setGpsBootError(null)} disabled={gpsBootRetrying}>
+                기본 지역으로 보기
+              </Button>
+            </div>
+          </div>
+        )}
         <button
           type="button"
           onClick={goToMyLocation}
-          disabled={locating}
+          disabled={locating || !!gpsBootError}
           aria-label="내 위치로 이동"
           aria-busy={locating}
           className={cn(

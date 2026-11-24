@@ -1,6 +1,8 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { LatLngBounds } from "@/shared/lib/geo";
+import { isPlaceBoundsQueryAllowed, placeBoundsCacheKey, quantizePlaceBounds } from "../boundsQuery";
 import { FILTER_CATEGORIES } from "../categories";
+import type { Place } from "../model";
 import { mapCategoryApi, placeApi, savedPlaceApi, type SavePlacesInput, type UpdateSavedPlacesInput } from "./placeApi";
 
 export const placeKeys = {
@@ -28,19 +30,28 @@ export function useSaveMapCategories() {
 export const useSavedPlaces = () => useQuery({ queryKey: placeKeys.saved(), queryFn: savedPlaceApi.list });
 
 /**
- * 지도 범위 안의 장소. 범위를 소수 셋째 자리(약 100m)로 묶어 작은 이동에는 다시 요청하지 않고,
- * 새로 불러오는 동안에는 이전 결과를 그대로 보여 줍니다.
+ * 지도 범위 안의 장소.
+ * - 소수 셋째 자리(~100m)로 묶어 동일·근접 영역은 캐시·중복 요청을 막습니다.
+ * - AbortSignal로 이전 요청을 취소해, 빠른 이동 시 늦은 응답이 최신 목록을 덮지 않습니다.
+ * - 가로·세로 15km를 넘는 광역은 조회하지 않습니다.
+ * - 새 범위를 불러오는 동안에는 이전 결과를 잠시 유지합니다.
  */
 export function usePlacesInBounds(bounds: LatLngBounds | null) {
-  const round = (n: number) => n.toFixed(3);
-  const key = bounds ? [bounds.west, bounds.south, bounds.east, bounds.north].map(round).join(",") : "";
-  return useQuery({
-    queryKey: placeKeys.inBounds(key),
-    queryFn: ({ signal }) => placeApi.inBounds(bounds!, signal),
-    enabled: !!bounds,
+  const allowed = !!bounds && isPlaceBoundsQueryAllowed(bounds);
+  const quantized = allowed && bounds ? quantizePlaceBounds(bounds) : null;
+  const key = quantized ? placeBoundsCacheKey(quantized) : "";
+  const result = useQuery({
+    queryKey: placeKeys.inBounds(key || "none"),
+    queryFn: ({ signal }) => placeApi.inBounds(quantized!, signal),
+    enabled: !!quantized,
     placeholderData: keepPreviousData,
     staleTime: 60_000,
   });
+  // 광역·미준비 구간에서는 이전 동네 핀을 그대로 두지 않습니다.
+  if (!quantized) {
+    return { ...result, data: [] as Place[] };
+  }
+  return result;
 }
 
 export const usePlaceDetail = (id: string) =>
