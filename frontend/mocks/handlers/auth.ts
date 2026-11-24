@@ -5,13 +5,13 @@ import { HttpError, html, redirect, withCookies, type Ctx, type Route } from "..
 /*
  * 소셜 로그인(카카오 · Google) · 최초 가입 온보딩 · 토큰 mock.
  *
- * 실제 제공자 대신 이 서버가 동의 화면을 흉내 냅니다(GET /api/auth/oauth2/authorization/:provider).
+ * 실제 제공자 대신 이 서버가 동의 화면을 흉내 냅니다(GET /api/v1/auth/oauth2/authorization/:provider).
  * 나머지는 실제 백엔드와 같은 규칙으로 동작합니다.
  * - state를 쿠키와 서버에 함께 저장하고 콜백에서 비교합니다 (로그인 CSRF 방지).
  * - 처음 온 소셜 계정은 임시 가입 세션 쿠키만 받고, 온보딩을 마쳐야 Access · Refresh Token 쿠키를 받습니다.
  * - Refresh Token은 쓸 때마다 바뀌고, 이미 바뀐 토큰이 다시 오면 같은 family 전체를 폐기합니다.
  *
- * mock에는 ‘나’(서연)가 한 명뿐이라, 새로 가입하거나 다른 계정으로 로그인해도 /api/me는 서연을 돌려줍니다.
+ * mock에는 ‘나’(서연)가 한 명뿐이라, 새로 가입하거나 다른 계정으로 로그인해도 /api/v1/me는 서연을 돌려줍니다.
  * 피드 · 지도 등 다른 mock API는 지금처럼 로그인 없이도 응답합니다. 로그인이 필요한 mock API는 로그인 수단 관리뿐입니다.
  */
 
@@ -20,12 +20,12 @@ const PROVIDER_BY_SLUG: Record<string, Provider> = { kakao: "KAKAO", google: "GO
 const LABEL: Record<Provider, string> = { KAKAO: "카카오", GOOGLE: "Google" };
 const slug = (p: Provider) => p.toLowerCase();
 
-/** 쿠키 이름 · 경로. 실제 백엔드는 경로가 /api/v1 아래이고 Secure가 붙습니다. */
+/** 쿠키 이름 · 경로. 실제 백엔드와 같습니다(백엔드는 HTTPS 요청이면 Secure가 붙음). */
 const COOKIE = {
   access: { name: "pickong_at", path: "/" },
-  refresh: { name: "pickong_rt", path: "/api/auth" },
-  signup: { name: "pickong_signup", path: "/api/auth" },
-  oauthState: { name: "pickong_oauth_state", path: "/api/auth/oauth2" },
+  refresh: { name: "pickong_rt", path: "/api/v1/auth" },
+  signup: { name: "pickong_signup", path: "/api/v1/auth" },
+  oauthState: { name: "pickong_oauth_state", path: "/api/v1/auth/oauth2" },
 } as const;
 type CookieKey = keyof typeof COOKIE;
 
@@ -117,7 +117,7 @@ export const isUsernameTaken = (username: string, exceptUserId?: string) =>
 
 function consentPage(provider: Provider, mode: "login" | "link", state: string) {
   const callback = (params: Record<string, string>) =>
-    `/api/auth/oauth2/callback/${slug(provider)}?${new URLSearchParams({ state, ...params })}`;
+    `/api/v1/auth/oauth2/callback/${slug(provider)}?${new URLSearchParams({ state, ...params })}`;
   const owner = (userId: string) => db.users.find((u) => u.id === userId)?.nickname ?? userId;
   const existing = socialAccounts
     .filter((a) => a.provider === provider)
@@ -130,7 +130,7 @@ function consentPage(provider: Provider, mode: "login" | "link", state: string) 
     ...existing,
     { href: callback({ code: "new" }), title: `새 ${LABEL[provider]} 계정`, desc: "찜콩에 처음 오는 계정 → 온보딩으로 이동" },
     { href: callback({ error: "access_denied" }), title: "취소", desc: "동의 화면에서 취소한 경우" },
-    { href: `/api/auth/oauth2/callback/${slug(provider)}?code=new&state=forged`, title: "state 위조", desc: "로그인 CSRF 공격처럼 state가 다른 콜백" },
+    { href: `/api/v1/auth/oauth2/callback/${slug(provider)}?code=new&state=forged`, title: "state 위조", desc: "로그인 CSRF 공격처럼 state가 다른 콜백" },
   ];
   const color = provider === "KAKAO" ? "#fee500" : "#ffffff";
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -164,7 +164,7 @@ export const authRoutes: Route[] = [
      * ?link=<1회용 토큰>이 있으면 로그인한 회원의 계정 추가 연결입니다.
      */
     method: "GET",
-    path: "/api/auth/oauth2/authorization/:provider",
+    path: "/api/v1/auth/oauth2/authorization/:provider",
     delay: 0,
     handler: (ctx) => {
       const provider = providerOf(ctx);
@@ -186,7 +186,7 @@ export const authRoutes: Route[] = [
   {
     /** 제공자 콜백. 기존 회원 → 로그인 후 피드, 신규 → 임시 가입 세션 후 온보딩, 연결 → 로그인 수단 관리 */
     method: "GET",
-    path: "/api/auth/oauth2/callback/:provider",
+    path: "/api/v1/auth/oauth2/callback/:provider",
     delay: 0,
     handler: (ctx) => {
       const provider = providerOf(ctx);
@@ -233,7 +233,7 @@ export const authRoutes: Route[] = [
   // ── 최초 가입 온보딩 ──────────────────────────────────
   {
     method: "GET",
-    path: "/api/auth/signup",
+    path: "/api/v1/auth/signup",
     handler: (ctx) => {
       const pending = pendingSignups.get(readCookie(ctx, "signup") ?? "");
       if (pending && pending.expiresAt > now()) {
@@ -245,7 +245,7 @@ export const authRoutes: Route[] = [
   },
   {
     method: "POST",
-    path: "/api/auth/signup",
+    path: "/api/v1/auth/signup",
     delay: 500,
     handler: (ctx) => {
       const signupId = readCookie(ctx, "signup") ?? "";
@@ -297,7 +297,7 @@ export const authRoutes: Route[] = [
   {
     /** 가입 그만두기 */
     method: "DELETE",
-    path: "/api/auth/signup",
+    path: "/api/v1/auth/signup",
     handler: (ctx) => {
       pendingSignups.delete(readCookie(ctx, "signup") ?? "");
       return withCookies(undefined, [clearCookie("signup")]);
@@ -306,7 +306,7 @@ export const authRoutes: Route[] = [
   {
     /** 닉네임(= 사용자 ID) 중복 확인. 대소문자를 무시하고 비교합니다. */
     method: "GET",
-    path: "/api/auth/username-availability",
+    path: "/api/v1/auth/username-availability",
     delay: 300,
     handler: ({ query }) => {
       const username = (query.get("username") ?? "").trim().toLowerCase();
@@ -319,7 +319,7 @@ export const authRoutes: Route[] = [
   {
     /** Access Token 재발급 + Refresh Token 로테이션. 이미 바뀐 토큰이 다시 오면 family 전체를 폐기합니다. */
     method: "POST",
-    path: "/api/auth/refresh",
+    path: "/api/v1/auth/refresh",
     handler: (ctx) => {
       const presented = readCookie(ctx, "refresh") ?? "";
       const row = refreshTokens.get(presented);
@@ -337,7 +337,7 @@ export const authRoutes: Route[] = [
   {
     /** 로그아웃: 이 로그인 세션(family)의 Refresh Token을 모두 폐기하고 쿠키를 지웁니다. */
     method: "POST",
-    path: "/api/auth/logout",
+    path: "/api/v1/auth/logout",
     handler: (ctx) => {
       const row = refreshTokens.get(readCookie(ctx, "refresh") ?? "");
       if (row) revokeFamily(row.family);
@@ -349,7 +349,7 @@ export const authRoutes: Route[] = [
   // ── 로그인 수단 관리 (로그인 필요) ──────────────────────────
   {
     method: "GET",
-    path: "/api/me/social-accounts",
+    path: "/api/v1/me/social-accounts",
     handler: (ctx) => {
       const userId = requireUser(ctx);
       return socialAccounts
@@ -360,7 +360,7 @@ export const authRoutes: Route[] = [
   {
     /** 계정 추가 연결 시작: 이 회원 전용 1회용 연결 주소를 만들어 줍니다. */
     method: "POST",
-    path: "/api/me/social-accounts/:provider",
+    path: "/api/v1/me/social-accounts/:provider",
     handler: (ctx) => {
       const userId = requireUser(ctx);
       const provider = providerOf(ctx);
@@ -369,12 +369,12 @@ export const authRoutes: Route[] = [
       }
       const link = token();
       linkTokens.set(link, { userId, provider, expiresAt: now() + LINK_TTL_SEC * 1000 });
-      return { authorizationUrl: `/api/auth/oauth2/authorization/${slug(provider)}?link=${link}` };
+      return { authorizationUrl: `/api/v1/auth/oauth2/authorization/${slug(provider)}?link=${link}` };
     },
   },
   {
     method: "DELETE",
-    path: "/api/me/social-accounts/:provider",
+    path: "/api/v1/me/social-accounts/:provider",
     handler: (ctx) => {
       const userId = requireUser(ctx);
       const provider = providerOf(ctx);

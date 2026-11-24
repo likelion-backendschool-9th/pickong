@@ -153,7 +153,7 @@ function contentList(type: string, q: string) {
 export const adminRoutes: Route[] = [
   {
     method: "GET",
-    path: "/api/admin/summary",
+    path: "/api/v1/admin/summary",
     handler: () => ({
       pendingReports: reports.filter((r) => r.status === "PENDING").length,
       pendingCreatorApplications: creatorState.applications.filter((a) => a.status === "PENDING").length,
@@ -167,7 +167,7 @@ export const adminRoutes: Route[] = [
   // ── 신고 ──────────────────────────────────────────
   {
     method: "GET",
-    path: "/api/admin/reports",
+    path: "/api/v1/admin/reports",
     handler: ({ query }) => {
       const status = query.get("status") ?? "PENDING";
       return reports.filter((r) => r.status === status).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(reportDto);
@@ -176,7 +176,7 @@ export const adminRoutes: Route[] = [
   {
     /** 신고 처리: 기각 / 콘텐츠 숨김 / 작성자 제재 */
     method: "POST",
-    path: "/api/admin/reports/:id/resolve",
+    path: "/api/v1/admin/reports/:id/resolve",
     handler: ({ params, body }) => {
       const r = reports.find((x) => x.id === params.id) ?? notFound("신고");
       if (r.status === "RESOLVED") throw new HttpError(409, "ALREADY_RESOLVED", "이미 처리한 신고예요.");
@@ -203,7 +203,7 @@ export const adminRoutes: Route[] = [
   // ── 사용자 제재 ────────────────────────────────────
   {
     method: "GET",
-    path: "/api/admin/users",
+    path: "/api/v1/admin/users",
     handler: ({ query }) => {
       const q = (query.get("q") ?? "").trim().toLowerCase();
       const filter = query.get("filter") ?? "ALL";
@@ -216,7 +216,7 @@ export const adminRoutes: Route[] = [
   },
   {
     method: "POST",
-    path: "/api/admin/users/:id/sanctions",
+    path: "/api/v1/admin/users/:id/sanctions",
     handler: ({ params, body }) => {
       sanction(params.id, String(body?.type ?? "") as SanctionType, String(body?.reason ?? ""));
       return adminUserDto(params.id);
@@ -224,7 +224,7 @@ export const adminRoutes: Route[] = [
   },
   {
     method: "DELETE",
-    path: "/api/admin/users/:id/sanctions",
+    path: "/api/v1/admin/users/:id/sanctions",
     handler: ({ params }) => {
       if (!findUser(params.id)) notFound("사용자");
       delete sanctions[params.id];
@@ -235,12 +235,12 @@ export const adminRoutes: Route[] = [
   // ── 콘텐츠 관리 ────────────────────────────────────
   {
     method: "GET",
-    path: "/api/admin/contents",
+    path: "/api/v1/admin/contents",
     handler: ({ query }) => contentList(query.get("type") ?? "POST", query.get("q") ?? ""),
   },
   {
     method: "PATCH",
-    path: "/api/admin/contents/:type/:id",
+    path: "/api/v1/admin/contents/:type/:id",
     handler: ({ params, body }) => {
       const type = params.type.toUpperCase();
       if (type !== "POST" && type !== "COLLECTION") throw new HttpError(400, "INVALID_INPUT", "콘텐츠 종류를 확인해 주세요.");
@@ -256,7 +256,7 @@ export const adminRoutes: Route[] = [
   // ── 크리에이터 심사 ────────────────────────────────
   {
     method: "GET",
-    path: "/api/admin/creator-applications",
+    path: "/api/v1/admin/creator-applications",
     handler: ({ query }) => {
       const status = query.get("status") ?? "PENDING";
       return creatorState.applications
@@ -267,7 +267,7 @@ export const adminRoutes: Route[] = [
   },
   {
     method: "POST",
-    path: "/api/admin/creator-applications/:id/review",
+    path: "/api/v1/admin/creator-applications/:id/review",
     handler: ({ params, body }) => {
       const { userId, ...a } = reviewApplication(params.id, !!body?.approve, String(body?.rejectReason ?? ""));
       return { ...a, applicant: userSummary(userId) };
@@ -277,7 +277,7 @@ export const adminRoutes: Route[] = [
   // ── 환불 처리 ──────────────────────────────────────
   {
     method: "GET",
-    path: "/api/admin/refunds",
+    path: "/api/v1/admin/refunds",
     handler: ({ query }) => {
       const status = query.get("status") ?? "PENDING";
       return db.purchases
@@ -289,7 +289,7 @@ export const adminRoutes: Route[] = [
   {
     /** 승인하면 카드 결제를 취소(mock)하고 열람 권한을 회수합니다. */
     method: "POST",
-    path: "/api/admin/refunds/:purchaseId",
+    path: "/api/v1/admin/refunds/:purchaseId",
     delay: 500,
     handler: ({ params, body }) => {
       const p = db.purchases.find((x) => x.id === params.purchaseId) ?? notFound("구매");
@@ -306,7 +306,7 @@ export const adminRoutes: Route[] = [
   // ── 정산 처리 ──────────────────────────────────────
   {
     method: "GET",
-    path: "/api/admin/settlements",
+    path: "/api/v1/admin/settlements",
     handler: ({ query }) => {
       const status = query.get("status") ?? "SCHEDULED";
       return creatorState.settlements
@@ -318,7 +318,7 @@ export const adminRoutes: Route[] = [
   {
     /** 지급 완료 / 보류 / 보류 해제. 계좌가 없으면 지급할 수 없습니다. */
     method: "POST",
-    path: "/api/admin/settlements/:id",
+    path: "/api/v1/admin/settlements/:id",
     handler: ({ params, body }) => {
       const s = creatorState.settlements.find((x) => x.id === params.id) ?? notFound("정산");
       const action = String(body?.action ?? "");

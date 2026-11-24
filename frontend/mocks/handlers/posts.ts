@@ -25,14 +25,14 @@ const feedPosts = (tab: string) =>
 export const postRoutes: Route[] = [
   {
     method: "GET",
-    path: "/api/feed",
+    path: "/api/v1/feed",
     delay: 300,
     handler: ({ query }) => feedPosts(query.get("tab") ?? "following").map(postDto),
   },
   {
     /** 피드 지도: 피드 탭(팔로잉 · 추천)과 같은 기준의 게시물에 연결된 장소 (내 지도와 별개). postIds는 최신순 */
     method: "GET",
-    path: "/api/feed/places",
+    path: "/api/v1/feed/places",
     delay: 300,
     handler: ({ query }) => {
       const byPlace = new Map<string, string[]>();
@@ -51,10 +51,10 @@ export const postRoutes: Route[] = [
       }));
     },
   },
-  { method: "GET", path: "/api/posts/:id", handler: ({ params }) => postDto(postOr404(params.id)) },
+  { method: "GET", path: "/api/v1/posts/:id", handler: ({ params }) => postDto(postOr404(params.id)) },
   {
     method: "POST",
-    path: "/api/posts",
+    path: "/api/v1/posts",
     delay: 600,
     handler: ({ body }) => {
       const photos = Array.isArray(body?.photos) ? body.photos : [];
@@ -79,7 +79,7 @@ export const postRoutes: Route[] = [
   },
   {
     method: "POST",
-    path: "/api/posts/:id/like",
+    path: "/api/v1/posts/:id/like",
     handler: ({ params }) => {
       const post = postOr404(params.id);
       if (!post.likedByMe) {
@@ -91,7 +91,7 @@ export const postRoutes: Route[] = [
   },
   {
     method: "DELETE",
-    path: "/api/posts/:id/like",
+    path: "/api/v1/posts/:id/like",
     handler: ({ params }) => {
       const post = postOr404(params.id);
       if (post.likedByMe) {
@@ -103,7 +103,7 @@ export const postRoutes: Route[] = [
   },
   {
     method: "POST",
-    path: "/api/posts/:id/bookmark",
+    path: "/api/v1/posts/:id/bookmark",
     handler: ({ params }) => {
       const post = postOr404(params.id);
       post.bookmarkedByMe = true;
@@ -112,7 +112,7 @@ export const postRoutes: Route[] = [
   },
   {
     method: "DELETE",
-    path: "/api/posts/:id/bookmark",
+    path: "/api/v1/posts/:id/bookmark",
     handler: ({ params }) => {
       const post = postOr404(params.id);
       post.bookmarkedByMe = false;
@@ -121,7 +121,7 @@ export const postRoutes: Route[] = [
   },
   {
     method: "GET",
-    path: "/api/posts/:id/comments",
+    path: "/api/v1/posts/:id/comments",
     handler: ({ params }) => {
       postOr404(params.id);
       return db.comments
@@ -132,7 +132,7 @@ export const postRoutes: Route[] = [
   },
   {
     method: "POST",
-    path: "/api/posts/:id/comments",
+    path: "/api/v1/posts/:id/comments",
     handler: ({ params, body }) => {
       postOr404(params.id);
       const content = String(body?.content ?? "").trim();

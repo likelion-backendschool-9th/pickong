@@ -58,12 +58,12 @@ const validUserIds = (raw: unknown) => {
 export const groupChatRoutes: Route[] = [
   {
     method: "GET",
-    path: "/api/group-chats",
+    path: "/api/v1/group-chats",
     handler: () => groups.filter((g) => g.memberIds.includes(ME_ID)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map(groupDto),
   },
   {
     method: "POST",
-    path: "/api/group-chats",
+    path: "/api/v1/group-chats",
     handler: ({ body }) => {
       const name = validName(body?.name);
       const ids = validUserIds(body?.memberIds).filter((id) => id !== ME_ID);
@@ -75,11 +75,11 @@ export const groupChatRoutes: Route[] = [
       return groupDto(g);
     },
   },
-  { method: "GET", path: "/api/group-chats/:id", handler: ({ params }) => groupDto(groupOr404(params.id)) },
+  { method: "GET", path: "/api/v1/group-chats/:id", handler: ({ params }) => groupDto(groupOr404(params.id)) },
   {
     /** 이름 변경은 방장만, 알림 끄기는 각자 */
     method: "PATCH",
-    path: "/api/group-chats/:id",
+    path: "/api/v1/group-chats/:id",
     handler: ({ params, body }) => {
       const g = groupOr404(params.id);
       if (body?.name !== undefined) {
@@ -94,7 +94,7 @@ export const groupChatRoutes: Route[] = [
   },
   {
     method: "POST",
-    path: "/api/group-chats/:id/members",
+    path: "/api/v1/group-chats/:id/members",
     handler: ({ params, body }) => {
       const g = groupOr404(params.id);
       const ids = validUserIds(body?.userIds).filter((id) => !g.memberIds.includes(id));
@@ -105,7 +105,7 @@ export const groupChatRoutes: Route[] = [
   },
   {
     method: "DELETE",
-    path: "/api/group-chats/:id/members/:userId",
+    path: "/api/v1/group-chats/:id/members/:userId",
     handler: ({ params }) => {
       const g = groupOr404(params.id);
       ownerOnly(g);
@@ -117,7 +117,7 @@ export const groupChatRoutes: Route[] = [
   {
     /** 나가기: 방장이 나가면 가장 먼저 들어온 멤버가 방장이 되고, 아무도 없으면 방이 사라집니다. */
     method: "POST",
-    path: "/api/group-chats/:id/leave",
+    path: "/api/v1/group-chats/:id/leave",
     handler: ({ params }) => {
       const g = groupOr404(params.id);
       g.memberIds = g.memberIds.filter((id) => id !== ME_ID);
