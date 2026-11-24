@@ -11,6 +11,30 @@ import org.springframework.data.repository.query.Param;
 public interface FeedJpaRepository extends JpaRepository<FeedJpaEntity, Long> {
     List<FeedJpaEntity> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
+    // PUBLIC 피드를 최신순으로 조회 (삭제·숨김 제외, cursor 없으면 첫 페이지)
+    @Query("SELECT f FROM FeedJpaEntity f " +
+           "WHERE f.visibility = 'PUBLIC' " +
+           "AND f.deletedAt IS NULL " +
+           "AND f.hiddenAt IS NULL " +
+           "AND (:cursor IS NULL OR f.id < :cursor) " +
+           "ORDER BY f.id DESC")
+    List<FeedJpaEntity> findRecommendedFeeds(
+            @Param("cursor") Long cursor,
+            Pageable pageable);
+
+    // 팔로잉한 사용자의 PUBLIC 피드를 최신순으로 조회 (삭제·숨김 제외)
+    @Query("SELECT f FROM FeedJpaEntity f " +
+           "WHERE f.userId IN (SELECT fw.followeeId FROM FollowJpaEntity fw WHERE fw.followerId = :userId) " +
+           "AND f.visibility = 'PUBLIC' " +
+           "AND f.deletedAt IS NULL " +
+           "AND f.hiddenAt IS NULL " +
+           "AND (:cursor IS NULL OR f.id < :cursor) " +
+           "ORDER BY f.id DESC")
+    List<FeedJpaEntity> findFollowingFeeds(
+            @Param("userId") Long userId,
+            @Param("cursor") Long cursor,
+            Pageable pageable);
+
     // like_count를 DB에서 직접 +1 — 동시 요청에서도 카운트 정확하게 유지됨
     @Modifying
     @Query("UPDATE FeedJpaEntity f SET f.likeCount = f.likeCount + 1 WHERE f.id = :feedId")
