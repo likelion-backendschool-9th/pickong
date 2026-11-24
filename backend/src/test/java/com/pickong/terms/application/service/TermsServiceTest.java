@@ -135,8 +135,8 @@ class TermsServiceTest {
         allCurrent();
         OffsetDateTime agreedAt = OffsetDateTime.parse("2026-11-01T00:00:00Z");
         given(termsPersistencePort.findActiveAgreements(7L)).willReturn(List.of(
-                new AgreedTerms(TermsType.SERVICE, "0.9", agreedAt),
-                new AgreedTerms(TermsType.PRIVACY, "1.0", agreedAt)));
+                new AgreedTerms(TermsType.SERVICE, "0.9", "서비스 이용약관", agreedAt),
+                new AgreedTerms(TermsType.PRIVACY, "1.0", "개인정보 수집 · 이용 동의", agreedAt)));
 
         List<AgreementStatus> list = termsService.getMyAgreements(7L);
 
@@ -153,10 +153,25 @@ class TermsServiceTest {
         allCurrent();
         OffsetDateTime recent = OffsetDateTime.parse("2026-11-20T00:00:00Z");
         given(termsPersistencePort.findActiveAgreements(7L)).willReturn(List.of(
-                new AgreedTerms(TermsType.MARKETING, "1.0", recent),
-                new AgreedTerms(TermsType.MARKETING, "1.0", OffsetDateTime.parse("2026-11-01T00:00:00Z"))));
+                new AgreedTerms(TermsType.MARKETING, "1.0", "마케팅 정보 수신 동의", recent),
+                new AgreedTerms(TermsType.MARKETING, "1.0", "마케팅 정보 수신 동의", OffsetDateTime.parse("2026-11-01T00:00:00Z"))));
 
         assertThat(termsService.getMyAgreements(7L).get(2).agreedAt()).isEqualTo(recent);
+    }
+
+    @Test
+    @DisplayName("새 버전에서 제목이 바뀌어도, 동의한 회원에게는 동의한 버전의 버전 · 제목을 함께 보여 준다")
+    void agreedVersionTitle() {
+        Terms marketing11 = Terms.builder().id(4L).type(TermsType.MARKETING).version("1.1").title("마케팅 · 광고 정보 수신 동의").build();
+        currentTermsAre(marketing11, terms(2, TermsType.PRIVACY, true), terms(1, TermsType.SERVICE, true));
+        given(termsPersistencePort.findActiveAgreements(7L)).willReturn(List.of(
+                new AgreedTerms(TermsType.MARKETING, "1.0", "마케팅 정보 수신 동의", OffsetDateTime.parse("2026-11-20T00:00:00Z"))));
+        AgreementStatus agreed = termsService.getMyAgreements(7L).get(2);
+        assertThat(agreed).extracting(AgreementStatus::version, AgreementStatus::title).containsExactly("1.0", "마케팅 정보 수신 동의");
+
+        given(termsPersistencePort.findActiveAgreements(7L)).willReturn(List.of());
+        AgreementStatus notAgreed = termsService.getMyAgreements(7L).get(2);
+        assertThat(notAgreed).extracting(AgreementStatus::version, AgreementStatus::title).containsExactly("1.1", "마케팅 · 광고 정보 수신 동의");
     }
 
     // ── 동의 · 철회 ─────────────────────────────────────────
@@ -168,7 +183,7 @@ class TermsServiceTest {
 
         termsService.updateAgreement(7L, "MARKETING", true);
 
-        verify(termsPersistencePort).saveAgreements(eq(7L), eq(List.of(3L)), any());
+        verify(termsPersistencePort).agreeIfAbsent(eq(7L), eq(3L), any());
     }
 
     @Test
@@ -176,11 +191,11 @@ class TermsServiceTest {
     void agreeTwice() {
         allCurrent();
         given(termsPersistencePort.findActiveAgreements(7L))
-                .willReturn(List.of(new AgreedTerms(TermsType.MARKETING, "1.0", OffsetDateTime.parse("2026-11-20T00:00:00Z"))));
+                .willReturn(List.of(new AgreedTerms(TermsType.MARKETING, "1.0", "마케팅 정보 수신 동의", OffsetDateTime.parse("2026-11-20T00:00:00Z"))));
 
         termsService.updateAgreement(7L, "MARKETING", true);
 
-        verify(termsPersistencePort, never()).saveAgreements(anyLong(), anyList(), any());
+        verify(termsPersistencePort, never()).agreeIfAbsent(anyLong(), anyLong(), any());
     }
 
     @Test
@@ -191,7 +206,7 @@ class TermsServiceTest {
         termsService.updateAgreement(7L, "MARKETING", false);
 
         verify(termsPersistencePort).revokeAgreements(eq(7L), eq(TermsType.MARKETING), any());
-        verify(termsPersistencePort, never()).saveAgreements(anyLong(), anyList(), any());
+        verify(termsPersistencePort, never()).agreeIfAbsent(anyLong(), anyLong(), any());
     }
 
     @Test
@@ -205,7 +220,7 @@ class TermsServiceTest {
                     .extracting(TermsServiceTest::errorOf)
                     .isEqualTo(TermsErrorCode.REQUIRED_TERMS_CANNOT_BE_REVOKED);
         }
-        verify(termsPersistencePort, never()).saveAgreements(anyLong(), anyList(), any());
+        verify(termsPersistencePort, never()).agreeIfAbsent(anyLong(), anyLong(), any());
         verify(termsPersistencePort, never()).revokeAgreements(anyLong(), any(), any());
     }
 

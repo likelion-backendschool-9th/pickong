@@ -10,9 +10,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.pickong.TestcontainersConfiguration;
 import com.pickong.auth.adapter.in.security.AuthCookies;
 import com.pickong.auth.application.port.in.TokenUseCase;
+import com.pickong.terms.application.port.in.TermsUseCase;
 import jakarta.servlet.http.Cookie;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,22 +49,35 @@ class TermsIntegrationTest {
     @Autowired
     TokenUseCase tokenUseCase;
 
+    @Autowired
+    TermsUseCase termsUseCase;
+
     private long me;
     private Cookie access;
 
     /** 가입한 회원 한 명: 필수 약관 두 개(1.0)에만 동의한 상태 */
     @BeforeEach
     void setUp() {
-        jdbc.update("DELETE FROM user_terms_agreements");
-        jdbc.update("DELETE FROM user_social_accounts");
-        jdbc.update("DELETE FROM refresh_tokens");
-        jdbc.update("DELETE FROM users");
+        clean();
         me = jdbc.queryForObject("INSERT INTO users (username) VALUES ('seoyeon') RETURNING id", Long.class);
         jdbc.update("""
                 INSERT INTO user_terms_agreements (user_id, terms_id, agreed_at)
                 SELECT ?, id, TIMESTAMPTZ '2026-11-20 10:00:00+09' FROM terms WHERE type IN ('SERVICE', 'PRIVACY')
                 """, me);
         access = new Cookie(AuthCookies.ACCESS_TOKEN, tokenUseCase.issue(me).accessToken());
+    }
+
+    /** 이 테스트는 실제로 커밋하므로, 끝나면 넣은 행을 지워 같은 DB를 쓰는 다른 테스트(롤백 방식)에 남기지 않습니다. */
+    @AfterEach
+    void tearDown() {
+        clean();
+    }
+
+    private void clean() {
+        jdbc.update("DELETE FROM user_terms_agreements");
+        jdbc.update("DELETE FROM user_social_accounts");
+        jdbc.update("DELETE FROM refresh_tokens");
+        jdbc.update("DELETE FROM users");
     }
 
     private ResultActions patchAgreement(String json) throws Exception {
@@ -165,6 +184,41 @@ class TermsIntegrationTest {
         patchAgreement("{\"type\":\"MARKETING\",\"agreed\":true}").andExpect(status().isOk());
 
         assertThat(marketingRows()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("동의 요청 두 개가 동시에 와도 철회하지 않은 동의 기록은 하나 (20번 반복)")
+    void concurrentAgreeKeepsOneRecord() throws Exception {
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            for (int round = 0; round < 20; round++) {
+                CountDownLatch start = new CountDownLatch(1); // 두 요청이 같은 순간에 출발하도록 묶음
+                List<Future<?>> requests = List.of(
+                        pool.submit(() -> { start.await(); return termsUseCase.updateAgreement(me, "MARKETING", true); }),
+                        pool.submit(() -> { start.await(); return termsUseCase.updateAgreement(me, "MARKETING", true); }));
+                start.countDown();
+                for (Future<?> request : requests) {
+                    request.get(); // 둘 다 예외 없이 끝나야 함 (유니크 예외로 트랜잭션이 중단되지 않음)
+                }
+
+                assertThat(marketingRows()).as("round %d", round).hasSize(1);
+                jdbc.update("DELETE FROM user_terms_agreements WHERE user_id = ? AND terms_id = (SELECT id FROM terms WHERE type = 'MARKETING')", me);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    @DisplayName("PATCH agreed가 true · false가 아니면(0 · 1 · \"true\" · null) 400 INVALID_INPUT이고 기록하지 않는다")
+    void agreedMustBeBoolean() throws Exception {
+        for (String agreed : new String[] {"0", "1", "\"true\"", "null"}) {
+            patchAgreement("{\"type\":\"MARKETING\",\"agreed\":" + agreed + "}")
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+        }
+
+        assertThat(marketingRows()).isEmpty();
     }
 
     @Test
