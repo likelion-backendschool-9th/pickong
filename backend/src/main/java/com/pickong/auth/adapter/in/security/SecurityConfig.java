@@ -6,6 +6,7 @@ import jakarta.servlet.DispatcherType;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -119,6 +120,8 @@ public class SecurityConfig {
                         // 오류 응답을 만드는 내부 포워드(/error)는 막지 않아야 원래 오류(404 · 500 등)가 그대로 보입니다.
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(PUBLIC_PATHS).permitAll()
+                        // 약관 전문: 가입 화면의 '보기'에서 로그인 전에 엽니다. 조회(GET)만 엽니다.
+                        .requestMatchers(HttpMethod.GET, "/terms/**").permitAll()
                         // TODO(#38): 피드 API에 @CurrentUser 연동이 끝나면 이 줄을 지우고, 공개할 조회 API만 따로 엽니다.
                         .requestMatchers("/feeds/**").permitAll()
                         // 관리자 API. 회원(ROLE_USER)은 403, 비로그인은 401. 공개로 열지 않습니다.
