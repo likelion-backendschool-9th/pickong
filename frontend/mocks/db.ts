@@ -58,6 +58,16 @@ export function canView(ownerId: string, visibility: string, viewerId = ME_ID) {
   return false;
 }
 
+/** 닉네임은 바꾼 뒤 14일 동안 다시 바꿀 수 없습니다 (백엔드 User.USERNAME_CHANGE_INTERVAL과 같음). */
+export const USERNAME_CHANGE_INTERVAL_MS = 14 * 24 * 60 * 60 * 1000;
+
+/** 다음 닉네임 변경 가능 시각. 바꾼 적이 없거나 14일이 지났으면 null */
+export function usernameChangeableAt(u: UserRow, now = Date.now()): string | null {
+  if (!u.usernameChangedAt) return null;
+  const at = new Date(u.usernameChangedAt).getTime() + USERNAME_CHANGE_INTERVAL_MS;
+  return at > now ? new Date(at).toISOString() : null;
+}
+
 export function userDto(u: UserRow) {
   return {
     id: u.id,
@@ -74,6 +84,8 @@ export function userDto(u: UserRow) {
     isFollowing: isFollowing(ME_ID, u.id),
     isCreator: !!u.isCreator,
     isMe: u.id === ME_ID,
+    // 내 정보(GET · PATCH /me)에만 내려갑니다.
+    ...(u.id === ME_ID ? { usernameChangeableAt: usernameChangeableAt(u) } : {}),
   };
 }
 

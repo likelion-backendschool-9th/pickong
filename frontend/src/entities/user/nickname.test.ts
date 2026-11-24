@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nicknameError, nicknameFeedback, nicknameStatus, normalizeNicknameInput } from "./nickname";
+import { nicknameError, nicknameFeedback, nicknameLockMessage, nicknameStatus, normalizeNicknameInput } from "./nickname";
 
 describe("nicknameError (닉네임 = 사용자 ID)", () => {
   it("3~20자만 허용한다", () => {
@@ -66,5 +66,22 @@ describe("nicknameFeedback", () => {
     expect(nicknameFeedback("서연", "invalid").error).toContain("영문으로만");
     expect(nicknameFeedback("seoyeon", "available")).toEqual({ error: null, hint: "사용할 수 있는 닉네임이에요." });
     expect(nicknameFeedback("seoyeon", "current").error).toBeNull();
+  });
+});
+
+describe("nicknameLockMessage", () => {
+  const now = new Date(2026, 10, 24, 12, 0).getTime();
+
+  it("다음 변경 가능 시각이 아직 오지 않았으면 그 날짜를 안내한다", () => {
+    expect(nicknameLockMessage(new Date(2026, 11, 8, 9, 30).toISOString(), now)).toBe("12월 8일부터 다시 바꿀 수 있어요.");
+  });
+
+  it("지금 바꿀 수 있거나(null) 그 시각이 지났으면 잠그지 않는다", () => {
+    expect(nicknameLockMessage(null, now)).toBeNull();
+    expect(nicknameLockMessage(new Date(2026, 10, 24, 11, 59).toISOString(), now)).toBeNull();
+  });
+
+  it("읽을 수 없는 값이면 잠그지 않는다 (서버가 최종 판단)", () => {
+    expect(nicknameLockMessage("not-a-date", now)).toBeNull();
   });
 });

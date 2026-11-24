@@ -4,11 +4,13 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   NAME_MAX,
+  NICKNAME_CHANGE_INTERVAL_DAYS,
   NICKNAME_MAX,
   NicknameStatusIcon,
   nameError,
   normalizeName,
   nicknameFeedback,
+  nicknameLockMessage,
   normalizeNicknameInput,
   useMe,
   useNicknameCheck,
@@ -41,6 +43,8 @@ function EditProfileForm({ me }: { me: User }) {
   const [bio, setBio] = useState(me.bio);
   const [region, setRegion] = useState(me.region);
 
+  // 닉네임은 14일에 한 번만 바꿀 수 있습니다. 아직 바꿀 수 없으면 입력칸을 잠그고 다음 변경 가능 날짜를 보여 줍니다.
+  const lockMessage = nicknameLockMessage(me.usernameChangeableAt);
   const status = useNicknameCheck(nickname, me.username);
   const { error: nicknameErr, hint } = nicknameFeedback(nickname, status);
   const nicknameOk = status === "available" || status === "current";
@@ -60,7 +64,10 @@ function EditProfileForm({ me }: { me: User }) {
           error={nicknameErr}
           hint={
             <span aria-live="polite" className={cn(status === "available" && "text-primary-deep")}>
-              {status === "available" ? `${hint} 저장하면 프로필 주소도 바뀌어요.` : hint}
+              {lockMessage ??
+                (status === "available"
+                  ? `${hint} 저장하면 프로필 주소도 바뀌고, ${NICKNAME_CHANGE_INTERVAL_DAYS}일 동안 다시 바꿀 수 없어요.`
+                  : hint)}
             </span>
           }
         >
@@ -72,6 +79,7 @@ function EditProfileForm({ me }: { me: User }) {
               id="pf-nick"
               value={nickname}
               onChange={(e) => setNickname(normalizeNicknameInput(e.target.value))}
+              disabled={lockMessage !== null}
               maxLength={NICKNAME_MAX}
               autoComplete="username"
               autoCapitalize="none"

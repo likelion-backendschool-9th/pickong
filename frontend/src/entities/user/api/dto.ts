@@ -14,6 +14,8 @@ export interface UserDto {
   isFollowing: boolean;
   isMe: boolean;
   isCreator: boolean;
+  /** 내 정보(GET · PATCH /me)에만 있음. 닉네임을 다시 바꿀 수 있는 시각(ISO). 지금 바꿀 수 있으면 null */
+  usernameChangeableAt?: string | null;
 }
 
 export interface UserSummaryDto {

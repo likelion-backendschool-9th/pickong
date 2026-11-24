@@ -33,6 +33,8 @@ export interface UserRow {
   followingCount: number;
   /** 유료 컬렉션을 판매할 수 있는 크리에이터 */
   isCreator?: boolean;
+  /** 마지막으로 닉네임(username)을 바꾼 시각(ISO). 없으면 아직 바꾼 적 없음 → 바로 바꿀 수 있음 */
+  usernameChangedAt?: string;
 }
 
 export interface BusinessHoursDto {

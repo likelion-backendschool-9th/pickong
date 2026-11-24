@@ -18,7 +18,7 @@ public enum UserErrorCode implements ErrorCode {
     /** 활동 지역이 너무 김 */
     INVALID_REGION(400, "활동 지역은 20자까지 쓸 수 있어요."),
     /** 마지막 아이디 변경 후 14일이 지나지 않음. 다음 변경 가능 시각은 GET /me의 usernameChangeableAt */
-    USERNAME_CHANGE_TOO_SOON(409, "아이디는 14일에 한 번만 바꿀 수 있어요."),
+    USERNAME_CHANGE_TOO_SOON(409, "닉네임은 14일에 한 번만 바꿀 수 있어요."),
     /** 가입 이메일이 이미 다른 회원에게 있음 (1인 1계정) */
     EMAIL_ALREADY_REGISTERED(409, "이미 가입된 이메일이에요.");
 
