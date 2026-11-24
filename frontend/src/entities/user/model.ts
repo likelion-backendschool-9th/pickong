@@ -1,7 +1,11 @@
 export interface User {
   id: string;
+  /** 닉네임 = 사용자 ID (영문, 중복 불가). 프로필 주소에 쓰입니다. */
   username: string;
+  /** 화면에 보여 줄 이름: 이름이 있으면 이름, 없으면 닉네임(username) */
   nickname: string;
+  /** 사용자가 정한 이름(중복 가능). 정하지 않았으면 null */
+  name: string | null;
   profileImageUrl: string | null;
   bio: string;
   region: string;

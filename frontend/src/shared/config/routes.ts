@@ -1,9 +1,10 @@
 /** 라우트 경로 상수. 링크 문자열을 직접 쓰지 않고 이 함수를 사용합니다. */
 export const routes = {
   start: () => "/",
-  login: () => "/login",
+  /** 로그인 · 회원가입 통합 화면(카카오 · Google). error는 소셜 로그인 실패 등 안내할 사유 코드 */
+  login: (error?: string) => (error ? `/login?error=${encodeURIComponent(error)}` : "/login"),
+  /** 최초 가입 온보딩: 소셜 인증을 마친 신규 회원만 들어옵니다. */
   signup: () => "/signup",
-  passwordReset: () => "/password/reset",
   terms: (type: "service" | "privacy" | "marketing") => `/terms/${type}`,
   feed: () => "/feed",
   search: () => "/search",
@@ -40,6 +41,8 @@ export const routes = {
   follows: (username: string, tab: "followers" | "following") => `/users/${username}/follows?tab=${tab}`,
   settings: () => "/settings",
   editProfile: () => "/settings/profile",
+  /** 로그인 수단(카카오 · Google) 연결 · 해제 */
+  loginMethods: () => "/settings/login-methods",
   agreements: () => "/settings/agreements",
   notificationSettings: () => "/settings/notifications",
   devices: () => "/settings/devices",
@@ -52,6 +55,8 @@ export const routes = {
   creatorAccount: () => "/creator/account",
   creatorEarnings: () => "/creator/earnings",
   admin: () => "/admin",
+  adminPlaceSubmissions: () => "/admin/place-submissions",
+  adminPlaceSubmission: (id: string) => `/admin/place-submissions/${id}`,
   adminReports: () => "/admin/reports",
   adminUsers: () => "/admin/users",
   adminContents: () => "/admin/contents",

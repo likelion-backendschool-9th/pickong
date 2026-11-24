@@ -1,5 +1,6 @@
 package com.pickong.feed.adapter.out.persistence.entity;
 
+import com.pickong.feed.domain.model.Comment;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -50,4 +51,47 @@ public class CommentJpaEntity {
 
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    // Comment 도메인 객체 → JPA 엔티티 변환 (저장·수정 시 사용)
+    public static CommentJpaEntity from(Comment comment) {
+        CommentJpaEntity entity = new CommentJpaEntity();
+        entity.id = comment.getId();
+        entity.feedId = comment.getFeedId();
+        entity.userId = comment.getUserId();
+        entity.parentId = comment.getParentId();
+        entity.content = comment.getContent();
+        entity.likeCount = comment.getLikeCount();
+        entity.hiddenAt = comment.getHiddenAt();
+        entity.deletedAt = comment.getDeletedAt();
+        entity.createdAt = comment.getCreatedAt() != null ? comment.getCreatedAt() : OffsetDateTime.now();
+        entity.updatedAt = OffsetDateTime.now();
+        return entity;
+    }
+
+    // deletedAt을 현재 시각으로 설정 — 물리 삭제 대신 소프트 삭제
+    public void softDelete() {
+        this.deletedAt = OffsetDateTime.now();
+    }
+
+    // JPA 엔티티 → Comment 도메인 객체 변환 (조회 시 사용)
+    public Comment toDomain() {
+        return toDomainWithReplyCount(0L);
+    }
+
+    // 대댓글 개수를 함께 주입하는 변환 — 목록 조회 시 서브쿼리 결과를 받아 설정
+    public Comment toDomainWithReplyCount(long replyCount) {
+        return Comment.builder()
+                .id(id)
+                .feedId(feedId)
+                .userId(userId)
+                .parentId(parentId)
+                .content(content)
+                .likeCount(likeCount)
+                .replyCount(replyCount)
+                .hiddenAt(hiddenAt)
+                .deletedAt(deletedAt)
+                .createdAt(createdAt)
+                .updatedAt(updatedAt)
+                .build();
+    }
 }

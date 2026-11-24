@@ -19,8 +19,12 @@ export type PlaceCategory =
 
 export interface UserRow {
   id: string;
+  /** 닉네임 = 사용자 ID */
   username: string;
+  /** 화면에 보여 줄 이름 = 이름 ?? username. 이름을 바꾸면 users.ts가 다시 계산합니다. */
   nickname: string;
+  /** 사용자가 정한 이름(중복 가능). undefined(기존 fixture)면 nickname을 이름으로 봅니다. null이면 이름 없음 */
+  name?: string | null;
   profileImageUrl: string | null;
   bio: string;
   region: string;

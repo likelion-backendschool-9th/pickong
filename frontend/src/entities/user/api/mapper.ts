@@ -5,6 +5,7 @@ export const toUser = (dto: UserDto): User => ({
   id: dto.id,
   username: dto.username,
   nickname: dto.nickname,
+  name: dto.name ?? null,
   profileImageUrl: dto.profileImageUrl,
   bio: dto.bio ?? "",
   region: dto.region ?? "",

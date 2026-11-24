@@ -1,10 +1,11 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { BadgeCheck, ChevronRight, EyeOff, Flag, Landmark, LogOut, ReceiptText, UserX } from "lucide-react";
+import { BadgeCheck, ChevronRight, EyeOff, Flag, Landmark, LogOut, MapPinPlus, ReceiptText, UserX } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
+import { usePlaceSubmissions } from "@/entities/place-submission";
 import { authApi } from "@/shared/auth/authApi";
 import { routes } from "@/shared/config/routes";
 import { cn } from "@/shared/lib/cn";
@@ -16,6 +17,8 @@ import { useAdminSummary } from "./_api/adminApi";
 export function AdminDashboard() {
   const router = useRouter();
   const { data } = useAdminSummary();
+  const { data: submissions } = usePlaceSubmissions();
+  const pendingSubmissions = submissions?.filter((item) => item.status === "PENDING").length;
   const logout = useMutation({ mutationFn: authApi.logout, onSuccess: () => router.replace(routes.start()) });
 
   const todo = data ? data.pendingReports + data.pendingCreatorApplications + data.pendingRefunds + data.scheduledSettlements : null;
@@ -47,6 +50,7 @@ export function AdminDashboard() {
           <Menu href={routes.adminReports()} icon={<Flag size={18} />} label="신고 처리" desc="게시물 · 댓글 · 사용자 · 컬렉션 신고" count={data?.pendingReports} />
           <Menu href={routes.adminUsers()} icon={<UserX size={18} />} label="사용자 제재" desc="경고 · 기간 정지 · 영구 정지" count={data?.sanctionedUsers} countLabel="제재 중" />
           <Menu href={routes.adminContents()} icon={<EyeOff size={18} />} label="콘텐츠 관리" desc="게시물 · 컬렉션 숨김" count={data?.hiddenContents} countLabel="숨김" />
+          <Menu href={routes.adminPlaceSubmissions()} icon={<MapPinPlus size={18} />} label="제보 관리" desc="사용자가 직접 등록한 장소 심사" count={pendingSubmissions} />
         </ul>
 
         <h2 className="mt-7 mb-2 text-[13px] font-bold text-ink-faint">크리에이터 · 결제</h2>

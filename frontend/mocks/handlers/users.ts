@@ -11,6 +11,7 @@ import {
   userDto,
 } from "../db.ts";
 import { HttpError, notFound, type Route } from "../router.ts";
+import { isUsernameTaken, USERNAME_PATTERN } from "./auth.ts";
 
 const userOr404 = (username: string) => findUserByName(username) ?? notFound("사용자");
 
@@ -24,7 +25,22 @@ export const userRoutes: Route[] = [
     path: "/api/me",
     handler: ({ body }) => {
       const me = db.users.find((u) => u.id === ME_ID)!;
-      if (typeof body?.nickname === "string") me.nickname = body.nickname;
+      // 닉네임 = 사용자 ID: 바꾸면 프로필 주소(/users/닉네임)도 바뀝니다.
+      if (typeof body?.username === "string") {
+        const username = body.username.trim().toLowerCase();
+        if (!USERNAME_PATTERN.test(username)) throw new HttpError(400, "INVALID_USERNAME", "닉네임 형식을 확인해 주세요.");
+        if (isUsernameTaken(username, me.id)) throw new HttpError(409, "USERNAME_TAKEN", "이미 사용 중인 닉네임이에요.");
+        me.username = username;
+      }
+      // 이름: 중복 가능, 빈 값이면 이름 없음(null)
+      if (body?.name === null || typeof body?.name === "string") {
+        const name = typeof body.name === "string" ? body.name.trim() : "";
+        if ([...name].length > 20) throw new HttpError(400, "INVALID_NAME", "이름은 20자까지 쓸 수 있어요.");
+        me.name = name || null;
+      }
+      // 화면에 보여 줄 이름 = 이름 ?? 닉네임(username)
+      const name = me.name === undefined ? me.nickname : me.name;
+      me.nickname = name ?? me.username;
       if (typeof body?.bio === "string") me.bio = body.bio;
       if (typeof body?.region === "string") me.region = body.region;
       return userDto(me);

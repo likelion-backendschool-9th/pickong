@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* 세로가 짧은 화면(작은 휴대폰 · 브라우저 주소창이 보이는 상태): 한 화면에 담아야 하는 로그인 · 회원가입에서 여백을 줄입니다. */
+@custom-variant short (@media (max-height: 680px));
+
 /*
  * 찜콩 디자인 토큰 — 색상 값은 이 파일에서만 정의합니다.
  * 컴포넌트에서는 hex 대신 토큰 이름(bg-primary, text-ink 등)을 사용합니다.
@@ -16,6 +19,10 @@
   --color-primary: #86cb16; /* 연두 포인트: 주요 CTA·브랜드 점·선택된 핀 */
   --color-primary-deep: #517c26; /* 초록 강조: 영문 라벨·선택 탭 밑줄·강조 텍스트·선택 아이콘 */
   --color-on-primary: #1a2e05; /* 라임그린 위 텍스트 (흰색보다 대비가 충분함) */
+
+  /* 소셜 로그인: 카카오 로그인 디자인 가이드의 버튼 색 (Google 버튼은 bg · line · ink를 그대로 씀) */
+  --color-kakao: #fee500;
+  --color-kakao-ink: #191919;
 
   /* 텍스트·선 */
   --color-ink: #20251f; /* 주요 글자 · 선택된 컬렉션 */

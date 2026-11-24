@@ -1,5 +1,6 @@
 package com.pickong.common.error;
 
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -26,6 +27,17 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleValidationException(MethodArgumentNotValidException e) {
         String message = e.getBindingResult().getFieldErrors().stream()
                 .map(FieldError::getDefaultMessage)
+                .collect(Collectors.joining(", "));
+        return ResponseEntity
+                .status(CommonErrorCode.INVALID_INPUT.getStatus())
+                .body(ErrorResponse.of(CommonErrorCode.INVALID_INPUT, message));
+    }
+
+    // @Min, @Max, @Positive 등 파라미터 검증 실패 시 400 INVALID_INPUT으로 응답 (위반 메시지를 이어 붙임)
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ErrorResponse> handleConstraintViolationException(ConstraintViolationException e) {
+        String message = e.getConstraintViolations().stream()
+                .map(v -> v.getMessage())
                 .collect(Collectors.joining(", "));
         return ResponseEntity
                 .status(CommonErrorCode.INVALID_INPUT.getStatus())
