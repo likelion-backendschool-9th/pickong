@@ -242,6 +242,11 @@ API 명세서에서 **'보류'**로 표시한 기능입니다. 프론트·백엔
   - 약관 본문은 버전마다 DB(`terms_sections`)에 두므로 회원이 동의한 버전의 내용이 그대로 남음. 문구를 바꾸면 새 버전을 추가하고 고치지 않음
   - API: `GET /terms/{type}` → `{ type, title, required, version, effectiveDate, sections: [{ heading, body }] }`(지금 시행 중인 버전, 없으면 404 `TERMS_NOT_FOUND`) · `GET /me/agreements` → `[{ type, title, required, version, agreed, agreedAt }]`(동의했으면 동의한 버전과 그 버전의 제목) · `PATCH /me/agreements` `{ type, agreed }` → 바뀐 목록 (필수 약관이면 400 `REQUIRED_TERMS_CANNOT_BE_REVOKED`, 모르는 종류 400 `UNKNOWN_TERMS`, `agreed`가 true · false가 아니면(빠짐 · 숫자 · 문자열) 400 `INVALID_INPUT`)
   - 철회는 동의 기록을 지우지 않고 철회 시각만 남김. 같은 상태를 다시 보내거나 동시에 보내도 동의 기록은 하나
+- [껍데기] 회원 탈퇴(`/settings/withdraw`): 정책 확정, 구현 전 (자세한 내용 `backend_blueprint.md` '회원 탈퇴 결정')
+  - 탈퇴하면 바로 로그아웃되고 30일 유예. 유예 기간에 같은 소셜 계정으로 로그인하면 탈퇴를 취소할 수 있음. 30일 뒤 이름 · 이메일 · 사진 · 소셜 연결을 지워 익명화하고, 아이디는 다른 사람이 다시 쓸 수 있게 풂
+  - 게시물은 유예 기간에 숨기고 익명화할 때 삭제. 댓글은 남기고 작성자를 "탈퇴한 사용자"로 표시
+  - 익명화한 뒤에는 같은 소셜 계정으로 새로 가입할 수 있음. 카카오 · Google 쪽 '연결된 앱'은 회원이 직접 끊음
+  - 탈퇴 사유는 회원과 연결하지 않고 저장. 결제 · 정산 안내는 그 기능을 만들 때 추가
 - [껍데기] 프로필 페이지: 게시물 · 컬렉션 · 방문 탭 (본인 프로필에는 일정 탭 추가)
   - 방문: 그 사용자가 게시물에 연결한 장소를 기록(목록) ↔ 지도로 전환해서 봄 (`GET /api/users/:username/posts`, `GET /api/users/:username/places`, 내가 볼 수 있는 게시물만). 저장한 장소 전체를 다루는 ‘내 지도’와 별개
   - 일정: 곧 떠나는 하루 + 지난 일정(방문 기록). 본인만 조회. `/plans`는 내 프로필 일정 탭으로 이동
