@@ -4,12 +4,14 @@ import { Minus, Plus } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/shared/lib/cn";
 import type { LatLng, LatLngBounds, MapMarker } from "../types";
-import { fromNaverBounds, fromNaverLatLng, metersPerPixelToZoom, toNaverLatLng } from "./convert";
+import { naverMapGlOptions, shouldUseNaverGl } from "./config";
+import { clampNaverZoom, fromNaverBounds, fromNaverLatLng, metersPerPixelToZoom, toNaverLatLng } from "./convert";
 import { loadNaverSdk } from "./loadNaverSdk";
 
 const DEFAULT_CENTER: LatLng = { lat: 37.5446, lng: 127.0525 };
 const FIT_PADDING = 56;
 const FIT_MAX_ZOOM = 14; // 너무 넓게 맞춰졌을 때 이 줌보다 작으면(축소면) 근처만 다시 맞춤
+const USE_GL = shouldUseNaverGl();
 
 export interface NaverMapViewProps {
   markers?: MapMarker[];
@@ -103,7 +105,7 @@ export function NaverMapView({
         if (cancelled || !containerRef.current) return;
 
         const center = initialCenter ?? DEFAULT_CENTER;
-        const zoom = metersPerPixelToZoom(initialMpp ?? 4);
+        const zoom = metersPerPixelToZoom(initialMpp ?? 4, USE_GL);
         const map = new naver.maps.Map(containerRef.current, {
           center: toNaverLatLng(center),
           zoom,
@@ -111,6 +113,7 @@ export function NaverMapView({
           mapDataControl: false,
           logoControl: true,
           zoomControl: false,
+          ...naverMapGlOptions(),
         });
         mapRef.current = map;
         setStatus("ready");
@@ -172,7 +175,7 @@ export function NaverMapView({
     suppressMoveRef.current = true;
     map.panTo(toNaverLatLng(focus.position));
     if (!focus.keepZoom) {
-      const next = Math.max(map.getZoom(), metersPerPixelToZoom(2.6));
+      const next = Math.max(map.getZoom(), metersPerPixelToZoom(2.6, USE_GL));
       map.setZoom(next, true);
     }
   }, [focus]);
@@ -285,7 +288,7 @@ export function NaverMapView({
   const zoomBy = (delta: number) => {
     const map = mapRef.current;
     if (!map) return;
-    map.setZoom(Math.min(21, Math.max(5, map.getZoom() + delta)), true);
+    map.setZoom(clampNaverZoom(map.getZoom() + delta, USE_GL), true);
   };
 
   return (
@@ -442,13 +445,13 @@ function cssVar(name: string, fallback: string): string {
 function fitToMarkers(map: naver.maps.Map, markers: MapMarker[]) {
   if (markers.length === 0) {
     map.setCenter(toNaverLatLng(DEFAULT_CENTER));
-    map.setZoom(metersPerPixelToZoom(4));
+    map.setZoom(metersPerPixelToZoom(4, USE_GL));
     return;
   }
 
   if (markers.length === 1) {
     map.setCenter(toNaverLatLng(markers[0].position));
-    map.setZoom(metersPerPixelToZoom(2.6));
+    map.setZoom(metersPerPixelToZoom(2.6, USE_GL));
     return;
   }
 
