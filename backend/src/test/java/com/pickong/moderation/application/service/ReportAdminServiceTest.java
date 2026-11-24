@@ -5,6 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.pickong.common.error.BusinessException;
 import com.pickong.moderation.application.dto.ReportDismissal;
+import com.pickong.moderation.application.dto.ReportTargetPreview;
+import com.pickong.moderation.application.dto.ReportTargetVisibility;
+import com.pickong.moderation.application.dto.ReportView;
 import com.pickong.moderation.application.port.out.ReportPersistencePort;
 import com.pickong.moderation.domain.ModerationErrorCode;
 import com.pickong.moderation.domain.model.Report;
@@ -18,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -81,6 +85,30 @@ class ReportAdminServiceTest {
     }
 
     @Test
+    @DisplayName("같은 대상의 신고도 각자의 미리보기를 유지한다")
+    void listKeepsPreviewPerReport() {
+        Report newer = report(11L, "수정된 글", NOW);
+        Report older = report(10L, "욕설", NOW.minusHours(2));
+        reports.rows = List.of(newer, older);
+        ReportAdminService perReport = new ReportAdminService(
+                reports,
+                request -> Map.of(
+                        11L, new ReportTargetPreview("수정된 글", null, null, 8L, null, null, null, ReportTargetVisibility.LIVE),
+                        10L, new ReportTargetPreview(
+                                "욕설", "https://example.com/old.jpg", null, 8L, null, null, null, ReportTargetVisibility.LIVE)),
+                request -> Map.of(),
+                Clock.fixed(Instant.parse("2026-11-24T05:00:00Z"), ZoneOffset.UTC));
+
+        List<ReportView> views = perReport.list("PENDING");
+
+        assertThat(views)
+                .extracting(view -> view.report().getId(), view -> view.target().text(), view -> view.target().imageUrl())
+                .containsExactly(
+                        Tuple.tuple(11L, "수정된 글", null),
+                        Tuple.tuple(10L, "욕설", "https://example.com/old.jpg"));
+    }
+
+    @Test
     @DisplayName("없는 신고는 404이고 빈 목록은 빈 배열이다")
     void missingAndEmpty() {
         reports.current = null;
@@ -98,14 +126,19 @@ class ReportAdminServiceTest {
     }
 
     private static Report pending() {
+        return report(4L, null, NOW);
+    }
+
+    private static Report report(long id, String snapshot, OffsetDateTime createdAt) {
         return Report.builder()
-                .id(4L)
+                .id(id)
                 .reporterId(2L)
                 .targetType(ReportTargetType.FEED)
                 .targetId(9L)
                 .reason("SPAM")
                 .status(ReportStatus.PENDING)
-                .createdAt(NOW)
+                .snapshot(snapshot)
+                .createdAt(createdAt)
                 .build();
     }
 

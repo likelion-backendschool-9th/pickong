@@ -11,7 +11,6 @@ import com.pickong.moderation.domain.vo.ReportTargetType;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -20,9 +19,9 @@ import org.springframework.stereotype.Component;
 /**
  * 신고 저장소.
  * <p>
- * 기각은 대상 행을 id 오름차순으로 잠근 뒤, 영속 엔티티를 직접 바꿉니다.
+ * 기각은 선택한 신고 행만 잠그고 그 행만 바꿉니다. 같은 대상의 다른 신고는 건드리지 않습니다.
  * 벌크 UPDATE는 영속성 컨텍스트에 이전 상태를 남겨 같은 트랜잭션의 재조회가 옛 값을 보게 하므로 쓰지 않습니다.
- * 선택한 신고가 이미 완료면 잠금만 하고 어떤 행도 바꾸지 않습니다.
+ * 선택한 신고가 이미 완료면 잠금만 하고 행을 바꾸지 않습니다.
  */
 @Component
 public class ReportPersistenceAdapter implements ReportPersistencePort {
@@ -52,51 +51,27 @@ public class ReportPersistenceAdapter implements ReportPersistencePort {
 
     @Override
     public ReportDismissal dismissIfPrimaryPending(long reportId, long adminId, String memo, OffsetDateTime now) {
-        ReportJpaEntity located = repository.findById(reportId).orElse(null);
-        if (located == null) {
-            return ReportDismissal.missing();
-        }
         List<Long> lockedIds = jdbc.query("""
                 SELECT id
                   FROM reports
-                 WHERE target_type = ? AND target_id = ?
-                 ORDER BY id
+                 WHERE id = ?
                    FOR UPDATE
-                """, (rs, rowNum) -> rs.getLong("id"), located.getTargetType(), located.getTargetId());
-
-        ReportJpaEntity primary = null;
-        List<ReportJpaEntity> locked = new ArrayList<>();
-        for (Long lockedId : lockedIds) {
-            ReportJpaEntity entity = entityManager.find(ReportJpaEntity.class, lockedId);
-            if (entity == null) {
-                continue;
-            }
-            entityManager.refresh(entity);
-            locked.add(entity);
-            if (lockedId.equals(reportId)) {
-                primary = entity;
-            }
+                """, (rs, rowNum) -> rs.getLong("id"), reportId);
+        if (lockedIds.isEmpty()) {
+            return ReportDismissal.missing();
         }
+        ReportJpaEntity primary = entityManager.find(ReportJpaEntity.class, reportId);
         if (primary == null) {
             return ReportDismissal.missing();
         }
+        entityManager.refresh(primary);
         if (!"PENDING".equals(primary.getStatus())) {
             return ReportDismissal.alreadyResolved();
         }
-
-        Report dismissedPrimary = null;
-        for (ReportJpaEntity entity : locked) {
-            if (!"PENDING".equals(entity.getStatus())) {
-                continue;
-            }
-            Report dismissed = toDomain(entity).dismiss(adminId, memo, now);
-            entity.applyDismissal(dismissed.getResolutionAction().name(), dismissed.getResolutionMemo(), adminId, now);
-            if (entity.getId().equals(reportId)) {
-                dismissedPrimary = dismissed;
-            }
-        }
+        Report dismissed = toDomain(primary).dismiss(adminId, memo, now);
+        primary.applyDismissal(dismissed.getResolutionAction().name(), dismissed.getResolutionMemo(), adminId, now);
         entityManager.flush();
-        return ReportDismissal.dismissed(dismissedPrimary);
+        return ReportDismissal.dismissed(dismissed);
     }
 
     private static Report toDomain(ReportJpaEntity entity) {

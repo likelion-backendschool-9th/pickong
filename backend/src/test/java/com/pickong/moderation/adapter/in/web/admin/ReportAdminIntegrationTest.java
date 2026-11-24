@@ -77,6 +77,7 @@ class ReportAdminIntegrationTest {
         jdbc.update("DELETE FROM comments WHERE content LIKE 'report-it-%'");
         jdbc.update("DELETE FROM feeds WHERE content LIKE 'report-it-%'");
         jdbc.execute("DROP INDEX IF EXISTS uq_reports_test_one_resolved");
+        jdbc.execute("ALTER TABLE reports DROP CONSTRAINT IF EXISTS ck_reports_test_reject_memo");
     }
 
     @Test
@@ -103,6 +104,11 @@ class ReportAdminIntegrationTest {
         assertThat(pendingItems.get(0).get("reportedUser").get("id").asString()).isEqualTo(Long.toString(author));
         assertThat(pendingItems.get(0).get("target").get("text").asString()).isEqualTo("report-it-목록");
         assertThat(pendingItems.get(0).get("target").get("link").asString()).startsWith("/posts/");
+        assertThat(pendingItems.get(0).get("target").get("visibility").asString()).isEqualTo("LIVE");
+        assertThat(pendingItems.get(0).get("target").get("snapshot").isNull()).isTrue();
+        assertThat(pendingItems.get(0).get("target").get("current").get("text").asString()).isEqualTo("report-it-목록");
+        assertThat(pendingItems.get(0).get("target").get("current").get("imageUrl").isNull()).isTrue();
+        assertThat(pendingItems.get(0).get("target").get("modified").isNull()).isTrue();
         assertThat(pending.getResponse().getContentAsString()).doesNotContain("reporter@example.com");
         assertThat(pending.getResponse().getContentAsString()).doesNotContain("author@example.com");
 
@@ -113,14 +119,14 @@ class ReportAdminIntegrationTest {
     }
 
     @Test
-    @DisplayName("기각은 같은 대상의 대기 신고를 함께 닫고, 이미 처리된 이력은 유지한다")
-    void dismissCascadesPendingOnly() throws Exception {
+    @DisplayName("기각은 선택한 신고만 닫고, 같은 대상의 다른 신고와 기존 처리 이력은 유지한다")
+    void dismissesOnlyTheSelectedReport() throws Exception {
         long reporter = insertUser("신고자", null);
         long author = insertUser("작성자", null);
         long feed = insertFeed(author, "report-it-기각");
         long otherFeed = insertFeed(author, "report-it-다른대상");
         long primary = insertPending(reporter, "FEED", feed, "SPAM", "반복", null, NEWER);
-        long sibling = insertPending(reporter, "FEED", feed, "SPAM", "", null, OLDER);
+        long sibling = insertPending(reporter, "FEED", feed, "ABUSE", "", null, OLDER);
         long already = insertResolved(reporter, "FEED", feed, "SPAM", OLDER.minusHours(2), 3L, "기존 판단");
         long other = insertPending(reporter, "FEED", otherFeed, "SPAM", "", null, NEWER);
 
@@ -136,7 +142,8 @@ class ReportAdminIntegrationTest {
                 .andExpect(jsonPath("$.targetType").value("POST"));
 
         assertResolved(primary, 7L, "문제 없음");
-        assertResolved(sibling, 7L, "문제 없음");
+        assertThat(statusOf(sibling)).isEqualTo("PENDING");
+        assertThat(jdbc.queryForObject("SELECT reason FROM reports WHERE id = ?", String.class, sibling)).isEqualTo("ABUSE");
         assertResolved(already, 3L, "기존 판단");
         assertThat(statusOf(other)).isEqualTo("PENDING");
 
@@ -197,6 +204,147 @@ class ReportAdminIntegrationTest {
     }
 
     @Test
+    @DisplayName("삭제된 같은 게시물의 신고는 각자의 스냅샷을 유지한다")
+    void deletedReportsKeepTheirOwnSnapshots() throws Exception {
+        long reporter = insertUser("신고자", null);
+        long author = insertUser("작성자", null);
+        long feed = insertFeed(author, "report-it-덮어쓰기");
+        String olderSnapshot = """
+                {"text":"욕설이 포함된 게시물","imageUrl":"https://example.com/old.jpg","reportedUserId":%d}
+                """.formatted(author);
+        String newerSnapshot = """
+                {"text":"수정된 게시물","imageUrl":"https://example.com/new.jpg","reportedUserId":%d}
+                """.formatted(author);
+        long older = insertPending(reporter, "FEED", feed, "ABUSE", "", olderSnapshot, OLDER);
+        long newer = insertPending(reporter, "FEED", feed, "SPAM", "", newerSnapshot, NEWER);
+        jdbc.update("UPDATE feeds SET deleted_at = now() WHERE id = ?", feed);
+
+        var body = mvc.perform(api(get("/api/v1/admin/reports")).param("status", "PENDING").with(authentication(admin())))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode items = JSON.readTree(body.getResponse().getContentAsString());
+
+        JsonNode olderItem = find(items, older);
+        assertThat(olderItem.get("target").get("text").asString()).isEqualTo("욕설이 포함된 게시물");
+        assertThat(olderItem.get("target").get("imageUrl").asString()).isEqualTo("https://example.com/old.jpg");
+        assertThat(olderItem.get("target").get("snapshot").get("text").asString()).isEqualTo("욕설이 포함된 게시물");
+        assertThat(olderItem.get("target").get("current").isNull()).isTrue();
+        assertThat(olderItem.get("target").get("modified").isNull()).isTrue();
+        assertThat(olderItem.get("target").get("visibility").asString()).isEqualTo("DELETED");
+        JsonNode newerItem = find(items, newer);
+        assertThat(newerItem.get("target").get("text").asString()).isEqualTo("수정된 게시물");
+        assertThat(newerItem.get("target").get("imageUrl").asString()).isEqualTo("https://example.com/new.jpg");
+        assertThat(newerItem.get("target").get("snapshot").get("text").asString()).isEqualTo("수정된 게시물");
+        assertThat(newerItem.get("target").get("current").isNull()).isTrue();
+
+        jdbc.update("UPDATE reports SET created_at = ? WHERE id = ?", NEWER, older);
+        jdbc.update("UPDATE reports SET created_at = ? WHERE id = ?", OLDER, newer);
+        var reordered = mvc.perform(api(get("/api/v1/admin/reports")).param("status", "PENDING").with(authentication(admin())))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode swapped = JSON.readTree(reordered.getResponse().getContentAsString());
+        assertThat(ids(swapped)).containsExactly(Long.toString(older), Long.toString(newer));
+        assertThat(find(swapped, older).get("target").get("text").asString()).isEqualTo("욕설이 포함된 게시물");
+        assertThat(find(swapped, newer).get("target").get("text").asString()).isEqualTo("수정된 게시물");
+    }
+
+    @Test
+    @DisplayName("현재 글이 있어도 신고 당시 스냅샷을 유지하고 수정 여부를 구분한다")
+    void liveTargetKeepsSnapshotBesideCurrentContent() throws Exception {
+        long reporter = insertUser("신고자", null);
+        long author = insertUser("작성자", null);
+        long changed = insertFeed(author, "report-it-현재 본문\n둘째 줄");
+        long unchanged = insertFeed(author, "report-it-같은글");
+        long plain = insertFeed(author, "report-it-평문대상");
+        String changedSnapshot = """
+                {"text":"욕설이 포함된 게시물\\n이전 줄","imageUrl":"https://example.com/evidence.jpg","reportedUserId":%d}
+                """.formatted(author);
+        long changedReport = insertPending(reporter, "FEED", changed, "ABUSE", "", changedSnapshot, NEWER);
+        long missingSnapshot = insertPending(reporter, "FEED", changed, "SPAM", "", null, OLDER);
+        long sameReport = insertPending(
+                reporter, "FEED", unchanged, "SPAM", "", "{\"text\":\"report-it-같은글\"}", NEWER);
+        long plainReport = insertPending(reporter, "FEED", plain, "ETC", "", "평문 증거", NEWER);
+
+        var body = mvc.perform(api(get("/api/v1/admin/reports")).param("status", "PENDING").with(authentication(admin())))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode items = JSON.readTree(body.getResponse().getContentAsString());
+
+        JsonNode changedItem = find(items, changedReport);
+        assertThat(changedItem.get("target").get("text").asString()).isEqualTo("욕설이 포함된 게시물");
+        assertThat(changedItem.get("target").get("imageUrl").asString()).isEqualTo("https://example.com/evidence.jpg");
+        assertThat(changedItem.get("target").get("link").asString()).startsWith("/posts/");
+        assertThat(changedItem.get("target").get("visibility").asString()).isEqualTo("LIVE");
+        assertThat(changedItem.get("target").get("snapshot").get("text").asString()).isEqualTo("욕설이 포함된 게시물\n이전 줄");
+        assertThat(changedItem.get("target").get("snapshot").get("imageUrl").asString()).isEqualTo("https://example.com/evidence.jpg");
+        assertThat(changedItem.get("target").get("current").get("text").asString()).isEqualTo("report-it-현재 본문");
+        assertThat(changedItem.get("target").get("current").get("imageUrl").isNull()).isTrue();
+        assertThat(changedItem.get("target").get("modified").asBoolean()).isTrue();
+
+        JsonNode missingItem = find(items, missingSnapshot);
+        assertThat(missingItem.get("target").get("text").asString()).isEqualTo("report-it-현재 본문");
+        assertThat(missingItem.get("target").get("imageUrl").isNull()).isTrue();
+        assertThat(missingItem.get("target").get("snapshot").isNull()).isTrue();
+        assertThat(missingItem.get("target").get("current").get("text").asString()).isEqualTo("report-it-현재 본문");
+        assertThat(missingItem.get("target").get("modified").isNull()).isTrue();
+
+        JsonNode sameItem = find(items, sameReport);
+        assertThat(sameItem.get("target").get("text").asString()).isEqualTo("report-it-같은글");
+        assertThat(sameItem.get("target").get("current").get("text").asString()).isEqualTo("report-it-같은글");
+        assertThat(sameItem.get("target").get("modified").asBoolean()).isFalse();
+
+        JsonNode plainItem = find(items, plainReport);
+        assertThat(plainItem.get("target").get("text").asString()).isEqualTo("평문 증거");
+        assertThat(plainItem.get("target").get("snapshot").get("text").asString()).isEqualTo("평문 증거");
+        assertThat(plainItem.get("target").get("current").get("text").asString()).isEqualTo("report-it-평문대상");
+        assertThat(plainItem.get("target").get("modified").asBoolean()).isTrue();
+    }
+
+    @Test
+    @DisplayName("숨긴 콘텐츠는 현재 글을 보여주고, 없는 대상은 삭제로 보지 않는다")
+    void hiddenContentStaysVisibleAndMissingTargetIsUnavailable() throws Exception {
+        long reporter = insertUser("신고자", null);
+        long author = insertUser("작성자", null);
+        long hiddenFeed = insertFeed(author, "report-it-숨긴 본문");
+        long commentFeed = insertFeed(author, "report-it-댓글부모");
+        jdbc.update("UPDATE feeds SET hidden_at = now() WHERE id = ?", hiddenFeed);
+        long comment = insertComment(commentFeed, author, "report-it-숨긴 댓글");
+        jdbc.update("UPDATE comments SET hidden_at = now() WHERE id = ?", comment);
+        String snapshot = """
+                {"text":"숨기기 전 본문","imageUrl":"https://example.com/hidden.jpg","reportedUserId":%d}
+                """.formatted(author);
+        long hiddenReport = insertPending(reporter, "FEED", hiddenFeed, "ABUSE", "", snapshot, NEWER);
+        long commentReport = insertPending(reporter, "COMMENT", comment, "ABUSE", "", null, NEWER);
+        long missingReport = insertPending(reporter, "FEED", 9_876_543_210L, "SPAM", "", null, OLDER);
+
+        var body = mvc.perform(api(get("/api/v1/admin/reports")).param("status", "PENDING").with(authentication(admin())))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode items = JSON.readTree(body.getResponse().getContentAsString());
+
+        JsonNode hiddenItem = find(items, hiddenReport);
+        assertThat(hiddenItem.get("target").get("text").asString()).isEqualTo("숨기기 전 본문");
+        assertThat(hiddenItem.get("target").get("snapshot").get("text").asString()).isEqualTo("숨기기 전 본문");
+        assertThat(hiddenItem.get("target").get("current").get("text").asString()).isEqualTo("report-it-숨긴 본문");
+        assertThat(hiddenItem.get("target").get("visibility").asString()).isEqualTo("HIDDEN");
+        assertThat(hiddenItem.get("target").get("link").isNull()).isTrue();
+        assertThat(hiddenItem.get("target").get("modified").asBoolean()).isTrue();
+
+        JsonNode commentItem = find(items, commentReport);
+        assertThat(commentItem.get("target").get("text").asString()).isEqualTo("report-it-숨긴 댓글");
+        assertThat(commentItem.get("target").get("current").get("text").asString()).isEqualTo("report-it-숨긴 댓글");
+        assertThat(commentItem.get("target").get("visibility").asString()).isEqualTo("HIDDEN");
+        assertThat(commentItem.get("target").get("link").isNull()).isTrue();
+
+        JsonNode missingItem = find(items, missingReport);
+        assertThat(missingItem.get("target").get("text").asString()).isEqualTo("확인할 수 없는 게시물");
+        assertThat(missingItem.get("target").get("visibility").asString()).isEqualTo("UNAVAILABLE");
+        assertThat(missingItem.get("target").get("current").isNull()).isTrue();
+        assertThat(missingItem.get("target").get("snapshot").isNull()).isTrue();
+        assertThat(missingItem.get("target").get("link").isNull()).isTrue();
+    }
+
+    @Test
     @DisplayName("삭제된 게시물은 스냅샷으로 보여주고 링크는 없으며, 컬렉션 테이블이 없어도 목록이 된다")
     void deletedTargetUsesSnapshot() throws Exception {
         long reporter = insertUser("신고자", null);
@@ -218,8 +366,12 @@ class ReportAdminIntegrationTest {
         assertThat(deletedItem.get("target").get("link").isNull()).isTrue();
         assertThat(deletedItem.get("detail").asString()).isEqualTo("상세");
         JsonNode collectionItem = find(items, collection);
+        assertThat(deletedItem.get("target").get("visibility").asString()).isEqualTo("DELETED");
+        assertThat(deletedItem.get("target").get("current").isNull()).isTrue();
         assertThat(collectionItem.get("targetType").asString()).isEqualTo("COLLECTION");
-        assertThat(collectionItem.get("target").get("text").asString()).isEqualTo("삭제된 컬렉션");
+        assertThat(collectionItem.get("target").get("text").asString()).isEqualTo("확인할 수 없는 컬렉션");
+        assertThat(collectionItem.get("target").get("visibility").asString()).isEqualTo("UNAVAILABLE");
+        assertThat(collectionItem.get("target").get("current").isNull()).isTrue();
         assertThat(collectionItem.get("target").get("link").isNull()).isTrue();
 
         reports.resolve(deleted, 7L, "DISMISS", null, null);
@@ -227,7 +379,7 @@ class ReportAdminIntegrationTest {
     }
 
     @Test
-    @DisplayName("같은 트랜잭션에서 다시 읽으면 기각 결과가 보이고, 일괄 기각이 중간에 실패하면 전부 대기이다")
+    @DisplayName("같은 트랜잭션에서 다시 읽으면 기각 결과가 보이고, 저장이 실패하면 선택한 신고는 대기로 남는다")
     void sameTransactionSeesDismissalAndFailureRollsBack() {
         long reporter = insertUser("신고자", null);
         long author = insertUser("작성자", null);
@@ -243,13 +395,12 @@ class ReportAdminIntegrationTest {
         assertThat(statusOf(primary)).isEqualTo("PENDING");
 
         jdbc.execute("""
-                CREATE UNIQUE INDEX uq_reports_test_one_resolved
-                    ON reports (target_type, target_id)
-                    WHERE status = 'RESOLVED'
+                ALTER TABLE reports ADD CONSTRAINT ck_reports_test_reject_memo
+                    CHECK (resolution_memo IS DISTINCT FROM '하나')
                 """);
         assertThatThrownBy(() -> reports.resolve(primary, 7L, "DISMISS", "하나", null))
                 .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("uq_reports_test_one_resolved");
+                .hasMessageContaining("ck_reports_test_reject_memo");
         assertThat(statusOf(primary)).isEqualTo("PENDING");
         assertThat(statusOf(sibling)).isEqualTo("PENDING");
     }
@@ -274,7 +425,7 @@ class ReportAdminIntegrationTest {
     }
 
     @Test
-    @DisplayName("같은 대상의 서로 다른 신고를 동시에 기각해도 처리 이력은 하나로 맞는다")
+    @DisplayName("같은 대상의 서로 다른 신고를 동시에 기각하면 각자 처리된다")
     void concurrentDismissOfSameTarget() throws Exception {
         long reporter = insertUser("신고자", null);
         long author = insertUser("작성자", null);
@@ -286,12 +437,51 @@ class ReportAdminIntegrationTest {
                 () -> reports.resolve(left, 7L, "DISMISS", "왼쪽", null),
                 () -> reports.resolve(right, 8L, "DISMISS", "오른쪽", null));
 
-        assertThat(successCount(outcomes)).isEqualTo(1);
-        assertThat(conflictCount(outcomes)).isEqualTo(1);
-        String leftMemo = jdbc.queryForObject("SELECT resolution_memo FROM reports WHERE id = ?", String.class, left);
-        String rightMemo = jdbc.queryForObject("SELECT resolution_memo FROM reports WHERE id = ?", String.class, right);
-        assertThat(leftMemo).isEqualTo(rightMemo);
-        assertThat(leftMemo).isIn("왼쪽", "오른쪽");
+        assertThat(successCount(outcomes)).isEqualTo(2);
+        assertThat(conflictCount(outcomes)).isZero();
+        assertResolved(left, 7L, "왼쪽");
+        assertResolved(right, 8L, "오른쪽");
+    }
+
+    @Test
+    @DisplayName("서로 다른 대상의 신고를 동시에 기각하면 둘 다 성공한다")
+    void concurrentDismissOfDifferentTargets() throws Exception {
+        long reporter = insertUser("신고자", null);
+        long author = insertUser("작성자", null);
+        long leftFeed = insertFeed(author, "report-it-다른대상왼쪽");
+        long rightFeed = insertFeed(author, "report-it-다른대상오른쪽");
+        long left = insertPending(reporter, "FEED", leftFeed, "SPAM", "", null, NEWER);
+        long right = insertPending(reporter, "FEED", rightFeed, "ABUSE", "", null, NEWER);
+
+        List<Object> outcomes = race(
+                () -> reports.resolve(left, 7L, "DISMISS", "왼쪽", null),
+                () -> reports.resolve(right, 8L, "DISMISS", "오른쪽", null));
+
+        assertThat(successCount(outcomes)).isEqualTo(2);
+        assertThat(conflictCount(outcomes)).isZero();
+        assertResolved(left, 7L, "왼쪽");
+        assertResolved(right, 8L, "오른쪽");
+    }
+
+    @Test
+    @DisplayName("기각 처리 중에 같은 대상으로 접수된 신고는 닫지 않는다")
+    void reportInsertedDuringDismissStaysPending() {
+        long reporter = insertUser("신고자", null);
+        long author = insertUser("작성자", null);
+        long feed = insertFeed(author, "report-it-처리중접수");
+        long primary = insertPending(reporter, "FEED", feed, "SPAM", "", null, NEWER);
+        long[] arrived = new long[1];
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            persistence.dismissIfPrimaryPending(primary, 7L, "확인", NEWER.plusHours(1));
+            arrived[0] = insertPending(
+                    reporter, "FEED", feed, "ABUSE", "", "{\"text\":\"나중에 접수된 내용\"}", NEWER.plusMinutes(5));
+        });
+
+        assertResolved(primary, 7L, "확인");
+        assertThat(statusOf(arrived[0])).isEqualTo("PENDING");
+        assertThat(jdbc.queryForObject(
+                "SELECT resolution_action FROM reports WHERE id = ?", String.class, arrived[0])).isNull();
     }
 
     private MockHttpServletRequestBuilder resolve(long id, String json) {
@@ -325,6 +515,12 @@ class ReportAdminIntegrationTest {
         return jdbc.queryForObject(
                 "INSERT INTO feeds (user_id, content) VALUES (?, ?) RETURNING id",
                 Long.class, userId, content);
+    }
+
+    private long insertComment(long feedId, long userId, String content) {
+        return jdbc.queryForObject(
+                "INSERT INTO comments (feed_id, user_id, content) VALUES (?, ?, ?) RETURNING id",
+                Long.class, feedId, userId, content);
     }
 
     private long insertPending(long reporterId, String targetType, long targetId, String reason, String detail,

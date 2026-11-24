@@ -3,7 +3,7 @@
 import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { errorMessage } from "@/shared/api/errors";
+import { ApiError, errorMessage } from "@/shared/api/errors";
 import { routes } from "@/shared/config/routes";
 import { formatRelative } from "@/shared/lib/date";
 import { Button } from "@/shared/ui/Button";
@@ -13,7 +13,7 @@ import { TopBar } from "@/shared/ui/layout";
 import { useToast } from "@/shared/ui/Toast";
 import { useReports, useResolveReport, type Report, type ReportAction, type SanctionType } from "../_api/adminApi";
 import { ReasonSheet } from "../_components/ReasonSheet";
-import { REPORT_ACTION, REPORT_TARGET, SANCTION_TYPES, reportReasonLabel } from "../_lib/labels";
+import { REPORT_ACTION, REPORT_TARGET, SANCTION_TYPES, reportReasonLabel, reportVisibilityLabel } from "../_lib/labels";
 
 export function ReportsScreen() {
   const [status, setStatus] = useState<Report["status"]>("PENDING");
@@ -49,12 +49,20 @@ export function ReportsScreen() {
               <div className="flex items-center gap-1.5">
                 <Badge tone="neutral">{REPORT_TARGET[r.targetType]}</Badge>
                 <Badge tone="danger">{reportReasonLabel(r.reason)}</Badge>
+                {reportVisibilityLabel(r.target.visibility) && (
+                  <Badge tone={r.target.visibility === "HIDDEN" ? "warning" : "neutral"}>
+                    {reportVisibilityLabel(r.target.visibility)}
+                  </Badge>
+                )}
                 <span className="ml-auto text-[11px] text-ink-faint">{formatRelative(r.createdAt)}</span>
               </div>
               <div className="mt-3 flex gap-3">
                 {r.target.imageUrl && <Thumb src={r.target.imageUrl} alt="" className="size-14" />}
                 <div className="min-w-0 flex-1">
                   <p className="line-clamp-2 text-[14px] font-bold">{r.target.text}</p>
+                  {r.target.modified && r.target.current?.text && (
+                    <p className="mt-1 line-clamp-2 text-[12px] text-ink-sub">현재: {r.target.current.text}</p>
+                  )}
                   <p className="mt-0.5 text-[12px] text-ink-sub">
                     작성자 {r.reportedUser?.nickname ?? "알 수 없음"} · 신고자 {r.reporter?.nickname ?? "알 수 없음"}
                   </p>
@@ -97,7 +105,7 @@ export function ReportsScreen() {
         title={target ? `신고 ${REPORT_ACTION[target.action]}` : ""}
         description={
           target?.action === "DISMISS"
-            ? "문제가 없다고 판단해 신고를 닫아요. 같은 대상의 다른 신고도 함께 닫혀요."
+            ? "문제가 없다고 판단해 이 신고만 닫아요."
             : target?.action === "HIDE_CONTENT"
               ? "콘텐츠를 다른 사람에게 보이지 않게 숨겨요. 콘텐츠 관리에서 다시 보이게 할 수 있어요."
               : `${target?.report.reportedUser?.nickname ?? "작성자"}님에게 제재를 적용해요.`
@@ -120,6 +128,12 @@ export function ReportsScreen() {
               onSuccess: () => {
                 toast({ message: `신고를 ${REPORT_ACTION[target.action]} 처리했어요` });
                 setTarget(null);
+              },
+              onError: (error) => {
+                if (!(error instanceof ApiError) || error.code !== "ALREADY_RESOLVED") return;
+                toast({ message: "다른 관리자가 이미 처리한 신고예요." });
+                setTarget(null);
+                resolve.reset();
               },
             },
           )

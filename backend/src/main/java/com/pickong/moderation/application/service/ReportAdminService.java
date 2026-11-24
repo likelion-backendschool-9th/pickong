@@ -3,8 +3,8 @@ package com.pickong.moderation.application.service;
 import com.pickong.common.error.BusinessException;
 import com.pickong.moderation.application.dto.ReportDismissal;
 import com.pickong.moderation.application.dto.ReportPartyView;
-import com.pickong.moderation.application.dto.ReportTargetKey;
 import com.pickong.moderation.application.dto.ReportTargetPreview;
+import com.pickong.moderation.application.dto.ReportTargetVisibility;
 import com.pickong.moderation.application.dto.ReportView;
 import com.pickong.moderation.application.port.in.ReportAdminUseCase;
 import com.pickong.moderation.application.port.out.ReportPartyLookupPort;
@@ -85,13 +85,13 @@ public class ReportAdminService implements ReportAdminUseCase {
         if (rows.isEmpty()) {
             return List.of();
         }
-        Map<ReportTargetKey, ReportTargetPreview> targets = previews.find(rows);
+        Map<Long, ReportTargetPreview> targets = previews.find(rows);
         Map<Long, ReportPartyView> people = parties.findByUserIds(userIds(rows, targets));
         return rows.stream().map(row -> {
-            ReportTargetKey key = new ReportTargetKey(row.getTargetType(), row.getTargetId());
-            ReportTargetPreview target = targets.get(key);
+            ReportTargetPreview target = row.getId() == null ? null : targets.get(row.getId());
             if (target == null) {
-                target = new ReportTargetPreview("내용을 확인할 수 없어요", null, null, null);
+                target = new ReportTargetPreview(
+                        "내용을 확인할 수 없어요", null, null, null, null, null, null, ReportTargetVisibility.UNAVAILABLE);
             }
             return new ReportView(row, target, person(people, target.reportedUserId()), person(people, row.getReporterId()));
         }).toList();
@@ -104,13 +104,13 @@ public class ReportAdminService implements ReportAdminUseCase {
         return people.get(userId);
     }
 
-    private static Set<Long> userIds(List<Report> rows, Map<ReportTargetKey, ReportTargetPreview> targets) {
+    private static Set<Long> userIds(List<Report> rows, Map<Long, ReportTargetPreview> targets) {
         Set<Long> ids = new HashSet<>();
         for (Report row : rows) {
             if (row.getReporterId() != null && row.getReporterId() > 0) {
                 ids.add(row.getReporterId());
             }
-            ReportTargetPreview target = targets.get(new ReportTargetKey(row.getTargetType(), row.getTargetId()));
+            ReportTargetPreview target = row.getId() == null ? null : targets.get(row.getId());
             if (target != null && target.reportedUserId() != null && target.reportedUserId() > 0) {
                 ids.add(target.reportedUserId());
             }

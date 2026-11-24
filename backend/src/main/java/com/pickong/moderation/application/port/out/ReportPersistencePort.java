@@ -16,8 +16,9 @@ public interface ReportPersistencePort {
     List<Report> findByStatus(ReportStatus status);
 
     /**
-     * 선택한 신고가 아직 대기일 때만, 같은 대상의 대기 신고를 함께 기각합니다.
-     * 잠금은 대상 행을 id 오름차순으로 잡아 동시에 들어온 기각이 서로를 덮거나 교착되지 않게 합니다.
+     * 선택한 신고가 아직 대기일 때만 그 신고만 기각합니다.
+     * 같은 대상의 다른 신고는 바꾸지 않습니다.
+     * 행 잠금으로 같은 신고를 동시에 기각하면 한 번만 성공합니다.
      */
     ReportDismissal dismissIfPrimaryPending(long reportId, long adminId, String memo, OffsetDateTime now);
 }
