@@ -385,11 +385,11 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 ### moderation · creator · settlement · payment (관리자 API 포함)
 | 메서드 | 경로 | 모듈 | 입력 포트 · 메서드 |
 | --- | --- | --- | --- |
-| POST | `/reports` | moderation | `ReportUseCase.report` |
+| POST | `/reports` | moderation | `ReportUseCase.report` (회원 접수. 아직 없음) |
 | GET | `/admin/reports` | moderation | `ReportAdminUseCase.list` |
-| PATCH | `/admin/reports/{reportId}` | moderation | `ReportAdminUseCase.handle` |
-| POST | `/admin/users/{userId}/sanctions` | moderation | `SanctionUseCase.sanction` → user 상태 변경 |
-| DELETE | `/admin/users/{userId}/sanctions/{sanctionId}` | moderation | `SanctionUseCase.revoke` |
+| POST | `/admin/reports/{reportId}/resolve` | moderation | `ReportAdminUseCase.resolve` |
+| POST | `/admin/users/{userId}/sanctions` | moderation | `SanctionUseCase.sanction` → user 상태 변경 (아직 없음) |
+| DELETE | `/admin/users/{userId}/sanctions/{sanctionId}` | moderation | `SanctionUseCase.revoke` (아직 없음) |
 | POST | `/creators/apply` | creator | `CreatorUseCase.apply` |
 | GET | `/me/creator` | creator | `CreatorUseCase.myStatus` |
 | GET · PUT | `/me/creator/payout-account` | creator | `PayoutAccountUseCase.get / register` |
@@ -403,6 +403,8 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | GET | `/me/payments` | payment | `PaymentQueryUseCase.myPayments` |
 
 관리자 로그인 API는 명세서에 없습니다 (8.1 #8). 관리자 API는 모두 `admin`의 필터 체인과 역할 검사를 거칩니다.
+
+신고 목록은 `?status=PENDING|RESOLVED`이고 응답은 배열입니다. 공통 목록 규칙의 `page · size`는 이 화면에 페이지가 생기기 전까지 쓰지 않습니다. 정렬은 접수 시각 내림차순, 같으면 id 내림차순입니다. 저장 상태와 처리 액션은 분리합니다. 상태는 `PENDING · RESOLVED`, 액션은 `DISMISS · HIDE_CONTENT · SANCTION_USER`입니다. 도메인의 게시물 대상은 `FEED`이고 관리자 응답에서만 `POST`로 바꿉니다. 지금은 기각만 저장합니다. 기각은 선택한 신고만 `SELECT … FOR UPDATE`로 잠그고, 그 행이 아직 `PENDING`일 때만 `RESOLVED`로 바꿉니다. 같은 대상의 다른 대기 신고, 이미 완료된 행, 처리 중에 새로 들어온 신고는 바꾸지 않습니다. 같은 신고를 동시에 기각하면 한쪽만 성공하고 다른 쪽은 409 `ALREADY_RESOLVED`입니다. 숨김과 제재는 501 `REPORT_ACTION_NOT_SUPPORTED`이며 행은 대기로 남습니다. mock도 어떤 액션이든 선택한 신고만 닫습니다. 대상 미리보기는 신고 id마다 따로 만듭니다. 같은 대상이라도 신고마다 저장된 `snapshot`을 유지하고, 현재 글을 읽을 때는 대상 종류별로 한 번씩 조회합니다. `target.text`는 스냅샷 첫 줄이고, 스냅샷이 없으면 현재 첫 줄, 그것도 없으면 상태별 안내입니다. `target.imageUrl`은 스냅샷에 저장된 이미지만 쓰고 현재 내용으로 채우지 않습니다. `target.link`는 `visibility`가 `LIVE`일 때만 둡니다. `target.snapshot`은 저장된 원문 `{text, imageUrl}`이고 비어 있으면 null입니다. 현재 글을 복사해 채우지 않습니다. `target.current`는 `LIVE`·`HIDDEN`일 때만 `{text, imageUrl: null}`이고, `DELETED`·`UNAVAILABLE`이면 null입니다. `target.modified`는 스냅샷 첫 줄과 현재 첫 줄이 둘 다 있을 때만 다른지 여부이고, 한쪽이 없으면 null입니다. `target.visibility`는 `LIVE · HIDDEN · DELETED · UNAVAILABLE`입니다. `deleted_at`이 있으면 `DELETED`이고 현재 글은 비웁니다. `hidden_at`만 있으면 `HIDDEN`이며 현재 글은 보여 주고 링크는 없습니다. 행이 없거나 컬렉션이면 `UNAVAILABLE`이고 "삭제됨"으로 쓰지 않습니다. 알려진 삭제 안내는 게시물·댓글 "삭제된 …", 사용자 "탈퇴한 사용자"입니다. `handled_by`는 `admins` 테이블이 없어 FK가 없습니다. `admin_action_logs`와 알림은 아직 호출하지 않습니다.
 
 ---
 
@@ -1501,7 +1503,7 @@ class ArchitectureTest {
 | # | 내용 |
 | --- | --- |
 | 1 ★ | **Spring Boot 버전:** 요청서는 3.4, `build.gradle`은 4.1.2. 3.4는 오픈소스 지원이 끝난 버전이라 새 프로젝트로 낮추는 것은 권하지 않습니다. 정하면 0.1과 `build.gradle`을 맞춥니다 |
-| 2 | enum 값 목록이 없는 컬럼: `media_files.purpose/status`, `payments.status/purpose/provider`, `import_jobs.status/source_type/platform`, `places.source_type/category`, `saved_places.source_type`, `reports.target_type/reason_code/status`, `notifications.type/target_type`, `messages.attachment_type`, `plan_item_reservations.type`, 이동 수단 `mode` |
+| 2 | enum 값 목록이 없는 컬럼: `media_files.purpose/status`, `payments.status/purpose/provider`, `import_jobs.status/source_type/platform`, `places.source_type/category`, `saved_places.source_type`, `reports.reason`(상태·대상·처리 액션은 확정), `notifications.type/target_type`, `messages.attachment_type`, `plan_item_reservations.type`, 이동 수단 `mode` |
 | 3 | 길찾기 · 날씨 · LLM · PG · 메일 제공자 |
 | 4 | 보류 테이블(tags 등)을 Flyway 초기 스크립트에 포함할지 (제안: 보류를 풀 때 마이그레이션 추가) |
 | 5 | R2 파일 접근 방식: 공개 버킷이면 비공개 게시물 · 유료 컬렉션 사진이 URL만으로 열림 → 비공개 버킷 + 서명 URL(GET) 여부 |

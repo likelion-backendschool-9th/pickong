@@ -25,11 +25,37 @@ interface ReportRow {
   createdAt: string;
   status: "PENDING" | "RESOLVED";
   resolution: { action: ReportAction; memo: string; resolvedAt: string } | null;
+  snapshot?: { text: string; imageUrl: string | null } | null;
+  visibility?: "LIVE" | "HIDDEN" | "DELETED" | "UNAVAILABLE";
 }
 
 let reports: ReportRow[] = [
-  { id: "rp-1", targetType: "POST", targetId: "post-5", reportedUserId: "u-walker", reporterId: "u-haeun", reason: "SPAM", detail: "같은 사진을 계속 올려요.", createdAt: ago(0.2), status: "PENDING", resolution: null },
-  { id: "rp-2", targetType: "COMMENT", targetId: "cm-2", reportedUserId: "u-minsu", reporterId: "u-yujin", reason: "ABUSE", detail: "", createdAt: ago(0.6), status: "PENDING", resolution: null },
+  {
+    id: "rp-1",
+    targetType: "POST",
+    targetId: "post-5",
+    reportedUserId: "u-walker",
+    reporterId: "u-haeun",
+    reason: "SPAM",
+    detail: "같은 사진을 계속 올려요.",
+    createdAt: ago(0.2),
+    status: "PENDING",
+    resolution: null,
+    snapshot: { text: "광고 문구가 포함된 게시물이었어요.\n구매 링크가 반복됐어요.", imageUrl: "/images/photos/park.jpg" },
+  },
+  {
+    id: "rp-2",
+    targetType: "COMMENT",
+    targetId: "cm-2",
+    reportedUserId: "u-minsu",
+    reporterId: "u-yujin",
+    reason: "ABUSE",
+    detail: "",
+    createdAt: ago(0.6),
+    status: "PENDING",
+    resolution: null,
+    visibility: "HIDDEN",
+  },
   { id: "rp-3", targetType: "USER", targetId: "u-walker", reportedUserId: "u-walker", reporterId: "u-jimin", reason: "IMPERSONATION", detail: "다른 크리에이터를 사칭하는 것 같아요.", createdAt: ago(1), status: "PENDING", resolution: null },
   { id: "rp-4", targetType: "COLLECTION", targetId: "c-jimin-photo", reportedUserId: "u-jimin", reporterId: "u-minsu", reason: "COPYRIGHT", detail: "제 블로그 사진을 그대로 썼어요.", createdAt: ago(3), status: "RESOLVED", resolution: { action: "DISMISS", memo: "직접 촬영한 사진으로 확인", resolvedAt: ago(2) } },
 ];
@@ -49,20 +75,56 @@ const userSummary = (id: string) => {
 };
 
 function targetPreview(r: ReportRow) {
+  const visible = visibleTarget(r);
+  const visibility = r.visibility ?? visible.visibility;
+  const readable = visibility === "LIVE" || visibility === "HIDDEN";
+  const snapshot = r.snapshot ?? null;
+  const snapshotLine = firstLine(snapshot?.text);
+  const currentLine = readable ? firstLine(visible.text) : null;
+  return {
+    text: snapshotLine ?? visible.text,
+    imageUrl: snapshot?.imageUrl ?? null,
+    link: visibility === "LIVE" ? visible.link : null,
+    snapshot,
+    current: readable ? { text: currentLine, imageUrl: null } : null,
+    modified: snapshotLine && currentLine ? snapshotLine !== currentLine : null,
+    visibility,
+  };
+}
+
+function firstLine(text: string | null | undefined) {
+  const line = text?.split("\n")[0]?.trim();
+  return line ? line : null;
+}
+
+function visibleTarget(r: ReportRow): {
+  text: string;
+  imageUrl: string | null;
+  link: string | null;
+  visibility: "LIVE" | "HIDDEN" | "DELETED" | "UNAVAILABLE";
+} {
   if (r.targetType === "POST") {
     const p = db.posts.find((x) => x.id === r.targetId);
-    return { text: p?.content.split("\n")[0] ?? "삭제된 게시물", imageUrl: p?.photos[0]?.url ?? null, link: `/posts/${r.targetId}` };
+    return p
+      ? { text: p.content.split("\n")[0] ?? "게시물", imageUrl: p.photos[0]?.url ?? null, link: `/posts/${r.targetId}`, visibility: "LIVE" }
+      : { text: "확인할 수 없는 게시물", imageUrl: null, link: null, visibility: "UNAVAILABLE" };
   }
   if (r.targetType === "COMMENT") {
     const c = db.comments.find((x) => x.id === r.targetId);
-    return { text: c?.content ?? "삭제된 댓글", imageUrl: null, link: c ? `/posts/${c.postId}` : null };
+    return c
+      ? { text: c.content, imageUrl: null, link: `/posts/${c.postId}`, visibility: "LIVE" }
+      : { text: "확인할 수 없는 댓글", imageUrl: null, link: null, visibility: "UNAVAILABLE" };
   }
   if (r.targetType === "COLLECTION") {
     const c = db.collections.find((x) => x.id === r.targetId);
-    return { text: c?.title ?? "삭제된 컬렉션", imageUrl: c ? collectionDto(c).coverImageUrl : null, link: `/collections/${r.targetId}` };
+    return c
+      ? { text: c.title, imageUrl: collectionDto(c).coverImageUrl, link: `/collections/${r.targetId}`, visibility: "LIVE" }
+      : { text: "확인할 수 없는 컬렉션", imageUrl: null, link: null, visibility: "UNAVAILABLE" };
   }
   const u = findUser(r.targetId);
-  return { text: u ? `${u.nickname} (@${u.username})` : "탈퇴한 사용자", imageUrl: u?.profileImageUrl ?? null, link: u ? `/users/${u.username}` : null };
+  return u
+    ? { text: `${u.nickname} (@${u.username})`, imageUrl: u.profileImageUrl, link: `/users/${u.username}`, visibility: "LIVE" }
+    : { text: "확인할 수 없는 사용자", imageUrl: null, link: null, visibility: "UNAVAILABLE" };
 }
 
 const reportDto = (r: ReportRow) => ({
@@ -192,10 +254,6 @@ export const adminRoutes: Route[] = [
       }
       r.status = "RESOLVED";
       r.resolution = { action, memo, resolvedAt: new Date().toISOString() };
-      // 같은 대상에 쌓인 다른 신고도 함께 처리합니다.
-      reports = reports.map((x) =>
-        x.status === "PENDING" && x.targetType === r.targetType && x.targetId === r.targetId ? { ...x, status: "RESOLVED", resolution: r.resolution } : x,
-      );
       return reportDto(r);
     },
   },
