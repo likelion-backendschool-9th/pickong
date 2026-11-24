@@ -72,26 +72,32 @@ public class CommentService implements CommentUseCase {
 
     @Override
     @Transactional
-    public Comment updateComment(Long feedId, Long commentId, UpdateCommentCommand command) {
+    public Comment updateComment(Long feedId, Long commentId, Long userId, UpdateCommentCommand command) {
         Comment comment = commentRepository.findById(commentId);
         // 댓글이 해당 피드에 속하는지 확인 — 잘못된 feedId로 다른 피드 댓글 수정 방지
         if (!comment.getFeedId().equals(feedId)) {
             throw new BusinessException(FeedErrorCode.COMMENT_FEED_MISMATCH);
         }
-        // TODO(JWT): JWT 도입 후 comment.getUserId()와 인증된 userId 일치 여부 검증해야됨
+        // 본인 댓글만 수정 가능
+        if (!comment.getUserId().equals(userId)) {
+            throw new BusinessException(FeedErrorCode.COMMENT_NOT_OWNER);
+        }
         comment.update(command.getContent());
         return commentRepository.save(comment);
     }
 
     @Override
     @Transactional
-    public void deleteComment(Long feedId, Long commentId) {
+    public void deleteComment(Long feedId, Long commentId, Long userId) {
         Comment comment = commentRepository.findById(commentId);
         // 댓글이 해당 피드에 속하는지 확인 — 잘못된 feedId로 다른 피드 댓글 삭제 방지
         if (!comment.getFeedId().equals(feedId)) {
             throw new BusinessException(FeedErrorCode.COMMENT_FEED_MISMATCH);
         }
-        // TODO(JWT): JWT 도입 후 삭제 전 comment.getUserId()와 인증된 userId 일치 여부 검증해야됨
+        // 본인 댓글만 삭제 가능
+        if (!comment.getUserId().equals(userId)) {
+            throw new BusinessException(FeedErrorCode.COMMENT_NOT_OWNER);
+        }
         commentRepository.deleteById(commentId);
     }
 

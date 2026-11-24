@@ -178,7 +178,7 @@ function OnboardingSteps({ session }: { session: SignupSession }) {
         title="가입을 그만둘까요?"
         description="입력한 내용은 저장되지 않아요. 다음에 같은 계정으로 로그인하면 처음부터 다시 진행해요."
       >
-        <div className="flex gap-2 pt-2 pb-[calc(12px+env(safe-area-inset-bottom))]">
+        <div className="grid grid-cols-2 gap-2 pt-2 pb-[calc(12px+env(safe-area-inset-bottom))]">
           <Button variant="outline" block onClick={() => setLeaving(false)}>
             계속 가입하기
           </Button>

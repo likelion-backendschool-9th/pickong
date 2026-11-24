@@ -1,5 +1,7 @@
 package com.pickong.feed.adapter.in.web;
 
+import com.pickong.common.security.CurrentUser;
+import com.pickong.common.security.LoginUser;
 import com.pickong.feed.adapter.in.web.request.CreateCommentRequest;
 import com.pickong.feed.adapter.in.web.request.UpdateCommentRequest;
 import com.pickong.feed.adapter.in.web.response.CommentPageResponse;
@@ -26,7 +28,7 @@ public class CommentController {
         this.commentUseCase = commentUseCase;
     }
 
-    // 댓글 목록 조회 (최상위 댓글만)
+    // 댓글 목록 조회 (최상위 댓글만) — 로그인 필수
     @GetMapping
     public CommentPageResponse getComments(
             @PathVariable @Positive Long feedId,
@@ -40,7 +42,7 @@ public class CommentController {
         );
     }
 
-    // 대댓글 목록 조회
+    // 대댓글 목록 조회 — 로그인 필수
     @GetMapping("/{commentId}/replies")
     public CommentPageResponse getReplies(
             @PathVariable @Positive Long feedId,
@@ -55,30 +57,33 @@ public class CommentController {
         );
     }
 
-    // 댓글 작성 (parentId 있으면 대댓글) — 생성 성공 시 201 Created
+    // 댓글 작성 (parentId 있으면 대댓글) — 로그인 필수, 생성 성공 시 201 Created
     @PostMapping
     public ResponseEntity<CommentResponse> createComment(
             @PathVariable @Positive Long feedId,
+            @CurrentUser LoginUser user,
             @Valid @RequestBody CreateCommentRequest request) {
-        CommentResponse response = CommentResponse.from(commentUseCase.createComment(feedId, request.toCommand()));
+        CommentResponse response = CommentResponse.from(commentUseCase.createComment(feedId, request.toCommand(user.userId())));
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    // 댓글 수정
+    // 댓글 수정 — 로그인 필수, 본인 댓글만 가능
     @PutMapping("/{commentId}")
     public CommentResponse updateComment(
             @PathVariable @Positive Long feedId,
             @PathVariable @Positive Long commentId,
+            @CurrentUser LoginUser user,
             @Valid @RequestBody UpdateCommentRequest request) {
-        return CommentResponse.from(commentUseCase.updateComment(feedId, commentId, request.toCommand()));
+        return CommentResponse.from(commentUseCase.updateComment(feedId, commentId, user.userId(), request.toCommand()));
     }
 
-    // 댓글 삭제 — 삭제 성공 시 204 No Content
+    // 댓글 삭제 — 로그인 필수, 본인 댓글만 가능, 삭제 성공 시 204 No Content
     @DeleteMapping("/{commentId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteComment(
             @PathVariable @Positive Long feedId,
-            @PathVariable @Positive Long commentId) {
-        commentUseCase.deleteComment(feedId, commentId);
+            @PathVariable @Positive Long commentId,
+            @CurrentUser LoginUser user) {
+        commentUseCase.deleteComment(feedId, commentId, user.userId());
     }
 }

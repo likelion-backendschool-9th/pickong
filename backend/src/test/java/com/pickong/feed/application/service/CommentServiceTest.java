@@ -88,7 +88,7 @@ class CommentServiceTest {
                 .willThrow(new BusinessException(FeedErrorCode.COMMENT_NOT_FOUND));
 
         // when & then
-        assertThatThrownBy(() -> commentService.updateComment(10L, 999L,
+        assertThatThrownBy(() -> commentService.updateComment(10L, 999L, 1L,
                 new UpdateCommentCommand("수정 내용")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("댓글을 찾을 수 없습니다");
@@ -107,10 +107,29 @@ class CommentServiceTest {
         given(commentRepository.findById(1L)).willReturn(wrongFeedComment);
 
         // when & then
-        assertThatThrownBy(() -> commentService.updateComment(10L, 1L,
+        assertThatThrownBy(() -> commentService.updateComment(10L, 1L, 1L,
                 new UpdateCommentCommand("수정 내용")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("댓글이 해당 피드에 속하지 않습니다");
+    }
+
+    @Test
+    void updateComment_타인댓글_수정시_예외발생() {
+        // given: 댓글 작성자는 userId=2, 요청자는 userId=99
+        Comment otherUsersComment = Comment.builder()
+                .id(1L)
+                .feedId(10L)
+                .userId(2L)
+                .content("타인의 댓글")
+                .likeCount(0)
+                .build();
+        given(commentRepository.findById(1L)).willReturn(otherUsersComment);
+
+        // when & then
+        assertThatThrownBy(() -> commentService.updateComment(10L, 1L, 99L,
+                new UpdateCommentCommand("수정 내용")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("댓글 작성자만 수정·삭제할 수 있습니다");
     }
 
     @Test
@@ -120,7 +139,7 @@ class CommentServiceTest {
                 .willThrow(new BusinessException(FeedErrorCode.COMMENT_NOT_FOUND));
 
         // when & then
-        assertThatThrownBy(() -> commentService.deleteComment(10L, 999L))
+        assertThatThrownBy(() -> commentService.deleteComment(10L, 999L, 1L))
                 .isInstanceOf(BusinessException.class);
     }
 
@@ -137,9 +156,27 @@ class CommentServiceTest {
         given(commentRepository.findById(1L)).willReturn(wrongFeedComment);
 
         // when & then
-        assertThatThrownBy(() -> commentService.deleteComment(10L, 1L))
+        assertThatThrownBy(() -> commentService.deleteComment(10L, 1L, 1L))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("댓글이 해당 피드에 속하지 않습니다");
+    }
+
+    @Test
+    void deleteComment_타인댓글_삭제시_예외발생() {
+        // given: 댓글 작성자는 userId=2, 요청자는 userId=99
+        Comment otherUsersComment = Comment.builder()
+                .id(1L)
+                .feedId(10L)
+                .userId(2L)
+                .content("타인의 댓글")
+                .likeCount(0)
+                .build();
+        given(commentRepository.findById(1L)).willReturn(otherUsersComment);
+
+        // when & then
+        assertThatThrownBy(() -> commentService.deleteComment(10L, 1L, 99L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("댓글 작성자만 수정·삭제할 수 있습니다");
     }
 
     @Test
