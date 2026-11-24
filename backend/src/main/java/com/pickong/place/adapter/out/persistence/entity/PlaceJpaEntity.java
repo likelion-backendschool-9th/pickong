@@ -26,11 +26,21 @@ public class PlaceJpaEntity {
     @Column(name = "public_id", nullable = false, unique = true, updatable = false)
     private UUID publicId;
 
+    /** 공개 범위. PUBLIC, PRIVATE */
+    @Column(name = "visibility", nullable = false, length = 10)
+    private String visibility;
+
     @Column(name = "name", nullable = false)
     private String name;
 
     @Column(name = "address")
     private String address;
+
+    @Column(name = "region", length = 50)
+    private String region;
+
+    @Column(name = "country_code", nullable = false, length = 2)
+    private String countryCode;
 
     /**
      * 좌표. GEOGRAPHY(Point, 4326).
@@ -41,25 +51,41 @@ public class PlaceJpaEntity {
     private String location;
 
     /** 장소 카테고리. 값 목록 팀 확인 필요 (PlaceCategory VO). */
-    @Column(name = "category")
+    @Column(name = "category", nullable = false, length = 30)
     private String category;
 
-    /** 장소 출처. 값 목록: KAKAO, CUSTOM, AI_EXTRACTED 등 */
+    /** 장소 출처. 값 목록: KAKAO, CUSTOM, AI_EXTRACTED, SYSTEM */
     @Column(name = "source_type", nullable = false, length = 20)
     private String sourceType;
 
-    @Column(name = "external_id")
-    private String externalId;
+    @Column(name = "description", length = 500)
+    private String description;
 
     @Column(name = "phone")
     private String phone;
 
-    @Column(name = "website_url")
-    private String websiteUrl;
+    @Column(name = "image_url")
+    private String imageUrl;
+
+    @Column(name = "hours_source", length = 15)
+    private String hoursSource;
+
+    @Column(name = "hours_verified_at")
+    private OffsetDateTime hoursVerifiedAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    @Column(name = "deleted_at")
+    private OffsetDateTime deletedAt;
+
+    /** 직접 만든 장소(CUSTOM)의 등록자. 그 외에는 null */
+    @Column(name = "owner_id")
+    private Long ownerId;
+
+    @Column(name = "image_media_id")
+    private Long imageMediaId;
 }

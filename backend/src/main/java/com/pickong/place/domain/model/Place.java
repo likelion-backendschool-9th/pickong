@@ -17,7 +17,7 @@ import lombok.Getter;
  * <p>category 값 목록은 확정 전이라 문자열로 둡니다 (backend_blueprint.md 8.7 #2).
  */
 @Getter
-@Builder
+@Builder(toBuilder = true)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Place {
     private Long id;
