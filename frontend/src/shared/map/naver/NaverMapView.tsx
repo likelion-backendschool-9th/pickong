@@ -190,16 +190,20 @@ export function NaverMapView({
   }, []);
 
   // focus 이동 (지도가 아직 없으면 status가 ready가 될 때 다시 적용)
+  // panTo + setZoom을 연속 호출하면 애니메이션이 겹쳐 줌만 되고 중심 이동이 빠질 수 있어,
+  // 줌까지 바꿀 때는 morph로 한 번에 맞춥니다.
   useEffect(() => {
     const map = mapRef.current;
     if (status !== "ready" || !map || !focus || focus.key === focusedKeyRef.current) return;
     focusedKeyRef.current = focus.key;
     suppressMoveRef.current = true;
-    map.panTo(toNaverLatLng(focus.position));
-    if (!focus.keepZoom) {
-      const next = Math.max(map.getZoom(), metersPerPixelToZoom(2.6, USE_GL));
-      map.setZoom(next, true);
+    const target = toNaverLatLng(focus.position);
+    if (focus.keepZoom) {
+      map.panTo(target);
+      return;
     }
+    const next = Math.max(map.getZoom(), metersPerPixelToZoom(2.6, USE_GL));
+    map.morph(target, next);
   }, [focus, status]);
 
   // 마커 동기화

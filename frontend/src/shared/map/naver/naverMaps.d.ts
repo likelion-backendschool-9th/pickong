@@ -49,6 +49,8 @@ declare global {
       fitBounds(bounds: LatLngBounds, margins?: number | Partial<Record<"top" | "right" | "bottom" | "left", number>>): void;
       getBounds(): LatLngBounds;
       panTo(latlng: LatLng, transitionOptions?: object): void;
+      /** 중심·줌을 한 번에 애니메이션으로 맞춥니다. */
+      morph(latlng: LatLng, zoom?: number, transitionOptions?: object): void;
       autoResize(): void;
       destroy(): void;
     }
