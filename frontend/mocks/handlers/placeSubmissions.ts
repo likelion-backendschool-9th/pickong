@@ -6,7 +6,7 @@ import type { Route } from "../router.ts";
 
 /**
  * 장소 제보. 승인된 장소만 db.places에 넣습니다.
- * 대기·반려는 공개 지도 조회(GET /api/places)에 나오지 않습니다.
+ * 대기·반려는 공개 지도 조회(GET /api/v1/places)에 나오지 않습니다.
  * 이 배열은 프로세스 메모리에만 있어서, mock 서버를 다시 시작하면 시드로 돌아갑니다.
  */
 let submissions: PlaceSubmissionRow[] = structuredClone(placeSubmissions);
@@ -87,18 +87,18 @@ function assertLocation(row: PlaceSubmissionRow) {
 export const placeSubmissionRoutes: Route[] = [
   {
     method: "GET",
-    path: "/api/admin/place-submissions",
+    path: "/api/v1/admin/place-submissions",
     delay: 250,
     handler: () => submissions.map(toDto),
   },
   {
     method: "GET",
-    path: "/api/admin/place-submissions/:id",
+    path: "/api/v1/admin/place-submissions/:id",
     handler: ({ params }) => toDto(findSubmission(params.id)),
   },
   {
     method: "POST",
-    path: "/api/admin/place-submissions/:id/approve",
+    path: "/api/v1/admin/place-submissions/:id/approve",
     delay: 300,
     handler: ({ params }) => {
       const row = findSubmission(params.id);
@@ -115,7 +115,7 @@ export const placeSubmissionRoutes: Route[] = [
   },
   {
     method: "POST",
-    path: "/api/admin/place-submissions/:id/reject",
+    path: "/api/v1/admin/place-submissions/:id/reject",
     delay: 300,
     handler: ({ params, body }) => {
       const row = findSubmission(params.id);
@@ -132,7 +132,7 @@ export const placeSubmissionRoutes: Route[] = [
   {
     /** 사용자가 좌표로 장소를 제보. 공개 장소 목록에는 넣지 않습니다. */
     method: "POST",
-    path: "/api/place-submissions",
+    path: "/api/v1/place-submissions",
     delay: 400,
     handler: ({ body }) => {
       const name = String(body?.name ?? "").trim();

@@ -89,7 +89,7 @@ function jobDto(job: Job) {
 export const importRoutes: Route[] = [
   {
     method: "POST",
-    path: "/api/imports",
+    path: "/api/v1/imports",
     handler: ({ body }) => {
       const url = typeof body?.url === "string" ? body.url.trim() : "";
       const text = typeof body?.text === "string" ? body.text.trim() : "";
@@ -109,7 +109,7 @@ export const importRoutes: Route[] = [
   },
   {
     method: "GET",
-    path: "/api/imports/:id",
+    path: "/api/v1/imports/:id",
     delay: 80,
     handler: ({ params }) => {
       const job = jobs.get(params.id) ?? notFound("가져오기 작업");
@@ -118,7 +118,7 @@ export const importRoutes: Route[] = [
   },
   {
     method: "DELETE",
-    path: "/api/imports/:id",
+    path: "/api/v1/imports/:id",
     handler: ({ params }) => {
       jobs.delete(params.id);
       return undefined;

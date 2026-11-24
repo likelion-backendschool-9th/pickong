@@ -52,7 +52,7 @@ function markVisited(placeId: string) {
 export const planRoutes: Route[] = [
   {
     method: "GET",
-    path: "/api/plans",
+    path: "/api/v1/plans",
     delay: 250,
     handler: () =>
       db.plans
@@ -63,7 +63,7 @@ export const planRoutes: Route[] = [
   {
     /** 새 일정은 ‘계획 중’으로 시작합니다. */
     method: "POST",
-    path: "/api/plans",
+    path: "/api/v1/plans",
     delay: 400,
     handler: ({ body }) => {
       if (!body?.title || !body?.date) throw new HttpError(400, "REQUIRED", "제목과 날짜를 입력해 주세요.");
@@ -81,11 +81,11 @@ export const planRoutes: Route[] = [
       return planDto(plan);
     },
   },
-  { method: "GET", path: "/api/plans/:id", handler: ({ params }) => planDto(planOr404(params.id)) },
+  { method: "GET", path: "/api/v1/plans/:id", handler: ({ params }) => planDto(planOr404(params.id)) },
   {
     /** 항목 저장 · 계획 완료(status: UPCOMING) · 다시 수정(status: PLANNING) */
     method: "PUT",
-    path: "/api/plans/:id",
+    path: "/api/v1/plans/:id",
     handler: ({ params, body }) => {
       const plan = planOr404(params.id);
       if (body?.items) {
@@ -104,7 +104,7 @@ export const planRoutes: Route[] = [
   },
   {
     method: "DELETE",
-    path: "/api/plans/:id",
+    path: "/api/v1/plans/:id",
     handler: ({ params }) => {
       planOr404(params.id);
       db.plans = db.plans.filter((p) => p.id !== params.id);
@@ -117,7 +117,7 @@ export const planRoutes: Route[] = [
      * 추가한 곳은 일정 끝에 붙고, 다녀온 곳은 내 지도에서 ‘방문 완료’가 됩니다.
      */
     method: "POST",
-    path: "/api/plans/:id/visits",
+    path: "/api/v1/plans/:id/visits",
     handler: ({ params, body }) => {
       const plan = planOr404(params.id);
       const visited: string[] = Array.isArray(body?.visitedItemIds) ? body.visitedItemIds : [];

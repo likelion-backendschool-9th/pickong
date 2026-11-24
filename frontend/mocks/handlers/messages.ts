@@ -75,7 +75,7 @@ export const messageRoutes: Route[] = [
   {
     /** 내 대화 목록 (최근 메시지 순). 메시지가 없는 대화방은 빼고 보여 줍니다. */
     method: "GET",
-    path: "/api/conversations",
+    path: "/api/v1/conversations",
     handler: () =>
       db.conversations
         .filter((c) => c.memberIds.includes(ME_ID) && messagesOf(c.id).length > 0)
@@ -85,7 +85,7 @@ export const messageRoutes: Route[] = [
   {
     /** 안 읽은 메시지 수 (하단바 배지) */
     method: "GET",
-    path: "/api/conversations/unread-count",
+    path: "/api/v1/conversations/unread-count",
     handler: () => ({
       count: db.conversations.filter((c) => c.memberIds.includes(ME_ID)).reduce((sum, c) => sum + conversationDto(c).unreadCount, 0),
     }),
@@ -93,7 +93,7 @@ export const messageRoutes: Route[] = [
   {
     /** 대화 시작: 상대와의 대화방이 있으면 그대로, 없으면 새로 만듭니다. */
     method: "POST",
-    path: "/api/conversations",
+    path: "/api/v1/conversations",
     handler: ({ body }) => {
       const partner = findUserByName(String(body?.username ?? "")) ?? notFound("사용자");
       if (partner.id === ME_ID) throw new HttpError(400, "SELF_DM", "나에게는 메시지를 보낼 수 없어요.");
@@ -105,11 +105,11 @@ export const messageRoutes: Route[] = [
       return conversationDto(c);
     },
   },
-  { method: "GET", path: "/api/conversations/:id", handler: ({ params }) => conversationDto(conversationOr404(params.id)) },
+  { method: "GET", path: "/api/v1/conversations/:id", handler: ({ params }) => conversationDto(conversationOr404(params.id)) },
   {
     /** 메시지 목록 (오래된 순). 불러오면 읽음 처리합니다. */
     method: "GET",
-    path: "/api/conversations/:id/messages",
+    path: "/api/v1/conversations/:id/messages",
     handler: ({ params }) => {
       const c = conversationOr404(params.id);
       c.lastReadAt[ME_ID] = new Date().toISOString();
@@ -118,7 +118,7 @@ export const messageRoutes: Route[] = [
   },
   {
     method: "POST",
-    path: "/api/conversations/:id/messages",
+    path: "/api/v1/conversations/:id/messages",
     delay: 250,
     handler: ({ params, body }) => {
       const c = conversationOr404(params.id);
