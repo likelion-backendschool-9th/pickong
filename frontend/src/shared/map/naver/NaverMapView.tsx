@@ -197,7 +197,8 @@ export function NaverMapView({
         listeners.push(naver.maps.Event.addListener(map, "click", () => onMapClickRef.current?.()));
 
         emitBounds();
-        persistLastCamera();
+        // 생성 직후 persist는 Activity 복귀 시 낡은 initialCenter로 세션을 덮어쓸 수 있어
+        // idle·teardown에서만 저장합니다.
 
         ro = new ResizeObserver(() => {
           map.autoResize();

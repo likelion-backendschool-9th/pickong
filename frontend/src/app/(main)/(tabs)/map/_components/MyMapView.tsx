@@ -2,7 +2,7 @@
 
 import { ChevronDown, ChevronUp, Info, Link2, LocateFixed, MapPinPlus } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import { categoryLabel, formatHours, usePlacesInBounds, type Place, type PlaceCategory, type SavedPlace } from "@/entities/place";
 import { SavePlaceButton } from "@/features/save-place";
 import { routes } from "@/shared/config/routes";
@@ -78,19 +78,26 @@ export function MyMapView({
     setGpsBootError(null);
   };
 
-  // 세션 카메라 복원 또는 최초 GPS → 카메라 확정 후에 MapView를 마운트합니다.
+  /**
+   * cacheComponents(Activity)는 탭을 숨겨도 bootCamera state를 유지합니다.
+   * 지도 effect는 다시 돌지만, 첫 페인트 props가 낡은 bootCamera면 그 좌표로
+   * 지도를 만들고 세션까지 덮어씁니다. 세션 재동기화는 useLayoutEffect로
+   * 지도 생성 effect보다 먼저 반영합니다.
+   */
+  useLayoutEffect(() => {
+    if (!hasBootstrappedMapGps()) return;
+    setBootCamera(readMapCamera());
+    setUserLocation(readUserLocation());
+    setBootReady(true);
+  }, []);
+
+  // 세션 최초 진입만 GPS → 카메라 확정 후에 MapView를 마운트합니다.
   useEffect(() => {
+    if (hasBootstrappedMapGps()) return;
+
     let cancelled = false;
 
     async function boot() {
-      if (hasBootstrappedMapGps()) {
-        if (cancelled) return;
-        setBootCamera(readMapCamera());
-        setUserLocation(readUserLocation());
-        setBootReady(true);
-        return;
-      }
-
       try {
         const position = await getCurrentPosition();
         if (cancelled) return;
@@ -118,6 +125,12 @@ export function MyMapView({
       cancelled = true;
     };
   }, []);
+
+  /** 팬·줌 때도 bootCamera를 같이 갱신해 Activity 복귀 시 낡은 state를 남기지 않습니다. */
+  const persistCamera = (camera: MapCamera) => {
+    writeMapCamera(camera);
+    setBootCamera(camera);
+  };
 
   /** 최초 GPS가 실패한 뒤, 같은 화면에서 위치를 다시 요청합니다. */
   const retryGpsBoot = async () => {
@@ -238,7 +251,7 @@ export function MyMapView({
         onMarkerClick={select}
         onMapClick={clearSelection}
         onBoundsChange={setBounds}
-        onCameraChange={writeMapCamera}
+        onCameraChange={persistCamera}
         focus={mapFocus}
         userLocation={userLocation}
         caption={undefined}
