@@ -2,7 +2,7 @@
 
 import { ChevronDown, ChevronUp, Info, Link2, LocateFixed, MapPinPlus } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { categoryLabel, formatHours, usePlacesInBounds, type Place, type PlaceCategory, type SavedPlace } from "@/entities/place";
 import { SavePlaceButton } from "@/features/save-place";
 import { routes } from "@/shared/config/routes";
@@ -20,9 +20,8 @@ type FocusRequest = { key: string; position: LatLng; keepZoom?: boolean } | null
 
 /**
  * 내 지도 (지도 우선형): 주변 장소는 작은 점, 내가 저장한 곳은 초록 핀.
+ * 진입 시 GPS로 현재 위치를 읽어 지도 중심으로 두고, 실패하면 기본 지역을 유지합니다.
  * 장소를 누르면 지도가 그 핀으로 옮겨지고(카드에 가리지 않게), 아래에 작은 요약 카드가 뜹니다.
- * 카드를 누르면 펼쳐져 저장한 곳은 ‘일정에 추가 · 직접 추가/링크’, 주변 장소는 영업시간 · 상세 보기가 보입니다.
- * (카카오 지도 연결 후에는 지도 자체의 장소 표시를 쓰고, 이 화면은 저장 핀만 올리면 됩니다.)
  */
 export function MyMapView({
   saved,
@@ -49,6 +48,30 @@ export function MyMapView({
   const [mapFocus, setMapFocus] = useState<FocusRequest>(null);
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const [locating, setLocating] = useState(false);
+  /** 최초 GPS 응답 전에 사용자가 지도를 드래그하면, 늦게 온 GPS로 중심을 덮지 않습니다. */
+  const skipInitialGpsPanRef = useRef(false);
+
+  // 지도 진입 시 GPS를 한 번 읽어 내 위치로 카메라를 옮깁니다. 실패하면 기본 지역 그대로 둡니다.
+  useEffect(() => {
+    let cancelled = false;
+    skipInitialGpsPanRef.current = false;
+
+    getCurrentPosition()
+      .then((position) => {
+        if (cancelled) return;
+        setUserLocation(position);
+        if (!skipInitialGpsPanRef.current) {
+          setMapFocus({ key: `gps-boot:${position.lat},${position.lng}`, position });
+        }
+      })
+      .catch(() => {
+        // 권한 거부·타임아웃 등은 기본 지역(DEFAULT_CENTER) 유지
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // 검색에서 장소를 고르면 그 장소로 이동해 선택 (렌더 중 상태 보정: 고른 장소가 바뀐 경우에만)
   const [focusedId, setFocusedId] = useState<string | null>(null);
@@ -148,6 +171,9 @@ export function MyMapView({
         onMarkerClick={select}
         onMapClick={clearSelection}
         onBoundsChange={setBounds}
+        onDragStart={() => {
+          skipInitialGpsPanRef.current = true;
+        }}
         focus={mapFocus}
         userLocation={userLocation}
         caption={undefined}

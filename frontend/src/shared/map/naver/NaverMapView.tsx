@@ -9,8 +9,6 @@ import { clampNaverZoom, fromNaverBounds, fromNaverLatLng, metersPerPixelToZoom,
 import { loadNaverSdk } from "./loadNaverSdk";
 
 const DEFAULT_CENTER: LatLng = { lat: 37.5446, lng: 127.0525 };
-const FIT_PADDING = 56;
-const FIT_MAX_ZOOM = 14; // 너무 넓게 맞춰졌을 때 이 줌보다 작으면(축소면) 근처만 다시 맞춤
 const USE_GL = shouldUseNaverGl();
 
 export interface NaverMapViewProps {
@@ -19,10 +17,12 @@ export interface NaverMapViewProps {
   onMarkerClick?: (id: string) => void;
   /** 마커가 아닌 지도 빈 곳을 눌렀을 때 */
   onMapClick?: () => void;
-  /** 처음 중심. 없으면 마커 전체가 보이도록 맞춤 */
+  /** 처음 중심. 없으면 기본 지역(성수) */
   center?: LatLng;
   /** 처음 축척 (m/px). center와 함께 사용 */
   metersPerPixel?: number;
+  /** 처음 네이버 줌 레벨. 있으면 metersPerPixel보다 우선 */
+  zoom?: number;
   /** 마커 순서대로 잇는 경로 */
   path?: LatLng[];
   showZoom?: boolean;
@@ -30,6 +30,10 @@ export interface NaverMapViewProps {
   onCenterChange?: (center: LatLng) => void;
   /** 화면에 보이는 범위가 바뀔 때 알림 (처음 맞춤 · 이동 · 확대/축소) */
   onBoundsChange?: (bounds: LatLngBounds) => void;
+  /** idle 시 중심·줌 (탭 복귀용 카메라 저장) */
+  onCameraChange?: (camera: { center: LatLng; zoom: number }) => void;
+  /** 사용자가 지도를 드래그하기 시작했을 때 (초기 GPS 적용 취소 등) */
+  onDragStart?: () => void;
   /** 이 위치로 지도를 옮깁니다 (검색 결과 선택 등). key가 바뀔 때마다 한 번 이동 */
   focus?: { key: string; position: LatLng; keepZoom?: boolean } | null;
   /** 중앙 고정 핀 표시 (좌표 직접 지정용) */
@@ -52,10 +56,13 @@ export function NaverMapView({
   onMapClick,
   center: initialCenter,
   metersPerPixel: initialMpp,
+  zoom: initialZoom,
   path,
   showZoom = true,
   onCenterChange,
   onBoundsChange,
+  onCameraChange,
+  onDragStart,
   focus,
   crosshair,
   userLocation,
@@ -71,16 +78,19 @@ export function NaverMapView({
   const userLocationMarkerRef = useRef<naver.maps.Marker | null>(null);
   const polylineRef = useRef<naver.maps.Polyline | null>(null);
   const focusedKeyRef = useRef<string | null>(null);
-  const fittedKeyRef = useRef<string | null>(null);
   const suppressMoveRef = useRef(false);
 
   const onCenterChangeRef = useRef(onCenterChange);
   const onBoundsChangeRef = useRef(onBoundsChange);
+  const onCameraChangeRef = useRef(onCameraChange);
+  const onDragStartRef = useRef(onDragStart);
   const onMarkerClickRef = useRef(onMarkerClick);
   const onMapClickRef = useRef(onMapClick);
   useEffect(() => {
     onCenterChangeRef.current = onCenterChange;
     onBoundsChangeRef.current = onBoundsChange;
+    onCameraChangeRef.current = onCameraChange;
+    onDragStartRef.current = onDragStart;
     onMarkerClickRef.current = onMarkerClick;
     onMapClickRef.current = onMapClick;
   });
@@ -90,7 +100,6 @@ export function NaverMapView({
 
   const pins = markers.filter((m) => m.tone !== "poi");
   const pinCount = pins.length;
-  const markerKey = pins.map((m) => `${m.id}:${m.position.lat},${m.position.lng}`).join("|");
 
   // SDK 로드 + 지도 생성
   useEffect(() => {
@@ -105,7 +114,10 @@ export function NaverMapView({
         if (cancelled || !containerRef.current) return;
 
         const center = initialCenter ?? DEFAULT_CENTER;
-        const zoom = metersPerPixelToZoom(initialMpp ?? 4, USE_GL);
+        const zoom =
+          initialZoom !== undefined
+            ? clampNaverZoom(initialZoom, USE_GL)
+            : metersPerPixelToZoom(initialMpp ?? 4, USE_GL);
         const map = new naver.maps.Map(containerRef.current, {
           center: toNaverLatLng(center),
           zoom,
@@ -122,22 +134,32 @@ export function NaverMapView({
           if (!mapRef.current) return;
           onBoundsChangeRef.current?.(fromNaverBounds(mapRef.current.getBounds()));
         };
+        const emitCamera = () => {
+          if (!mapRef.current) return;
+          onCameraChangeRef.current?.({
+            center: fromNaverLatLng(mapRef.current.getCenter()),
+            zoom: mapRef.current.getZoom(),
+          });
+        };
         const emitCenter = () => {
           if (!mapRef.current || suppressMoveRef.current) return;
           onCenterChangeRef.current?.(fromNaverLatLng(mapRef.current.getCenter()));
         };
         const onIdle = () => {
           emitBounds();
+          emitCamera();
           suppressMoveRef.current = false;
         };
 
         listeners.push(naver.maps.Event.addListener(map, "idle", onIdle));
         listeners.push(naver.maps.Event.addListener(map, "center_changed", emitCenter));
         listeners.push(naver.maps.Event.addListener(map, "zoom_changed", emitBounds));
+        listeners.push(naver.maps.Event.addListener(map, "dragstart", () => onDragStartRef.current?.()));
         // 마커 클릭은 Marker 이벤트로만 가고, 여기 click은 지도 빈 곳
         listeners.push(naver.maps.Event.addListener(map, "click", () => onMapClickRef.current?.()));
 
         emitBounds();
+        emitCamera();
 
         ro = new ResizeObserver(() => {
           map.autoResize();
@@ -163,7 +185,7 @@ export function NaverMapView({
       mapRef.current?.destroy();
       mapRef.current = null;
     };
-    // 최초 마운트 시 한 번만 생성 (initialCenter/mpp는 첫 값만 사용)
+    // 최초 마운트 시 한 번만 생성 (initialCenter/mpp/zoom은 첫 값만 사용)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -179,15 +201,6 @@ export function NaverMapView({
       map.setZoom(next, true);
     }
   }, [focus]);
-
-  // 마커 구성이 바뀌면 전체가 보이도록 맞춤 (center를 밖에서 준 경우·focus 중이면 생략)
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || status !== "ready") return;
-    if (initialCenter || focusedKeyRef.current || fittedKeyRef.current === markerKey) return;
-    fittedKeyRef.current = markerKey;
-    fitToMarkers(map, pins);
-  }, [markerKey, status, initialCenter, pins]);
 
   // 마커 동기화
   useEffect(() => {
@@ -440,48 +453,4 @@ function titleEl(text: string, color: string): HTMLElement {
 function cssVar(name: string, fallback: string): string {
   if (typeof document === "undefined") return fallback;
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
-}
-
-function fitToMarkers(map: naver.maps.Map, markers: MapMarker[]) {
-  if (markers.length === 0) {
-    map.setCenter(toNaverLatLng(DEFAULT_CENTER));
-    map.setZoom(metersPerPixelToZoom(4, USE_GL));
-    return;
-  }
-
-  if (markers.length === 1) {
-    map.setCenter(toNaverLatLng(markers[0].position));
-    map.setZoom(metersPerPixelToZoom(2.6, USE_GL));
-    return;
-  }
-
-  const bounds = new naver.maps.LatLngBounds();
-  for (const m of markers) bounds.extend(toNaverLatLng(m.position));
-  map.fitBounds(bounds, {
-    top: FIT_PADDING,
-    right: FIT_PADDING,
-    bottom: FIT_PADDING,
-    left: FIT_PADDING,
-  });
-
-  // 너무 넓게 퍼져 있으면(다른 동네 포함) 첫 마커 주변만 맞춤
-  // 네이버: zoom이 작을수록 축소
-  if (map.getZoom() < FIT_MAX_ZOOM) {
-    const anchor = markers[0].position;
-    const near = markers.filter((m) => {
-      const dLat = (m.position.lat - anchor.lat) * 111_320;
-      const dLng =
-        (m.position.lng - anchor.lng) * 111_320 * Math.cos((anchor.lat * Math.PI) / 180);
-      return Math.hypot(dLat, dLng) < 2500;
-    });
-    const nearBounds = new naver.maps.LatLngBounds();
-    for (const m of near) nearBounds.extend(toNaverLatLng(m.position));
-    map.fitBounds(nearBounds, {
-      top: FIT_PADDING,
-      right: FIT_PADDING,
-      bottom: FIT_PADDING,
-      left: FIT_PADDING,
-    });
-    if (map.getZoom() < FIT_MAX_ZOOM) map.setZoom(FIT_MAX_ZOOM);
-  }
 }
