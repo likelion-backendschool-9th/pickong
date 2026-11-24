@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { hasBootstrappedMapGps, markMapGpsBootstrapped, readMapCamera, writeMapCamera } from "./mapSession";
+import {
+  hasBootstrappedMapGps,
+  markMapGpsBootstrapped,
+  readMapCamera,
+  readUserLocation,
+  writeMapCamera,
+  writeUserLocation,
+} from "./mapSession";
 
 afterEach(() => {
   sessionStorage.clear();
@@ -21,5 +28,11 @@ describe("mapSession", () => {
   it("깨진 카메라 JSON은 null로 무시한다", () => {
     sessionStorage.setItem("pickong:map-camera", "{not-json");
     expect(readMapCamera()).toBeNull();
+  });
+
+  it("내 위치 좌표를 읽고 쓴다", () => {
+    expect(readUserLocation()).toBeNull();
+    writeUserLocation({ lat: 37.56, lng: 126.98 });
+    expect(readUserLocation()).toEqual({ lat: 37.56, lng: 126.98 });
   });
 });

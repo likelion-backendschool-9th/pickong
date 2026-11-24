@@ -153,7 +153,14 @@ export function NaverMapView({
 
         listeners.push(naver.maps.Event.addListener(map, "idle", onIdle));
         listeners.push(naver.maps.Event.addListener(map, "center_changed", emitCenter));
-        listeners.push(naver.maps.Event.addListener(map, "zoom_changed", emitBounds));
+        // idle만 기다리면 드래그 직후 탭 이탈 시 카메라가 안 남을 수 있어 dragend·줌 변경에도 저장합니다.
+        listeners.push(naver.maps.Event.addListener(map, "dragend", emitCamera));
+        listeners.push(
+          naver.maps.Event.addListener(map, "zoom_changed", () => {
+            emitBounds();
+            emitCamera();
+          }),
+        );
         listeners.push(naver.maps.Event.addListener(map, "dragstart", () => onDragStartRef.current?.()));
         // 마커 클릭은 Marker 이벤트로만 가고, 여기 click은 지도 빈 곳
         listeners.push(naver.maps.Event.addListener(map, "click", () => onMapClickRef.current?.()));

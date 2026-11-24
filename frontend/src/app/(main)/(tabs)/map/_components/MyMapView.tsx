@@ -18,7 +18,9 @@ import {
   hasBootstrappedMapGps,
   markMapGpsBootstrapped,
   readMapCamera,
+  readUserLocation,
   writeMapCamera,
+  writeUserLocation,
   type MapCamera,
 } from "../_lib/mapSession";
 
@@ -71,6 +73,7 @@ export function MyMapView({
       if (hasBootstrappedMapGps()) {
         if (cancelled) return;
         setBootCamera(readMapCamera());
+        setUserLocation(readUserLocation());
         setBootReady(true);
         return;
       }
@@ -81,6 +84,7 @@ export function MyMapView({
         const camera: MapCamera = { center: position, zoom: DEFAULT_MAP_ZOOM };
         // Strict Mode 재마운트에도 살아남도록 세션에 먼저 남깁니다.
         writeMapCamera(camera);
+        writeUserLocation(position);
         setUserLocation(position);
         setBootCamera(camera);
       } catch {
@@ -144,6 +148,7 @@ export function MyMapView({
     setLocating(true);
     try {
       const position = await getCurrentPosition();
+      writeUserLocation(position);
       setUserLocation(position);
       setMapFocus({ key: `me:${position.lat},${position.lng}:${Date.now()}`, position });
     } catch (err) {
