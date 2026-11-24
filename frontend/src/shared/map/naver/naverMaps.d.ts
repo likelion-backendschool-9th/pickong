@@ -34,6 +34,10 @@ declare global {
       mapDataControl?: boolean;
       logoControl?: boolean;
       zoomControl?: boolean;
+      /** GL 벡터맵 (Style Editor 연동 시 필수) */
+      gl?: boolean;
+      /** Style Editor에서 발행한 My Style ID (GL 전용) */
+      customStyleId?: string;
     }
 
     class Map {
