@@ -13,17 +13,28 @@ public interface FeedJpaRepository extends JpaRepository<FeedJpaEntity, Long> {
 
     // PUBLIC 피드를 최신순으로 조회 (cursor 없으면 첫 페이지)
     @Query("SELECT f FROM FeedJpaEntity f " +
-           "WHERE f.visibility = 'PUBLIC' " +
-           "AND (:cursor IS NULL OR f.id < :cursor) " +
-           "ORDER BY f.id DESC")
+            "WHERE f.visibility = 'PUBLIC' " +
+            "AND (:cursor IS NULL OR f.id < :cursor) " +
+            "ORDER BY f.id DESC")
     List<FeedJpaEntity> findRecommendedFeeds(
             @Param("cursor") Long cursor,
             Pageable pageable);
 
-    // 팔로잉한 사용자의 PUBLIC 피드를 최신순으로 조회
+    // 로그인 사용자용 추천 피드: PUBLIC + 팔로잉한 사람의 FOLLOWERS 피드
+    @Query("SELECT f FROM FeedJpaEntity f " +
+           "WHERE (f.visibility = 'PUBLIC' " +
+           "OR (f.visibility = 'FOLLOWERS' AND f.userId IN (SELECT fw.followeeId FROM FollowJpaEntity fw WHERE fw.followerId = :userId))) " +
+           "AND (:cursor IS NULL OR f.id < :cursor) " +
+           "ORDER BY f.id DESC")
+    List<FeedJpaEntity> findRecommendedFeedsForUser(
+            @Param("userId") Long userId,
+            @Param("cursor") Long cursor,
+            Pageable pageable);
+
+    // 팔로잉한 사용자의 PUBLIC + FOLLOWERS 피드를 최신순으로 조회
     @Query("SELECT f FROM FeedJpaEntity f " +
            "WHERE f.userId IN (SELECT fw.followeeId FROM FollowJpaEntity fw WHERE fw.followerId = :userId) " +
-           "AND f.visibility = 'PUBLIC' " +
+           "AND (f.visibility = 'PUBLIC' OR f.visibility = 'FOLLOWERS') " +
            "AND (:cursor IS NULL OR f.id < :cursor) " +
            "ORDER BY f.id DESC")
     List<FeedJpaEntity> findFollowingFeeds(
