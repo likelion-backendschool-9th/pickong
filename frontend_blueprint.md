@@ -743,6 +743,8 @@ export async function getFeed(id: Id): Promise<Feed> {
 | --- | --- |
 | `API_INTERNAL_URL` | 서버 → 백엔드(또는 mock) 주소. 서버 전용 |
 | `NEXT_PUBLIC_NAVER_MAP_CLIENT_ID` | 네이버 지도 Client ID (`ncpKeyId`, Web 서비스 URL·Dynamic Map 설정) |
+| `NEXT_PUBLIC_NAVER_MAP_STYLE_ID` | (선택) Map Style Editor My Style ID. 설정 시 GL + 커스텀 스타일 |
+| `NEXT_PUBLIC_NAVER_MAP_GL` | (선택) `true`면 Style ID 없이 GL 벡터맵만 사용 |
 
 장소 검색처럼 **카카오 REST 키가 필요한 호출은 브라우저에서 직접 하지 않고** 백엔드를 거칩니다 (`GET /api/places/search`). 백엔드 준비 전에는 mock 서버가 대신 응답합니다.
 
