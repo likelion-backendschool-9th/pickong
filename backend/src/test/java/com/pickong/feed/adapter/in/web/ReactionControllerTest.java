@@ -1,7 +1,7 @@
 package com.pickong.feed.adapter.in.web;
 
 import com.pickong.common.error.BusinessException;
-import com.pickong.common.error.ErrorCode;
+import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.common.error.GlobalExceptionHandler;
 import com.pickong.feed.application.port.in.FeedReactionUseCase;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,7 +49,7 @@ class ReactionControllerTest {
     @Test
     void likeFeed_피드없음_404반환() throws Exception {
         // given: 없는 피드 → BusinessException(FEED_NOT_FOUND) → GlobalExceptionHandler → 404
-        willThrow(new BusinessException(ErrorCode.FEED_NOT_FOUND))
+        willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND))
                 .given(feedReactionUseCase).likeFeed(999L, 1L);
 
         // when & then
@@ -61,7 +61,7 @@ class ReactionControllerTest {
     @Test
     void likeFeed_이미좋아요_409반환() throws Exception {
         // given: 이미 좋아요 → ALREADY_LIKED → 409
-        willThrow(new BusinessException(ErrorCode.ALREADY_LIKED))
+        willThrow(new BusinessException(FeedErrorCode.ALREADY_LIKED))
                 .given(feedReactionUseCase).likeFeed(1L, 1L);
 
         // when & then
@@ -84,7 +84,7 @@ class ReactionControllerTest {
     @Test
     void unlikeFeed_좋아요없음_404반환() throws Exception {
         // given: 좋아요 없는 상태에서 취소 → LIKE_NOT_FOUND → 404
-        willThrow(new BusinessException(ErrorCode.LIKE_NOT_FOUND))
+        willThrow(new BusinessException(FeedErrorCode.LIKE_NOT_FOUND))
                 .given(feedReactionUseCase).unlikeFeed(1L, 1L);
 
         // when & then
@@ -107,7 +107,7 @@ class ReactionControllerTest {
     @Test
     void bookmarkFeed_피드없음_404반환() throws Exception {
         // given: 없는 피드 → FEED_NOT_FOUND → 404
-        willThrow(new BusinessException(ErrorCode.FEED_NOT_FOUND))
+        willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND))
                 .given(feedReactionUseCase).bookmarkFeed(999L, 1L);
 
         // when & then
@@ -119,7 +119,7 @@ class ReactionControllerTest {
     @Test
     void bookmarkFeed_이미북마크_409반환() throws Exception {
         // given: 이미 북마크 → ALREADY_BOOKMARKED → 409
-        willThrow(new BusinessException(ErrorCode.ALREADY_BOOKMARKED))
+        willThrow(new BusinessException(FeedErrorCode.ALREADY_BOOKMARKED))
                 .given(feedReactionUseCase).bookmarkFeed(1L, 1L);
 
         // when & then
@@ -142,7 +142,7 @@ class ReactionControllerTest {
     @Test
     void unbookmarkFeed_북마크없음_404반환() throws Exception {
         // given: 북마크 없는 상태에서 취소 → BOOKMARK_NOT_FOUND → 404
-        willThrow(new BusinessException(ErrorCode.BOOKMARK_NOT_FOUND))
+        willThrow(new BusinessException(FeedErrorCode.BOOKMARK_NOT_FOUND))
                 .given(feedReactionUseCase).unbookmarkFeed(1L, 1L);
 
         // when & then

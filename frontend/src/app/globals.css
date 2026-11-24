@@ -41,6 +41,7 @@
   --color-map-road: #ffffff;
   --color-map-park: #dfeccd;
   --color-map-water: #d7e6ee;
+  --color-map-me: #2f80ed; /* 내 위치 (장소 핀과 구분) */
 
   --font-sans: var(--font-noto), system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
   /* 화면 제목 타이포: 기능 제목(한글) · 영문(라벨 · 닉네임) */
@@ -80,6 +81,22 @@
       transform: translateY(0);
     }
   }
+  @keyframes map-me-pulse {
+    0% {
+      transform: scale(0.7);
+      opacity: 0.45;
+    }
+    70% {
+      transform: scale(1.6);
+      opacity: 0;
+    }
+    100% {
+      transform: scale(1.6);
+      opacity: 0;
+    }
+  }
+
+  --animate-map-me-pulse: map-me-pulse 1.8s ease-out infinite;
 }
 
 @layer base {

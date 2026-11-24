@@ -1,0 +1,6 @@
+# 테스트 전용 설정. classpath:/config/application.yml은 main의 application.yml 위에 덮어써지므로
+# 여기에는 테스트에서 바꿀 값만 둡니다. (main 설정 전체를 가리지 않도록 파일 이름 · 위치를 이렇게 둠)
+pickong:
+  auth:
+    jwt:
+      secret: test-only-jwt-secret-0123456789-abcdefghij

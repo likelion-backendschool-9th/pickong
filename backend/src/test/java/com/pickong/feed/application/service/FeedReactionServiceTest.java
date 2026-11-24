@@ -2,7 +2,7 @@ package com.pickong.feed.application.service;
 
 import com.pickong.common.domain.Visibility;
 import com.pickong.common.error.BusinessException;
-import com.pickong.common.error.ErrorCode;
+import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.feed.application.port.out.FeedReactionRepository;
 import com.pickong.feed.application.port.out.FeedRepository;
 import com.pickong.feed.domain.model.Feed;
@@ -61,12 +61,12 @@ class FeedReactionServiceTest {
     void likeFeed_피드없음_예외발생() {
         // given: 피드 조회 시 FEED_NOT_FOUND 발생
         given(feedRepository.findById(999L))
-                .willThrow(new BusinessException(ErrorCode.FEED_NOT_FOUND));
+                .willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND));
 
         // when & then
         assertThatThrownBy(() -> feedReactionService.likeFeed(999L, 1L))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage(ErrorCode.FEED_NOT_FOUND.getMessage());
+                .hasMessage(FeedErrorCode.FEED_NOT_FOUND.getMessage());
     }
 
     @Test
@@ -78,7 +78,7 @@ class FeedReactionServiceTest {
         // when & then
         assertThatThrownBy(() -> feedReactionService.likeFeed(1L, 1L))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage(ErrorCode.ALREADY_LIKED.getMessage());
+                .hasMessage(FeedErrorCode.ALREADY_LIKED.getMessage());
     }
 
     // ─────────────────────────────────────────────
@@ -102,12 +102,12 @@ class FeedReactionServiceTest {
     void unlikeFeed_피드없음_예외발생() {
         // given: 피드 조회 시 FEED_NOT_FOUND 발생
         given(feedRepository.findById(999L))
-                .willThrow(new BusinessException(ErrorCode.FEED_NOT_FOUND));
+                .willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND));
 
         // when & then
         assertThatThrownBy(() -> feedReactionService.unlikeFeed(999L, 1L))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage(ErrorCode.FEED_NOT_FOUND.getMessage());
+                .hasMessage(FeedErrorCode.FEED_NOT_FOUND.getMessage());
     }
 
     @Test
@@ -119,7 +119,7 @@ class FeedReactionServiceTest {
         // when & then
         assertThatThrownBy(() -> feedReactionService.unlikeFeed(1L, 1L))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage(ErrorCode.LIKE_NOT_FOUND.getMessage());
+                .hasMessage(FeedErrorCode.LIKE_NOT_FOUND.getMessage());
     }
 
     // ─────────────────────────────────────────────
@@ -143,12 +143,12 @@ class FeedReactionServiceTest {
     void bookmarkFeed_피드없음_예외발생() {
         // given: 피드 조회 시 FEED_NOT_FOUND 발생
         given(feedRepository.findById(999L))
-                .willThrow(new BusinessException(ErrorCode.FEED_NOT_FOUND));
+                .willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND));
 
         // when & then
         assertThatThrownBy(() -> feedReactionService.bookmarkFeed(999L, 1L))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage(ErrorCode.FEED_NOT_FOUND.getMessage());
+                .hasMessage(FeedErrorCode.FEED_NOT_FOUND.getMessage());
     }
 
     @Test
@@ -160,7 +160,7 @@ class FeedReactionServiceTest {
         // when & then
         assertThatThrownBy(() -> feedReactionService.bookmarkFeed(1L, 1L))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage(ErrorCode.ALREADY_BOOKMARKED.getMessage());
+                .hasMessage(FeedErrorCode.ALREADY_BOOKMARKED.getMessage());
     }
 
     // ─────────────────────────────────────────────
@@ -184,12 +184,12 @@ class FeedReactionServiceTest {
     void unbookmarkFeed_피드없음_예외발생() {
         // given: 피드 조회 시 FEED_NOT_FOUND 발생
         given(feedRepository.findById(999L))
-                .willThrow(new BusinessException(ErrorCode.FEED_NOT_FOUND));
+                .willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND));
 
         // when & then
         assertThatThrownBy(() -> feedReactionService.unbookmarkFeed(999L, 1L))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage(ErrorCode.FEED_NOT_FOUND.getMessage());
+                .hasMessage(FeedErrorCode.FEED_NOT_FOUND.getMessage());
     }
 
     @Test
@@ -201,6 +201,6 @@ class FeedReactionServiceTest {
         // when & then
         assertThatThrownBy(() -> feedReactionService.unbookmarkFeed(1L, 1L))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage(ErrorCode.BOOKMARK_NOT_FOUND.getMessage());
+                .hasMessage(FeedErrorCode.BOOKMARK_NOT_FOUND.getMessage());
     }
 }
