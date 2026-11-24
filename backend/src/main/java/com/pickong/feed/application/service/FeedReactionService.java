@@ -29,6 +29,7 @@ public class FeedReactionService implements FeedReactionUseCase {
             throw new BusinessException(ErrorCode.ALREADY_LIKED);
         }
         feedReactionRepository.saveLike(feedId, userId);
+        feedRepository.incrementLikeCount(feedId);
     }
 
     @Override
@@ -39,6 +40,7 @@ public class FeedReactionService implements FeedReactionUseCase {
             throw new BusinessException(ErrorCode.LIKE_NOT_FOUND);
         }
         feedReactionRepository.deleteLike(feedId, userId);
+        feedRepository.decrementLikeCount(feedId);
     }
 
     @Override
@@ -49,6 +51,7 @@ public class FeedReactionService implements FeedReactionUseCase {
             throw new BusinessException(ErrorCode.ALREADY_BOOKMARKED);
         }
         feedReactionRepository.saveBookmark(feedId, userId);
+        feedRepository.incrementBookmarkCount(feedId);
     }
 
     @Override
@@ -59,5 +62,6 @@ public class FeedReactionService implements FeedReactionUseCase {
             throw new BusinessException(ErrorCode.BOOKMARK_NOT_FOUND);
         }
         feedReactionRepository.deleteBookmark(feedId, userId);
+        feedRepository.decrementBookmarkCount(feedId);
     }
 }

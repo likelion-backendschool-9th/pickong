@@ -83,6 +83,26 @@ public class JpaFeedAdapter implements FeedRepository {
         feedJpaRepository.deleteById(feedId);
     }
 
+    @Override
+    public void incrementLikeCount(Long feedId) {
+        feedJpaRepository.incrementLikeCount(feedId);
+    }
+
+    @Override
+    public void decrementLikeCount(Long feedId) {
+        feedJpaRepository.decrementLikeCount(feedId);
+    }
+
+    @Override
+    public void incrementBookmarkCount(Long feedId) {
+        feedJpaRepository.incrementBookmarkCount(feedId);
+    }
+
+    @Override
+    public void decrementBookmarkCount(Long feedId) {
+        feedJpaRepository.decrementBookmarkCount(feedId);
+    }
+
     /** 사진 · 태그 장소를 게시물 id 묶음으로 한 번에 읽어 N+1 조회를 피합니다. */
     private List<Feed> toDomain(List<FeedJpaEntity> feeds) {
         if (feeds.isEmpty()) {

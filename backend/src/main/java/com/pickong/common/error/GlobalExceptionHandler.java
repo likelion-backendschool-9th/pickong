@@ -41,14 +41,24 @@ public class GlobalExceptionHandler {
                 ));
     }
 
-    // DB UNIQUE 제약 위반 (동시 요청 등) 시 409로 응답
+    // DB 무결성 오류 처리
+    // UNIQUE 제약 위반(SQLState 23505)이면 409, 그 외(FK·NOT NULL 등)는 500으로 응답
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, Object>> handleDataIntegrityViolationException(DataIntegrityViolationException e) {
+        Throwable cause = e.getMostSpecificCause();
+        if (cause instanceof java.sql.SQLException sqlEx && "23505".equals(sqlEx.getSQLState())) {
+            return ResponseEntity
+                    .status(409)
+                    .body(Map.of(
+                            "status", 409,
+                            "message", "이미 처리된 요청입니다"
+                    ));
+        }
         return ResponseEntity
-                .status(409)
+                .status(500)
                 .body(Map.of(
-                        "status", 409,
-                        "message", "이미 처리된 요청입니다"
+                        "status", 500,
+                        "message", "서버 오류가 발생했습니다"
                 ));
     }
 
