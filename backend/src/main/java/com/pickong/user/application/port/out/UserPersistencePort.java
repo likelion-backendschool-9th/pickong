@@ -8,6 +8,9 @@ public interface UserPersistencePort {
 
     Optional<User> findById(Long userId);
 
+    /** username(대소문자 무시)으로 회원을 조회합니다. */
+    Optional<User> findByUsername(String username);
+
     /** 이 닉네임(소문자)을 쓰는 회원이 있는지 (lower(username) 인덱스) */
     boolean existsByUsername(String username);
 

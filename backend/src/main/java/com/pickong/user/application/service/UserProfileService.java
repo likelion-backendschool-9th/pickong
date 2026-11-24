@@ -4,8 +4,10 @@ import com.pickong.common.error.BusinessException;
 import com.pickong.user.application.dto.MyProfile;
 import com.pickong.user.application.dto.UpdateProfileCommand;
 import com.pickong.user.application.port.in.UserCommandUseCase;
+import com.pickong.user.application.port.in.UserCounterUseCase;
 import com.pickong.user.application.port.in.UserQueryUseCase;
 import com.pickong.user.application.port.out.UserPersistencePort;
+import com.pickong.user.adapter.out.persistence.repository.UserJpaRepository;
 import com.pickong.user.domain.UserErrorCode;
 import com.pickong.user.domain.model.User;
 import com.pickong.user.domain.vo.Username;
@@ -21,13 +23,15 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 @Transactional(readOnly = true)
-public class UserProfileService implements UserQueryUseCase, UserCommandUseCase {
+public class UserProfileService implements UserQueryUseCase, UserCommandUseCase, UserCounterUseCase {
 
     private final UserPersistencePort userPersistencePort;
+    private final UserJpaRepository userJpaRepository;
     private final Clock clock;
 
-    public UserProfileService(UserPersistencePort userPersistencePort, Clock clock) {
+    public UserProfileService(UserPersistencePort userPersistencePort, UserJpaRepository userJpaRepository, Clock clock) {
         this.userPersistencePort = userPersistencePort;
+        this.userJpaRepository = userJpaRepository;
         this.clock = clock;
     }
 
@@ -85,6 +89,30 @@ public class UserProfileService implements UserQueryUseCase, UserCommandUseCase 
             throw new BusinessException(UserErrorCode.USERNAME_TAKEN);
         }
         return changed;
+    }
+
+    @Override
+    @Transactional
+    public void incrementFollowerCount(Long userId) {
+        userJpaRepository.incrementFollowerCount(userId);
+    }
+
+    @Override
+    @Transactional
+    public void decrementFollowerCount(Long userId) {
+        userJpaRepository.decrementFollowerCount(userId);
+    }
+
+    @Override
+    @Transactional
+    public void incrementFollowingCount(Long userId) {
+        userJpaRepository.incrementFollowingCount(userId);
+    }
+
+    @Override
+    @Transactional
+    public void decrementFollowingCount(Long userId) {
+        userJpaRepository.decrementFollowingCount(userId);
     }
 
     private User load(Long userId) {

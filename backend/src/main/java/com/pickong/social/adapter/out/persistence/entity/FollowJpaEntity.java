@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 
 /**
  * follows 테이블 JPA 엔티티.
@@ -29,4 +30,12 @@ public class FollowJpaEntity {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
+
+    public static FollowJpaEntity of(Long followerId, Long followeeId) {
+        FollowJpaEntity entity = new FollowJpaEntity();
+        entity.followerId = followerId;
+        entity.followeeId = followeeId;
+        entity.createdAt = OffsetDateTime.now(ZoneOffset.UTC);
+        return entity;
+    }
 }
