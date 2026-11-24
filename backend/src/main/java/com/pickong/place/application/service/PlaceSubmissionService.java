@@ -134,6 +134,8 @@ public class PlaceSubmissionService implements PlaceSubmissionUseCase {
                 .address(submission.getAddress())
                 .location(submission.getLocation())
                 .category(submission.getCategory())
+                .description(submission.getDescription())
+                .imageUrl(submission.getImageUrl())
                 .sourceType(PlaceSourceType.CUSTOM)
                 .createdAt(now)
                 .updatedAt(now)
