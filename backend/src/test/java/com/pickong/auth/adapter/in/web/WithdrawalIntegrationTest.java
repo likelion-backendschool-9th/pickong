@@ -1,6 +1,8 @@
 package com.pickong.auth.adapter.in.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -19,12 +21,16 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
@@ -35,6 +41,7 @@ import org.springframework.test.web.servlet.ResultActions;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
+@ExtendWith(OutputCaptureExtension.class)
 class WithdrawalIntegrationTest {
 
     @Autowired
@@ -43,7 +50,8 @@ class WithdrawalIntegrationTest {
     @Autowired
     JdbcTemplate jdbc;
 
-    @Autowired
+    /** 진짜 동작을 그대로 쓰되, 세션 발급 실패 테스트에서만 예외를 던지게 바꿉니다 */
+    @MockitoSpyBean
     TokenUseCase tokenUseCase;
 
     @Autowired
@@ -68,6 +76,8 @@ class WithdrawalIntegrationTest {
 
     private void clean() {
         jdbc.update("DELETE FROM withdrawal_reasons");
+        jdbc.update("DELETE FROM user_terms_agreements");
+        jdbc.update("DELETE FROM terms WHERE version = '9.9-withdrawal-test'");
         jdbc.update("DELETE FROM user_terms_agreements");
         jdbc.update("DELETE FROM user_social_accounts");
         jdbc.update("DELETE FROM refresh_tokens");
@@ -229,5 +239,35 @@ class WithdrawalIntegrationTest {
         mvc.perform(post("/api/v1/auth/refresh").servletPath("/api/v1").with(csrf())
                         .cookie(new Cookie(AuthCookies.REFRESH_TOKEN, refresh)))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("탈퇴 취소 뒤 세션 발급이 실패하면: 취소는 커밋된 채(ACTIVE) 회원 id와 함께 error 로그를 남기고 오류를 그대로 던진다 (#110 리뷰 ①)")
+    void sessionIssueFailureAfterCancelIsLogged(CapturedOutput output) throws Exception {
+        withdraw("{\"reason\":\"RARELY_USED\"}").andExpect(status().isNoContent());
+        Cookie restore = restoreCookie();
+        doThrow(new IllegalStateException("세션 발급 실패 (테스트)")).when(tokenUseCase).issue(me);
+
+        assertThatThrownBy(() -> mvc.perform(post("/api/v1/auth/withdrawal/cancel").servletPath("/api/v1").with(csrf()).cookie(restore)))
+                .hasRootCauseInstanceOf(IllegalStateException.class);
+
+        assertThat(userRow().get("status")).as("취소는 이미 커밋됨 → 다시 로그인하면 정상 세션").isEqualTo("ACTIVE");
+        assertThat(output).contains("탈퇴는 취소됐지만 세션 발급 실패 (회원 " + me + ")");
+    }
+
+    @Test
+    @DisplayName("재동의가 필요한 필수 약관이 남아 있어도 탈퇴 신청은 막히지 않는다 (다른 API는 403)")
+    void withdrawalAllowedWhileReconsentPending() throws Exception {
+        jdbc.update("""
+                INSERT INTO terms (type, version, title, content_url, is_required, effective_at, requires_reconsent)
+                VALUES ('PRIVACY', '9.9-withdrawal-test', '개인정보 새 버전', '/terms/privacy', TRUE, now() - interval '1 day', TRUE)
+                """);
+
+        mvc.perform(get("/api/v1/me/social-accounts").servletPath("/api/v1").cookie(access))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("TERMS_RECONSENT_REQUIRED"));
+        withdraw("{\"reason\":\"PRIVACY\"}").andExpect(status().isNoContent());
+
+        assertThat(userRow().get("status")).isEqualTo("WITHDRAWN_PENDING");
     }
 }
