@@ -6,6 +6,8 @@ import com.pickong.user.adapter.out.persistence.repository.UserJpaRepository;
 import com.pickong.user.application.port.out.UserPersistencePort;
 import com.pickong.user.domain.UserErrorCode;
 import com.pickong.user.domain.model.User;
+import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
@@ -68,6 +70,25 @@ public class UserPersistenceAdapter implements UserPersistencePort {
         } catch (DataIntegrityViolationException e) {
             throw translate(e);
         }
+    }
+
+    @Override
+    @Transactional
+    public void updateWithdrawal(User user) {
+        userJpaRepository.updateWithdrawal(user.getId(), user.getStatus().name(), user.getWithdrawalRequestedAt(), user.getUpdatedAt());
+    }
+
+    /** 익명화 아이디(deleted_{id})는 예약어라 다른 회원과 겹치지 않지만, 혹시 겹치면 UNIQUE가 막고 익명화가 되돌아갑니다(다음 실행에서 다시). */
+    @Override
+    @Transactional
+    public void updateAnonymized(User user) {
+        userJpaRepository.updateAnonymized(user.getId(), user.getUsername(), user.getStatus().name(), user.getDeletedAt(),
+                user.getUpdatedAt());
+    }
+
+    @Override
+    public List<Long> findWithdrawalIdsRequestedBefore(OffsetDateTime threshold) {
+        return userJpaRepository.findWithdrawalIdsRequestedBefore(threshold);
     }
 
     /** UNIQUE 위반을 어느 값이 겹쳤는지에 따라 오류 코드로 바꿉니다. 모르는 위반은 그대로 둡니다(500). */

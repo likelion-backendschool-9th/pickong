@@ -1,6 +1,8 @@
 package com.pickong.user.application.port.out;
 
 import com.pickong.user.domain.model.User;
+import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 
 /** 회원(users) 저장소 포트. 구현: {@code user.adapter.out.persistence.UserPersistenceAdapter} */
@@ -28,4 +30,13 @@ public interface UserPersistencePort {
      * 동시에 같은 아이디로 바꾸면 DB UNIQUE가 막고 USERNAME_TAKEN으로 바꿔 던집니다.
      */
     void updateProfile(User user);
+
+    /** 탈퇴 상태(상태 · 탈퇴 신청 시각)만 저장합니다. 집계 컬럼 등 다른 컬럼은 건드리지 않습니다. */
+    void updateWithdrawal(User user);
+
+    /** 익명화한 값(아이디 · 이메일 · 이름 · 소개 · 지역 · 사진 · 상태 · 익명화 시각)만 저장합니다. */
+    void updateAnonymized(User user);
+
+    /** 탈퇴 중(WITHDRAWN_PENDING)이고 탈퇴 신청 시각이 threshold 이전인 회원 id (신청 시각 순) */
+    List<Long> findWithdrawalIdsRequestedBefore(OffsetDateTime threshold);
 }

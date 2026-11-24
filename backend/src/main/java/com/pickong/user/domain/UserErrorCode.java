@@ -21,6 +21,12 @@ public enum UserErrorCode implements ErrorCode {
     USERNAME_CHANGE_TOO_SOON(409, "닉네임은 14일에 한 번만 바꿀 수 있어요."),
     /** 가입 이메일이 이미 다른 회원에게 있음 (1인 1계정) */
     EMAIL_ALREADY_REGISTERED(409, "이미 가입된 이메일이에요."),
+    /** 탈퇴 사유가 없거나 모르는 값, 또는 '기타'인데 내용이 없음 · 내용이 너무 김 */
+    INVALID_WITHDRAWAL_REASON(400, "탈퇴 사유를 확인해 주세요."),
+    /** 탈퇴를 신청할 수 없는 상태 (정지 · 이미 탈퇴 중) */
+    WITHDRAWAL_NOT_ALLOWED(409, "지금은 탈퇴를 신청할 수 없는 계정이에요."),
+    /** 탈퇴 중이 아니거나 30일이 지나 탈퇴를 취소할 수 없음 */
+    WITHDRAWAL_NOT_CANCELLABLE(409, "탈퇴를 취소할 수 있는 기간이 지났어요."),
     /** 사용자를 찾을 수 없음 */
     USER_NOT_FOUND(404, "사용자를 찾을 수 없습니다");
 

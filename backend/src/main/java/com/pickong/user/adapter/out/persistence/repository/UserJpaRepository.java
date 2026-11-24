@@ -36,6 +36,36 @@ public interface UserJpaRepository extends JpaRepository<UserJpaEntity, Long> {
             @Param("bio") String bio, @Param("region") String region,
             @Param("usernameChangedAt") OffsetDateTime usernameChangedAt, @Param("updatedAt") OffsetDateTime updatedAt);
 
+    /** 탈퇴 상태만 바꿉니다(신청 · 취소). 집계 컬럼을 덮어쓰지 않으려고 행 전체를 저장하지 않습니다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update UserJpaEntity u
+               set u.status = :status, u.withdrawalRequestedAt = :withdrawalRequestedAt, u.updatedAt = :updatedAt
+             where u.id = :id
+            """)
+    int updateWithdrawal(@Param("id") Long id, @Param("status") String status,
+            @Param("withdrawalRequestedAt") OffsetDateTime withdrawalRequestedAt, @Param("updatedAt") OffsetDateTime updatedAt);
+
+    /** 익명화한 값만 바꿉니다. 개인정보 컬럼을 비우고 아이디를 내부 값으로 바꿉니다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update UserJpaEntity u
+               set u.username = :username, u.email = null, u.passwordHash = null, u.displayName = null, u.bio = null,
+                   u.region = null, u.profileImageUrl = null, u.status = :status, u.deletedAt = :deletedAt,
+                   u.updatedAt = :updatedAt
+             where u.id = :id
+            """)
+    int updateAnonymized(@Param("id") Long id, @Param("username") String username, @Param("status") String status,
+            @Param("deletedAt") OffsetDateTime deletedAt, @Param("updatedAt") OffsetDateTime updatedAt);
+
+    /** 탈퇴 중이고 신청 시각이 threshold 이전인 회원 id (신청 시각 순) */
+    @Query("""
+            select u.id from UserJpaEntity u
+             where u.status = 'WITHDRAWN_PENDING' and u.withdrawalRequestedAt < :threshold
+             order by u.withdrawalRequestedAt, u.id
+            """)
+    java.util.List<Long> findWithdrawalIdsRequestedBefore(@Param("threshold") OffsetDateTime threshold);
+
     @Modifying
     @Query("UPDATE UserJpaEntity u SET u.followerCount = u.followerCount + 1 WHERE u.id = :userId")
     void incrementFollowerCount(@Param("userId") Long userId);
