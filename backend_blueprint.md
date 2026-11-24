@@ -108,7 +108,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | `social` | 팔로우 · 차단, 관계 판정(팔로워인가, 차단했는가) | `follows`, `user_blocks` | 팔로워 수 저장 (`users.follower_count`는 `user`가 갱신) |
 | `terms` | 약관 버전 · 현재 약관 판정 · 동의 · 철회 | `terms`, `user_terms_agreements` | |
 | `media` | 업로드 URL 발급 · 업로드 확인 · 이미지 처리 · 재시도 · 정리 | `media_files` | 어떤 게시물의 사진인지 (`feed_photos`가 참조) |
-| `place` | 장소 마스터, 외부 장소 참조, 영업시간, 장소 검색(지도 API) | `places`, `place_external_refs`, `place_business_hours`, `place_hours_exceptions` | 개인 메모·방문 상태 (`savedplace`) |
+| `place` | 장소 마스터, 외부 장소 참조, 영업시간, 장소 검색(지도 API), 좌표 장소 제보 | `places`, `place_submissions`, `place_external_refs`, `place_business_hours`, `place_hours_exceptions` | 개인 메모·방문 상태 (`savedplace`). 제보 승인으로 `saved_places`를 만들지 않음 |
 | `route` | 외부 길찾기 호출, 이동 시간 · 거리 · 행렬, 캐시 | 없음 | 방문 순서 최적화 (`plan`) |
 | `savedplace` | 저장 장소(찜), 방문 상태, 메모, 저장 출처, 개인 사진 | `saved_places` (+ 개인 사진 테이블, 8.1 #4) | 컬렉션 구성 (`collection`) |
 | `feed` | 게시물 · 사진 · 장소 태그, 댓글, 좋아요, 북마크, 피드 | `feeds`, `feed_photos`, `feed_places`, `feed_likes`, `feed_bookmarks`, `comments`, `comment_likes` | |
@@ -278,11 +278,18 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 ### place
 | 메서드 | 경로 | 입력 포트 · 메서드 | 비고 |
 | --- | --- | --- | --- |
-| POST | `/places` | `PlaceCommandUseCase.createCustomPlace` | 직접 추가 (CUSTOM) |
-| GET | `/places/{placeId}` | `PlaceQueryUseCase.getDetail` | 영업시간 포함 |
-| GET | `/places/{placeId}/summary` | `PlaceQueryUseCase.getSummary` | |
-| GET | `/places?bbox=` | `PlaceQueryUseCase.findInBounds` | PostGIS |
-| GET | `/places/search` | `PlaceSearchUseCase.search` | 내부 DB + 지도 API |
+| POST | `/place-submissions` | `PlaceSubmissionUseCase.submit` | 구현됨. 로그인한 회원의 대기 제보만 만듦. 본문의 회원 id는 쓰지 않음 |
+| GET | `/admin/place-submissions` | `PlaceSubmissionUseCase.list` | 구현됨. 배열 전체. `page` · `size` · `totalCount` 없음. 검색 · 집계 · 정렬은 화면 |
+| GET | `/admin/place-submissions/{id}` | `PlaceSubmissionUseCase.get` | 구현됨. `{id}`는 DB id 문자열. 승인된 `placeId`는 장소 `public_id` |
+| POST | `/admin/place-submissions/{id}/approve` | `PlaceSubmissionUseCase.approve` | 구현됨. 본문 없음. 심사자 id는 인증된 관리자 주체 |
+| POST | `/admin/place-submissions/{id}/reject` | `PlaceSubmissionUseCase.reject` | 구현됨. 본문 `{ "reason" }`. 공백만 있으면 거절 |
+| GET | `/places`, `/places?bbox=` | `PlaceQueryUseCase.findPublic` / `findInBounds` | 구현됨. `places` 행만. bbox는 서경,남위,동경,북위. 대기 · 반려 제보는 없음 |
+| POST | `/places` | `PlaceCommandUseCase.createCustomPlace` | 이후 설계. 컨트롤러 없음. 제보 접수가 아님 |
+| GET | `/places/{placeId}` | `PlaceQueryUseCase.getDetail` | 이후 설계. 영업시간 포함. 클래스 없음 |
+| GET | `/places/{placeId}/summary` | `PlaceQueryUseCase.getSummary` | 이후 설계. 클래스 없음 |
+| GET | `/places/search` | `PlaceSearchUseCase.search` | 이후 설계. 클래스 없음 |
+
+제보 상태 전이는 대기 → 승인 또는 대기 → 반려만입니다. 승인하면 `places` 행을 만들고 `place_submissions.place_id`를 같은 트랜잭션에서 연결합니다. 반려는 사유 · 심사자 · 처리 시각만 남기고 장소는 만들지 않습니다. 이미 처리한 제보의 재심사는 409입니다. 관리자 API는 비로그인 401, 회원 403입니다. 관리자 로그인과 `admin_action_logs` 기록은 만들지 않았고, 심사자 id는 제보 행의 `reviewer_admin_id`에 남습니다. 승인된 장소에는 `visibility` · `owner_id`를 두지 않습니다. 이 두 컬럼의 일반 규칙은 8.3에 그대로 열려 있습니다.
 
 ### route
 | 메서드 | 경로 | 입력 포트 · 메서드 |
@@ -548,16 +555,21 @@ backend/src/main/java/com/pickong/
 │
 ├── place/
 │   ├── domain/
-│   │   ├── model/                            # Place, BusinessHours, HoursException
-│   │   ├── vo/                               # PlaceCategory, PlaceSourceType, MinuteOfDay(1440 초과 = 다음날)
+│   │   ├── model/                            # Place, BusinessHours, HoursException, PlaceSubmission
+│   │   ├── vo/                               # PlaceSourceType, PlaceSubmissionStatus. PlaceCategory · MinuteOfDay는 이후 설계
 │   │   └── policy/OpeningHoursPolicy.java    # 특정 일시 영업 여부 (일정 자동 점검 보류 해제 시 사용)
 │   ├── application/
-│   │   ├── port/in/                          # PlaceCommandUseCase, PlaceQueryUseCase, PlaceSearchUseCase
-│   │   └── port/out/                         # PlacePersistencePort, PlaceQueryPort, ExternalPlaceSearchPort
+│   │   ├── port/in/                          # PlaceQueryUseCase, PlaceSubmissionUseCase
+│   │   │                                     # PlaceCommandUseCase, PlaceSearchUseCase는 이후 설계. 클래스 없음
+│   │   ├── port/out/                         # PlacePersistencePort, PlaceSubmissionPersistencePort, SubmitterLookupPort
+│   │   ├── service/                          # PlaceQueryService, PlaceSubmissionService
+│   │   └── dto/                              # SubmitPlaceCommand, PlaceSubmissionView, SubmitterView
 │   └── adapter/
-│       ├── in/web/PlaceController.java
-│       ├── out/persistence/                  # Hibernate Spatial
-│       └── out/external/kakao/KakaoLocalSearchAdapter.java
+│       ├── in/web/                           # PlaceController, PlaceSubmissionController
+│       ├── in/web/admin/AdminPlaceSubmissionController.java
+│       ├── out/persistence/                  # 좌표는 JDBC ST_MakePoint. Hibernate Spatial 의존성 없음.
+│       │                                     # SubmitterLookupAdapter는 users의 id · public_id · username · display_name만 읽고 user 리포지토리는 쓰지 않음
+│       └── out/external/kakao/               # KakaoLocalSearchAdapter는 이후 설계. 패키지 안내만 있음
 │
 ├── route/                                    # → 5.1
 ├── savedplace/
@@ -1475,7 +1487,7 @@ class ArchitectureTest {
 | 기준 | 적용 |
 | --- | --- |
 | **공유 링크로 열리는 리소스는 `public_id`(UUID)** | feeds(`{feedId}`), places, collections, plans |
-| **본인 · 참여자 · 관리자만 접근하는 리소스는 BIGINT `id`** + 서비스에서 소유자 확인 | 댓글, 저장 장소, 일정 장소, 구매, 결제, 정산, 알림, 대화방, 메시지, 추출 작업, 미디어, 신고, 제재 |
+| **본인 · 참여자 · 관리자만 접근하는 리소스는 BIGINT `id`** + 서비스에서 소유자 확인 | 댓글, 저장 장소, 일정 장소, 구매, 결제, 정산, 알림, 대화방, 메시지, 추출 작업, 미디어, 신고, 제재, 장소 제보(`/admin/place-submissions/{id}`는 DB id 문자열. 응답 `placeId`는 장소 `public_id`) |
 | **사용자는 `username`** | `/users/{username}`. 관리자 API만 `{userId}` |
 | 변환 위치 | 컨트롤러는 경로 값을 그대로 Command에 담고, **service가 `PlaceQueryUseCase.resolveId(publicId)` 등으로 내부 id로 바꿈**. domain과 다른 모듈 호출은 내부 id(Long)로 통일 |
 

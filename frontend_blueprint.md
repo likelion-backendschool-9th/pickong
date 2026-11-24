@@ -117,8 +117,10 @@ pickong/
     │
     ├── mocks/                              # 개발용 mock 서버 (앱 번들에 포함되지 않음)
     │   ├── fixtures/                       # DTO 형태 샘플 데이터 (users, places, posts, collections, plans, imports)
+    │   │   └── placeSubmissions.ts         # 장소 제보 시드. 관리자 화면은 이 mock을 씀
     │   ├── handlers/                       # 리소스별 요청 핸들러 (API 계약 기준)
-    │   └── server.ts                       # localhost:4000에서 mock API 실행
+    │   │   └── placeSubmissions.ts         # 제보 목록·상세·승인·반려·접수. 실제 API와 같은 경로
+    │   └── server.ts                       # localhost:4000. placeSubmissionRoutes 등록
     │
     ├── e2e/                                # Playwright 핵심 흐름 테스트 (1차 후반)
     │
@@ -146,6 +148,22 @@ pickong/
     │   │   │           ├── SignupFlow.tsx      # 닉네임 → 프로필 사진 · 이름(건너뛰기) → 약관 동의 시트
     │   │   │           ├── NicknameStep.tsx · ProfileStep.tsx · TermsSheet.tsx
     │   │   │           └── SignupUi.tsx        # 단계 화면 틀, o──o──o 진행 표시
+    │   │   │
+    │   │   ├── (admin)/                    # 관리자
+    │   │   │   └── admin/
+    │   │   │       ├── page.tsx            # /admin
+    │   │   │       ├── AdminDashboard.tsx  # 제보 관리 버튼 → /admin/place-submissions
+    │   │   │       └── place-submissions/  # 목록·상세. mock 배열을 조회
+    │   │   │           ├── page.tsx        # /admin/place-submissions
+    │   │   │           ├── PlaceSubmissionsScreen.tsx  # 상태 집계·탭, 장소명·제보자 검색, 카테고리·정렬
+    │   │   │           ├── _components/
+    │   │   │           │   └── SubmissionStatusBadge.tsx
+    │   │   │           ├── _lib/
+    │   │   │           │   ├── filterSubmissions.ts
+    │   │   │           │   └── filterSubmissions.test.ts
+    │   │   │           └── [id]/
+    │   │   │               ├── page.tsx    # /admin/place-submissions/[id]
+    │   │   │               └── PlaceSubmissionDetailScreen.tsx  # 승인·반려
     │   │   │
     │   │   └── (main)/                     # 앱 셸 레이아웃 (헤더 + 하단 탭)
     │   │       ├── layout.tsx
@@ -202,6 +220,9 @@ pickong/
     │   │       │           └── comments.ts     # 댓글 API + DTO + mapper (이 페이지에서만 사용)
     │   │       │
     │   │       ├── places/
+    │   │       │   ├── new/                    # 실제 파일은 (main)/(sub)/places/new
+    │   │       │   │   ├── page.tsx            # /places/new
+    │   │       │   │   └── NewPlaceScreen.tsx  # 좌표를 고른 뒤 CustomPlaceFlow mode=report
     │   │       │   ├── [placeId]/
     │   │       │   │   ├── page.tsx
     │   │       │   │   ├── loading.tsx
@@ -309,7 +330,7 @@ pickong/
     │   │       ├── index.ts
     │   │       └── FeedCard.tsx            # FeedCardView + LikeButton + SavePlaceButton 조합
     │   │
-    │   ├── features/                       # ── 여러 페이지에서 재사용하는 사용자 행동 (현재 4개)
+    │   ├── features/                       # ── 여러 페이지에서 재사용하는 사용자 행동
     │   │   ├── save-place/                 # "찜" → 컬렉션 선택 → 저장
     │   │   │   ├── index.ts
     │   │   │   ├── SavePlaceButton.tsx
@@ -323,11 +344,14 @@ pickong/
     │   │   │   ├── index.ts
     │   │   │   ├── FollowButton.tsx
     │   │   │   └── useFollowUser.ts
-    │   │   └── place-search/
+    │   │   ├── place-search/
+    │   │   │   ├── index.ts
+    │   │   │   ├── PlaceSearchInput.tsx
+    │   │   │   ├── PlaceSearchResults.tsx
+    │   │   │   └── usePlaceSearch.ts
+    │   │   └── create-custom-place/        # 좌표 장소 입력. mode=report면 제보, 아니면 개인 저장
     │   │       ├── index.ts
-    │   │       ├── PlaceSearchInput.tsx
-    │   │       ├── PlaceSearchResults.tsx
-    │   │       └── usePlaceSearch.ts
+    │   │       └── CustomPlaceFlow.tsx
     │   │
     │   ├── entities/                       # ── 도메인 모델 + API 계약 + 표시 전용 UI
     │   │   ├── user/
@@ -343,6 +367,10 @@ pickong/
     │   │   │   ├── businessHours.test.ts
     │   │   │   ├── api/
     │   │   │   └── ui/                     # PlaceCard.tsx, PlacePin.tsx, CategoryIcon.tsx
+    │   │   ├── place-submission/           # 장소 제보. 공개 Place와 별개. 목록 응답은 배열
+    │   │   │   ├── index.ts
+    │   │   │   ├── model.ts                # PlaceSubmission, PlaceSubmissionStatus, PlaceSubmissionSubmitter
+    │   │   │   └── api/                    # dto.ts, mapper.ts, mapper.test.ts, placeSubmissionApi.ts, queries.ts
     │   │   ├── feed/
     │   │   │   ├── index.ts
     │   │   │   ├── model.ts
@@ -389,7 +417,7 @@ pickong/
     │       ├── lib/                        # date.ts, time.ts, geo.ts(거리), cn.ts
     │       └── config/
     │           ├── env.ts                  # 환경변수 검증 (zod)
-    │           ├── routes.ts               # 라우트 경로 상수
+    │           ├── routes.ts               # 라우트 경로 상수. 제보 관리 /admin/place-submissions, /admin/place-submissions/[id]
     │           └── visibility.ts           # 공개 / 팔로워 공개 / 비공개 (플랫폼 공통 정책)
     │
     ├── .env.local.example
@@ -739,7 +767,7 @@ export async function getFeed(id: Id): Promise<Feed> {
 
 - `mocks/`의 핸들러가 **DTO 형태의 응답**을 돌려줍니다. 따라서 mapper까지 실제와 같은 경로로 실행됩니다.
 - 개발 시 mock 서버(localhost:4000)를 띄우고, rewrites 대상과 `API_INTERNAL_URL`을 mock 서버로 지정합니다.
-- 백엔드에 일부 API만 있는 동안은 `BACKEND_URL`을 정합니다. `next.config.ts`의 `BACKEND_PATHS`에 있는 경로만 백엔드로 가고 나머지는 mock으로 갑니다. 백엔드에 API가 생기면 이 목록에 경로를 추가합니다.
+- 백엔드에 일부 API만 있는 동안은 `BACKEND_URL`을 정합니다. `next.config.ts`의 `BACKEND_PATHS`에 있는 경로만 백엔드로 가고 나머지는 mock으로 갑니다. 백엔드에 API가 생기면 이 목록에 경로를 추가합니다. 장소 제보 화면은 관리자 로그인이 없어 mock에 둡니다. 목록은 배열입니다. `GET /api/v1/places`도 백엔드 응답에 지도 화면이 쓰는 필드가 없어 mock에 둡니다.
 - 쓰기 요청(POST · PUT · PATCH · DELETE)은 `http.ts`가 `XSRF-TOKEN` 쿠키 값을 `X-XSRF-TOKEN` 헤더로 보냅니다. 403 `INVALID_CSRF_TOKEN`이면 쿠키를 다시 읽어 한 번만 재시도합니다.
 - **전환은 환경변수만 바꿉니다.** API 코드와 컴포넌트는 수정하지 않습니다. 기존 `USE_MOCK` 분기는 없앱니다.
 - 같은 핸들러를 Vitest 컴포넌트 테스트에서도 재사용합니다.

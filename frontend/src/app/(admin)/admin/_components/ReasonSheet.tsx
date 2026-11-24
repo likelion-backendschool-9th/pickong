@@ -35,28 +35,27 @@ export function ReasonSheet({
   onClose: () => void;
   onConfirm: (reason: string) => void;
 }) {
+  if (!open) return null;
   return (
-    <BottomSheet open={open} onClose={onClose} title={title}>
-      {open && (
-        <Body
-          description={description}
-          placeholder={placeholder}
-          confirmLabel={confirmLabel}
-          danger={danger}
-          required={required}
-          loading={loading}
-          error={error}
-          onClose={onClose}
-          onConfirm={onConfirm}
-        >
-          {children}
-        </Body>
-      )}
-    </BottomSheet>
+    <Form
+      title={title}
+      description={description}
+      placeholder={placeholder}
+      confirmLabel={confirmLabel}
+      danger={danger}
+      required={required}
+      loading={loading}
+      error={error}
+      onClose={onClose}
+      onConfirm={onConfirm}
+    >
+      {children}
+    </Form>
   );
 }
 
-function Body({
+function Form({
+  title,
   description,
   placeholder,
   confirmLabel,
@@ -67,22 +66,38 @@ function Body({
   children,
   onClose,
   onConfirm,
-}: Omit<Parameters<typeof ReasonSheet>[0], "open" | "title">) {
+}: Omit<Parameters<typeof ReasonSheet>[0], "open">) {
   const [reason, setReason] = useState("");
   return (
-    <div className="pb-[calc(12px+env(safe-area-inset-bottom))]">
+    <BottomSheet
+      open
+      onClose={onClose}
+      title={title}
+      footer={
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="outline" block onClick={onClose}>
+            취소
+          </Button>
+          <Button
+            variant={danger ? "danger" : "primary"}
+            block
+            disabled={required && !reason.trim()}
+            loading={loading}
+            onClick={() => onConfirm(reason.trim())}
+          >
+            {confirmLabel}
+          </Button>
+        </div>
+      }
+    >
       {description && <div className="mb-3 text-[13px] leading-relaxed text-ink-sub">{description}</div>}
       {children}
       <Textarea aria-label="사유" value={reason} onChange={(e) => setReason(e.target.value)} placeholder={placeholder} maxLength={200} className="min-h-24" />
-      {!!error && <Notice tone="danger" className="mt-3">{errorMessage(error)}</Notice>}
-      <div className="mt-4 flex gap-2">
-        <Button variant="outline" block onClick={onClose}>
-          취소
-        </Button>
-        <Button variant={danger ? "danger" : "primary"} block disabled={required && !reason.trim()} loading={loading} onClick={() => onConfirm(reason.trim())}>
-          {confirmLabel}
-        </Button>
-      </div>
-    </div>
+      {!!error && (
+        <Notice tone="danger" className="mt-3">
+          {errorMessage(error)}
+        </Notice>
+      )}
+    </BottomSheet>
   );
 }
