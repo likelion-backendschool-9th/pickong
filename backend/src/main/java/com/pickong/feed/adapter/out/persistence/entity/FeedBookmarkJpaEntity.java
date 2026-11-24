@@ -29,4 +29,12 @@ public class FeedBookmarkJpaEntity {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
+
+    public static FeedBookmarkJpaEntity of(Long feedId, Long userId) {
+        FeedBookmarkJpaEntity entity = new FeedBookmarkJpaEntity();
+        entity.feedId = feedId;
+        entity.userId = userId;
+        entity.createdAt = OffsetDateTime.now();
+        return entity;
+    }
 }

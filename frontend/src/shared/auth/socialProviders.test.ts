@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { oauthAuthorizeUrl, parseSocialProvider, providerSlug } from "./socialProviders";
 
 describe("socialProviders", () => {
-  it("로그인 시작 주소는 /api 아래 Spring Security 인가 경로를 쓴다", () => {
-    expect(oauthAuthorizeUrl("KAKAO")).toBe("/api/auth/oauth2/authorization/kakao");
-    expect(oauthAuthorizeUrl("GOOGLE")).toBe("/api/auth/oauth2/authorization/google");
+  it("로그인 시작 주소는 /api/v1 아래 Spring Security 인가 경로를 쓴다", () => {
+    expect(oauthAuthorizeUrl("KAKAO")).toBe("/api/v1/auth/oauth2/authorization/kakao");
+    expect(oauthAuthorizeUrl("GOOGLE")).toBe("/api/v1/auth/oauth2/authorization/google");
   });
 
   it("주소에는 소문자 이름을 쓴다", () => {

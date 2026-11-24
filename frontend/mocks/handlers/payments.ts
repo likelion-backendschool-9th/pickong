@@ -58,7 +58,7 @@ export const paymentRoutes: Route[] = [
   {
     /** 결제 준비: 서버가 가격을 정해 주문을 만듭니다. 화면이 보낸 금액은 믿지 않습니다. */
     method: "POST",
-    path: "/api/payments/orders",
+    path: "/api/v1/payments/orders",
     handler: ({ body }) => {
       const c = db.collections.find((x) => x.id === body?.collectionId) ?? notFound("컬렉션");
       if (!c.price) throw new HttpError(400, "NOT_FOR_SALE", "판매 중인 컬렉션이 아니에요.");
@@ -73,7 +73,7 @@ export const paymentRoutes: Route[] = [
   {
     /** 결제 승인 (mock PG). 금액이 주문과 다르면 거절합니다. */
     method: "POST",
-    path: "/api/payments/confirm",
+    path: "/api/v1/payments/confirm",
     delay: 1200,
     handler: ({ body }) => {
       const order = orders.get(String(body?.orderId ?? ""));
@@ -103,17 +103,17 @@ export const paymentRoutes: Route[] = [
   },
   {
     method: "GET",
-    path: "/api/me/purchases",
+    path: "/api/v1/me/purchases",
     handler: () =>
       db.purchases
         .filter((p) => p.userId === ME_ID)
         .sort((a, b) => b.purchasedAt.localeCompare(a.purchasedAt))
         .map(purchaseDto),
   },
-  { method: "GET", path: "/api/me/purchases/:id", handler: ({ params }) => purchaseDto(purchaseOr404(params.id)) },
+  { method: "GET", path: "/api/v1/me/purchases/:id", handler: ({ params }) => purchaseDto(purchaseOr404(params.id)) },
   {
     method: "POST",
-    path: "/api/purchases/:id/refunds",
+    path: "/api/v1/purchases/:id/refunds",
     delay: 500,
     handler: ({ params, body }) => {
       const p = purchaseOr404(params.id);

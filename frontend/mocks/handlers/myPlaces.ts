@@ -55,7 +55,7 @@ export const myPlaceRoutes: Route[] = [
   // ── 개인 태그 ──────────────────────────────────────
   {
     method: "GET",
-    path: "/api/me/tags",
+    path: "/api/v1/me/tags",
     handler: ({ query }) => {
       const q = normTag(query.get("q") ?? "").toLowerCase();
       return tagSummary()
@@ -65,17 +65,17 @@ export const myPlaceRoutes: Route[] = [
   },
   {
     method: "GET",
-    path: "/api/me/tags/:name/places",
+    path: "/api/v1/me/tags/:name/places",
     handler: ({ params }) => {
       const name = normTag(decodeURIComponent(params.name));
       const places = mySaved().filter((s) => tagsByPlace[s.placeId]?.includes(name));
       return { name, places: places.map((s) => ({ ...savedPlaceDto(s), tags: tagsByPlace[s.placeId] ?? [] })) };
     },
   },
-  { method: "GET", path: "/api/me/places/:id/tags", handler: ({ params }) => tagsByPlace[params.id] ?? [] },
+  { method: "GET", path: "/api/v1/me/places/:id/tags", handler: ({ params }) => tagsByPlace[params.id] ?? [] },
   {
     method: "PUT",
-    path: "/api/me/places/:id/tags",
+    path: "/api/v1/me/places/:id/tags",
     handler: ({ params, body }) => {
       mySavedOr400(params.id);
       const list: unknown = body?.tags;
@@ -91,13 +91,13 @@ export const myPlaceRoutes: Route[] = [
   // ── 장소별 개인 사진 ────────────────────────────────
   {
     method: "GET",
-    path: "/api/me/places/:id/photos",
+    path: "/api/v1/me/places/:id/photos",
     handler: ({ params }) =>
       photos.filter((p) => p.placeId === params.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
   },
   {
     method: "POST",
-    path: "/api/me/places/:id/photos",
+    path: "/api/v1/me/places/:id/photos",
     delay: 400,
     handler: ({ params, body }) => {
       mySavedOr400(params.id);
@@ -113,7 +113,7 @@ export const myPlaceRoutes: Route[] = [
   },
   {
     method: "DELETE",
-    path: "/api/me/places/:id/photos",
+    path: "/api/v1/me/places/:id/photos",
     handler: ({ params, body }) => {
       const ids: unknown = body?.photoIds;
       if (!Array.isArray(ids)) throw new HttpError(400, "INVALID_INPUT", "삭제할 사진을 골라 주세요.");
@@ -125,7 +125,7 @@ export const myPlaceRoutes: Route[] = [
   // ── 직접 등록 장소 관리 ─────────────────────────────
   {
     method: "GET",
-    path: "/api/me/places",
+    path: "/api/v1/me/places",
     handler: () =>
       db.places
         .filter((p) => p.isCustom && p.ownerId === ME_ID)
@@ -133,7 +133,7 @@ export const myPlaceRoutes: Route[] = [
   },
   {
     method: "PATCH",
-    path: "/api/places/:id",
+    path: "/api/v1/places/:id",
     delay: 300,
     handler: ({ params, body }) => {
       const place = myCustomPlaceOr404(params.id);
@@ -158,7 +158,7 @@ export const myPlaceRoutes: Route[] = [
   {
     /** 직접 등록한 장소 삭제: 내 지도 저장 · 개인 사진 · 태그도 함께 지웁니다. */
     method: "DELETE",
-    path: "/api/places/:id",
+    path: "/api/v1/places/:id",
     handler: ({ params }) => {
       const place = myCustomPlaceOr404(params.id);
       db.places = db.places.filter((p) => p.id !== place.id);

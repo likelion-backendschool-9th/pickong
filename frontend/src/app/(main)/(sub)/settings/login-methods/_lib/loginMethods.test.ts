@@ -36,7 +36,7 @@ describe("linkErrorMessage", () => {
 
 describe("isSameOriginPath", () => {
   it("같은 출처의 경로만 허용한다", () => {
-    expect(isSameOriginPath("/api/auth/oauth2/authorization/google?link=abc")).toBe(true);
+    expect(isSameOriginPath("/api/v1/auth/oauth2/authorization/google?link=abc")).toBe(true);
     expect(isSameOriginPath("//evil.example/x")).toBe(false);
     expect(isSameOriginPath("https://evil.example/x")).toBe(false);
   });

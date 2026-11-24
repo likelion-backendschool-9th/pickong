@@ -113,7 +113,7 @@ function earnings(userId: string) {
 export const creatorRoutes: Route[] = [
   {
     method: "GET",
-    path: "/api/me/creator",
+    path: "/api/v1/me/creator",
     handler: () => {
       const me = findUser(ME_ID)!;
       const app = latestApplication(ME_ID);
@@ -130,7 +130,7 @@ export const creatorRoutes: Route[] = [
   },
   {
     method: "POST",
-    path: "/api/me/creator/applications",
+    path: "/api/v1/me/creator/applications",
     delay: 500,
     handler: ({ body }) => {
       const me = findUser(ME_ID)!;
@@ -163,7 +163,7 @@ export const creatorRoutes: Route[] = [
   {
     /** 정산 계좌 등록 · 변경. mock은 예금주 확인 없이 저장합니다. */
     method: "PUT",
-    path: "/api/me/creator/account",
+    path: "/api/v1/me/creator/account",
     delay: 500,
     handler: ({ body }) => {
       if (!findUser(ME_ID)!.isCreator) throw new HttpError(403, "NOT_CREATOR", "크리에이터 승인 후 등록할 수 있어요.");
@@ -179,7 +179,7 @@ export const creatorRoutes: Route[] = [
   },
   {
     method: "GET",
-    path: "/api/me/creator/earnings",
+    path: "/api/v1/me/creator/earnings",
     handler: () => {
       if (!findUser(ME_ID)!.isCreator) throw new HttpError(403, "NOT_CREATOR", "크리에이터 승인 후 볼 수 있어요.");
       return earnings(ME_ID);

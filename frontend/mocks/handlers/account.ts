@@ -75,18 +75,18 @@ const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 export const accountRoutes: Route[] = [
   {
     method: "GET",
-    path: "/api/terms/:type",
+    path: "/api/v1/terms/:type",
     handler: ({ params }) => {
       const type = params.type.toUpperCase() as TermsType;
       const terms = TERMS[type] ?? notFound("약관");
       return { type, ...terms };
     },
   },
-  { method: "GET", path: "/api/me/agreements", handler: agreementList },
+  { method: "GET", path: "/api/v1/me/agreements", handler: agreementList },
   {
     /** 필수 약관은 철회할 수 없고, 선택 약관(마케팅)만 바꿀 수 있습니다. */
     method: "PATCH",
-    path: "/api/me/agreements",
+    path: "/api/v1/me/agreements",
     handler: ({ body }) => {
       const type = String(body?.type ?? "") as TermsType;
       if (!TERMS[type]) throw new HttpError(400, "INVALID_INPUT", "약관 종류를 확인해 주세요.");
@@ -100,7 +100,7 @@ export const accountRoutes: Route[] = [
   {
     /** 탈퇴: 사유 확인. 소셜 로그인 전용이라 비밀번호는 받지 않습니다. */
     method: "POST",
-    path: "/api/me/withdrawal",
+    path: "/api/v1/me/withdrawal",
     delay: 600,
     handler: ({ body }) => {
       if (!String(body?.reason ?? "")) throw new HttpError(400, "INVALID_INPUT", "탈퇴 사유를 선택해 주세요.");
@@ -109,10 +109,10 @@ export const accountRoutes: Route[] = [
   },
 
   // ── 푸시 알림 설정 ──────────────────────────────────
-  { method: "GET", path: "/api/me/notification-settings", handler: () => notificationSettings },
+  { method: "GET", path: "/api/v1/me/notification-settings", handler: () => notificationSettings },
   {
     method: "PUT",
-    path: "/api/me/notification-settings",
+    path: "/api/v1/me/notification-settings",
     handler: ({ body }) => {
       if (typeof body?.pushEnabled === "boolean") notificationSettings.pushEnabled = body.pushEnabled;
       if (body?.items && typeof body.items === "object") {
@@ -131,10 +131,10 @@ export const accountRoutes: Route[] = [
   },
 
   // ── 디바이스 (푸시 토큰) ────────────────────────────
-  { method: "GET", path: "/api/me/devices", handler: () => devices },
+  { method: "GET", path: "/api/v1/me/devices", handler: () => devices },
   {
     method: "PATCH",
-    path: "/api/me/devices/:id",
+    path: "/api/v1/me/devices/:id",
     handler: ({ params, body }) => {
       const d = devices.find((x) => x.id === params.id) ?? notFound("디바이스");
       if (typeof body?.pushEnabled === "boolean") d.pushEnabled = body.pushEnabled;
@@ -143,7 +143,7 @@ export const accountRoutes: Route[] = [
   },
   {
     method: "DELETE",
-    path: "/api/me/devices/:id",
+    path: "/api/v1/me/devices/:id",
     handler: ({ params }) => {
       const d = devices.find((x) => x.id === params.id) ?? notFound("디바이스");
       if (d.isCurrent) throw new HttpError(400, "CURRENT_DEVICE", "지금 사용 중인 기기는 로그아웃으로 해제해 주세요.");
