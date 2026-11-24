@@ -6,6 +6,7 @@ const ago = (days: number) => new Date(Date.now() - days * 86_400_000).toISOStri
 
 type TermsType = "SERVICE" | "PRIVACY" | "MARKETING";
 
+/** 백엔드 V8__create_terms_sections.sql의 1.0 초안과 같은 문구. (아직 정하지 않은 정책은 넣지 않은 법률 검토 전 초안) */
 const TERMS: Record<TermsType, { title: string; required: boolean; version: string; effectiveDate: string; sections: { heading: string; body: string }[] }> = {
   SERVICE: {
     title: "서비스 이용약관",
@@ -14,10 +15,9 @@ const TERMS: Record<TermsType, { title: string; required: boolean; version: stri
     effectiveDate: "2026-11-01",
     sections: [
       { heading: "제1조 (목적)", body: "이 약관은 찜콩(이하 ‘서비스’)이 제공하는 장소 저장 · 공유 · 일정 기능의 이용 조건과 절차, 회원과 서비스의 권리 · 의무를 정합니다." },
-      { heading: "제2조 (회원 가입)", body: "회원 가입은 이용자가 약관에 동의하고 가입 신청을 한 뒤, 서비스가 이를 승낙하면 완료됩니다." },
+      { heading: "제2조 (회원 가입)", body: "회원 가입은 이용자가 카카오 또는 Google 계정으로 로그인하고 약관에 동의한 뒤 가입 신청을 하면 완료됩니다. 한 사람은 하나의 계정만 만들 수 있습니다." },
       { heading: "제3조 (게시물)", body: "회원이 올린 사진 · 후기 · 컬렉션의 권리는 회원에게 있습니다. 다른 사람의 권리를 침해하는 게시물은 신고에 따라 숨김 처리될 수 있습니다." },
-      { heading: "제4조 (유료 콘텐츠)", body: "유료 컬렉션은 구매 후 7일 이내, 장소 목록을 열람하지 않은 경우 환불을 신청할 수 있습니다." },
-      { heading: "제5조 (탈퇴)", body: "회원은 언제든지 탈퇴할 수 있으며, 탈퇴 후 30일 동안은 같은 소셜 계정으로 다시 가입할 수 없습니다." },
+      { heading: "제4조 (탈퇴)", body: "회원은 언제든지 탈퇴할 수 있습니다. 탈퇴 후 정보 처리와 다시 가입하는 절차는 서비스의 운영 정책을 따릅니다." },
     ],
   },
   PRIVACY: {
@@ -26,9 +26,9 @@ const TERMS: Record<TermsType, { title: string; required: boolean; version: stri
     version: "1.0",
     effectiveDate: "2026-11-01",
     sections: [
-      { heading: "수집 항목", body: "필수: 소셜 계정 식별자(카카오 · Google 회원번호), 닉네임, 사용자 ID\n선택: 이메일 · 프로필 사진(소셜 계정에서 제공하는 경우), 소개, 활동 지역" },
-      { heading: "이용 목적", body: "회원 식별, 본인 확인, 서비스 제공, 부정 이용 방지" },
-      { heading: "보관 기간", body: "탈퇴 시 바로 파기합니다. 단, 관련 법령에 따라 보관해야 하는 정보(결제 기록 5년 등)는 해당 기간 동안 보관합니다." },
+      { heading: "수집 항목", body: "필수: 소셜 계정 식별자(카카오 · Google 회원번호), 사용자 ID, 소셜 계정에서 인증된 이메일(제공되는 경우)\n선택: 이름, 프로필 사진, 소개, 활동 지역" },
+      { heading: "이용 목적", body: "회원 식별, 한 사람 한 계정 확인, 서비스 제공, 부정 이용 방지" },
+      { heading: "보관 기간", body: "탈퇴하면 개인정보를 파기합니다. 파기 시점과 관련 법령에 따라 따로 보관하는 정보는 서비스의 운영 정책을 따릅니다." },
     ],
   },
   MARKETING: {
@@ -78,21 +78,26 @@ export const accountRoutes: Route[] = [
     path: "/api/v1/terms/:type",
     handler: ({ params }) => {
       const type = params.type.toUpperCase() as TermsType;
-      const terms = TERMS[type] ?? notFound("약관");
-      return { type, ...terms };
+      if (!TERMS[type]) throw new HttpError(404, "TERMS_NOT_FOUND", "약관을 찾을 수 없어요.");
+      return { type, ...TERMS[type] };
     },
   },
   { method: "GET", path: "/api/v1/me/agreements", handler: agreementList },
   {
-    /** 필수 약관은 철회할 수 없고, 선택 약관(마케팅)만 바꿀 수 있습니다. */
+    /** 필수 약관은 철회할 수 없고, 선택 약관(마케팅)만 바꿀 수 있습니다. 이미 같은 상태면 그대로 둡니다. (백엔드와 같은 오류 코드) */
     method: "PATCH",
     path: "/api/v1/me/agreements",
     handler: ({ body }) => {
-      const type = String(body?.type ?? "") as TermsType;
-      if (!TERMS[type]) throw new HttpError(400, "INVALID_INPUT", "약관 종류를 확인해 주세요.");
-      if (TERMS[type].required) throw new HttpError(400, "REQUIRED_TERMS", "필수 약관은 철회할 수 없어요. 탈퇴로만 해지할 수 있어요.");
-      const agreed = !!body?.agreed;
-      agreements[type] = { agreed, agreedAt: agreed ? new Date().toISOString() : null };
+      if (typeof body?.agreed !== "boolean") throw new HttpError(400, "INVALID_INPUT", "입력값을 확인해 주세요.");
+      const type = String(body?.type ?? "").toUpperCase() as TermsType;
+      if (!TERMS[type]) throw new HttpError(400, "UNKNOWN_TERMS", "알 수 없는 약관이에요.");
+      if (TERMS[type].required) {
+        throw new HttpError(400, "REQUIRED_TERMS_CANNOT_BE_REVOKED", "필수 약관은 철회할 수 없어요. 더 이상 이용하지 않으려면 회원 탈퇴를 진행해 주세요.");
+      }
+      const agreed: boolean = body.agreed;
+      if (agreements[type].agreed !== agreed) {
+        agreements[type] = { agreed, agreedAt: agreed ? new Date().toISOString() : null };
+      }
       notificationSettings.items.marketing = agreed;
       return agreementList();
     },

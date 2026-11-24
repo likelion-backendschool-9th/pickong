@@ -106,7 +106,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | `auth` | 회원 인증, 토큰 발급·로테이션, 소셜 계정 연결, 비밀번호 재설정, Spring Security 설정, WebSocket 인증 | `refresh_tokens`, `user_social_accounts` | 회원 정보 저장 (`users`는 `user` 소유) |
 | `user` | 회원 · 프로필 · 상태(정지·탈퇴), 사용자 설정, 지도 카테고리 설정, 카운터 | `users`, `user_settings`, `user_map_category_settings` | 제재 사유·이력 (`moderation`), 팔로우 (`social`) |
 | `social` | 팔로우 · 차단, 관계 판정(팔로워인가, 차단했는가) | `follows`, `user_blocks` | 팔로워 수 저장 (`users.follower_count`는 `user`가 갱신) |
-| `terms` | 약관 버전 · 현재 약관 판정 · 동의 · 철회 | `terms`, `user_terms_agreements` | |
+| `terms` | 약관 버전 · 현재 약관 판정 · 약관 본문 · 동의 · 철회 | `terms`, `terms_sections`, `user_terms_agreements` | |
 | `media` | 업로드 URL 발급 · 업로드 확인 · 이미지 처리 · 재시도 · 정리 | `media_files` | 어떤 게시물의 사진인지 (`feed_photos`가 참조) |
 | `place` | 장소 마스터, 외부 장소 참조, 영업시간, 장소 검색(지도 API), 좌표 장소 제보 | `places`, `place_submissions`, `place_external_refs`, `place_business_hours`, `place_hours_exceptions` | 개인 메모·방문 상태 (`savedplace`). 제보 승인으로 `saved_places`를 만들지 않음 |
 | `route` | 외부 길찾기 호출, 이동 시간 · 거리 · 행렬, 캐시 | 없음 | 방문 순서 최적화 (`plan`) |
@@ -219,7 +219,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 > - 이메일 · 비밀번호 로그인과 비밀번호 재설정은 소셜 로그인 전환으로 없앴습니다(위 표에서 제거). `password_reset_tokens` 엔티티는 남아 있지만 V1에 테이블이 없습니다.
 > - 가입 흐름은 `auth.SignUpService`가 맡고, 회원 생성은 `user`의 `UserAccountUseCase.register`, 약관 동의는 `terms`의 `TermsUseCase.agreeOnSignup`으로 처리합니다. 회원 생성 · 소셜 계정 연결 · 약관 동의가 **한 트랜잭션**이라 하나라도 실패하면 아무것도 남지 않습니다. 세션 발급은 커밋 뒤 컨트롤러가 `TokenUseCase.issue`로.
 > - **닉네임(= ID) 규칙은 `user.domain.vo.Username`**: 영문으로 시작 3~20자, 영문 소문자 · 숫자 · `_` · `.`, 끝 · 연속 마침표 금지, 소문자로 저장. 예약어(admin · pickong · official 등)는 '사용 중'. 이름은 `User.register`에서 공백 정리 · 비면 null · 20자(코드 포인트) 초과 금지.
-> - **약관 초기 데이터는 Flyway `V2__seed_terms.sql`**(SERVICE · PRIVACY 필수, MARKETING 선택, 1.0). 필수 여부는 DB(`is_required`)를 따르고, 종류마다 시행일이 지난 최신 버전으로 동의를 기록. 약관을 바꿀 때는 새 버전 행을 넣는 새 마이그레이션 추가.
+> - **약관 초기 데이터는 Flyway `V2__seed_terms.sql`**(SERVICE · PRIVACY 필수, MARKETING 선택, 1.0). 필수 여부는 DB(`is_required`)를 따르고, 종류마다 시행일이 지난 최신 버전으로 동의를 기록. 약관을 바꿀 때는 새 버전 행을 넣는 새 마이그레이션 추가. **버전 행과 그 조항(`terms_sections`)은 같은 마이그레이션에 넣습니다** (조항 없이 버전만 넣으면 시행일부터 전문 조회가 빈 본문으로 200을 줌).
 > - **동시 가입:** 서비스가 먼저 확인해 정확한 사유를 알려 주고, 동시에 사전 확인을 통과한 경우는 DB UNIQUE가 막습니다. 어댑터가 `saveAndFlush` 후 제약 이름(`uk_users_username_lower` · `uk_users_email_lower` · `uk_user_social_accounts_provider_id`)으로 `USERNAME_TAKEN` · `EMAIL_ALREADY_REGISTERED` · `SOCIAL_ACCOUNT_ALREADY_LINKED`로 바꿉니다.
 > - 사진은 클라이언트가 주소를 보내지 않고 `useSocialProfileImage` 여부만 보내며, 서버는 임시 가입 토큰에 있는 주소만 씁니다(임의 URL 저장 방지).
 
@@ -264,9 +264,16 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 ### terms
 | 메서드 | 경로 | 입력 포트 · 메서드 |
 | --- | --- | --- |
-| GET | `/terms` | `TermsUseCase.currentTerms` |
-| POST | `/terms/agree` | `TermsUseCase.agree` |
-| DELETE | `/terms/{termsId}/agree` | `TermsUseCase.withdraw` (선택 약관만) |
+| GET | `/terms/{type}` | `TermsUseCase.getCurrentTerms` (로그인 없이, 시행 중인 버전과 조항) |
+| GET | `/me/agreements` | `TermsUseCase.getMyAgreements` |
+| PATCH | `/me/agreements` | `TermsUseCase.updateAgreement` (선택 약관만 동의 · 철회) |
+
+> **약관 동의 결정**
+> - 가입할 때의 동의는 `POST /auth/signup` 안에서 `TermsUseCase.agreeOnSignup`으로 남깁니다(위 auth 표).
+> - `user_terms_agreements`는 동의 · 철회 이력이라 (user_id, terms_id)가 UNIQUE가 아닙니다. 대신 **철회하지 않은 동의는 부분 유니크 인덱스 `uk_user_terms_agreements_active`(V8, `WHERE revoked_at IS NULL`)로 하나만** 둡니다. 동의 요청이 동시에 와서 둘 다 서비스의 '동의 중 아님' 확인을 통과해도 기록은 하나입니다.
+> - 회원의 동의는 `INSERT … ON CONFLICT DO NOTHING`(native)으로 저장합니다. 유니크 예외를 잡는 방식은 PostgreSQL 트랜잭션이 중단돼 뒤이은 조회가 실패하므로 쓰지 않습니다.
+> - 철회는 행을 지우지 않고 `revoked_at`만 채웁니다. 필수 약관은 동의 · 철회 모두 400(해지는 탈퇴로만).
+> - 동의 상태의 버전 · 제목은 **동의한 버전**의 것을 함께 보여 줍니다(새 버전에서 제목이 바뀌어도 섞이지 않게). 새 버전 시행 뒤 재동의 흐름은 아직 없습니다.
 
 ### media
 | 메서드 | 경로 | 입력 포트 · 메서드 |

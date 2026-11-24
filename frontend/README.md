@@ -71,7 +71,7 @@ Docker Desktop에서 호스트의 mock 서버에 연결하려면 빌드할 때
 
 - 화면은 항상 `/api/v1/*`로 요청하고, `next.config.ts`의 rewrites가 `API_BASE_URL`(기본 `http://localhost:4000`, mock)로 전달합니다.
 - **백엔드에 있는 API만 백엔드로 보내기:** `.env.local`에 `BACKEND_URL=http://localhost:8080`을 넣고 `npm run dev`로 실행합니다 (`.env.local.example` 참고).
-  - `next.config.ts`의 `BACKEND_PATHS`(지금은 `/api/v1/auth/**` · `/api/v1/me` · `/api/v1/me/social-accounts/**`)만 백엔드로 가고, 나머지는 mock으로 갑니다.
+  - `next.config.ts`의 `BACKEND_PATHS`(지금은 `/api/v1/auth/**` · `/api/v1/me` · `/api/v1/me/social-accounts/**` · `/api/v1/terms/**` · `/api/v1/me/agreements`)만 백엔드로 가고, 나머지는 mock으로 갑니다.
   - 백엔드에 새 API가 생기면 `BACKEND_PATHS`에 경로를 추가합니다.
   - 백엔드 실행 방법은 [`../backend/README.md`](../backend/README.md)를 봅니다. 백엔드의 `FRONTEND_BASE_URL`은 `http://localhost:3000`(기본값)이어야 로그인 후 이 화면으로 돌아옵니다.
 - **전부 백엔드로 보내기:** `API_BASE_URL=http://localhost:8080`을 넣고 `npm run next`로 Next만 실행합니다. 백엔드에 없는 화면은 404가 납니다.

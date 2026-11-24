@@ -238,6 +238,10 @@ API 명세서에서 **'보류'**로 표시한 기능입니다. 프론트·백엔
 - [껍데기] 로그인 수단 관리(`/settings/login-methods`): 카카오 · Google 연결 · 해제. 가입할 때 사용한 수단은 '가입한 수단' 배지를 달고 해제 버튼을 보여 주지 않음
   - API: `GET /me/social-accounts` → `[{ provider, email, connectedAt, canUnlink }]`(연결한 순서, 해제 가능 여부는 서버가 정함) · `POST /me/social-accounts/{provider}` → `{ authorizationUrl }` · `DELETE /me/social-accounts/{provider}` (가입 수단이면 409 `SIGNUP_METHOD_CANNOT_BE_UNLINKED`, 연결 안 됨 404 `SOCIAL_ACCOUNT_NOT_LINKED`)
   - 연결 결과는 `/settings/login-methods?linked={provider}` 또는 `?error=SOCIAL_ACCOUNT_ALREADY_LINKED | PROVIDER_ALREADY_LINKED | EMAIL_ALREADY_REGISTERED | ACCOUNT_UNAVAILABLE | LINK_EXPIRED | OAUTH_CANCELLED | OAUTH_FAILED`
+- 약관 전문(`/terms/{service|privacy|marketing}`, 로그인 없이) · 약관 및 동의 관리(`/settings/agreements`): 필수 약관(서비스 이용약관 · 개인정보)은 철회할 수 없고 해지는 탈퇴로만, 선택 약관(마케팅)만 동의 · 철회
+  - 약관 본문은 버전마다 DB(`terms_sections`)에 두므로 회원이 동의한 버전의 내용이 그대로 남음. 문구를 바꾸면 새 버전을 추가하고 고치지 않음
+  - API: `GET /terms/{type}` → `{ type, title, required, version, effectiveDate, sections: [{ heading, body }] }`(지금 시행 중인 버전, 없으면 404 `TERMS_NOT_FOUND`) · `GET /me/agreements` → `[{ type, title, required, version, agreed, agreedAt }]`(동의했으면 동의한 버전과 그 버전의 제목) · `PATCH /me/agreements` `{ type, agreed }` → 바뀐 목록 (필수 약관이면 400 `REQUIRED_TERMS_CANNOT_BE_REVOKED`, 모르는 종류 400 `UNKNOWN_TERMS`, `agreed`가 true · false가 아니면(빠짐 · 숫자 · 문자열) 400 `INVALID_INPUT`)
+  - 철회는 동의 기록을 지우지 않고 철회 시각만 남김. 같은 상태를 다시 보내거나 동시에 보내도 동의 기록은 하나
 - [껍데기] 프로필 페이지: 게시물 · 컬렉션 · 방문 탭 (본인 프로필에는 일정 탭 추가)
   - 방문: 그 사용자가 게시물에 연결한 장소를 기록(목록) ↔ 지도로 전환해서 봄 (`GET /api/users/:username/posts`, `GET /api/users/:username/places`, 내가 볼 수 있는 게시물만). 저장한 장소 전체를 다루는 ‘내 지도’와 별개
   - 일정: 곧 떠나는 하루 + 지난 일정(방문 기록). 본인만 조회. `/plans`는 내 프로필 일정 탭으로 이동
