@@ -61,4 +61,16 @@ public class JpaCommentAdapter implements CommentRepository {
                 .orElseThrow(() -> new BusinessException(FeedErrorCode.COMMENT_NOT_FOUND));
         entity.softDelete();
     }
+
+    @Override
+    @Transactional
+    public void incrementLikeCount(Long commentId) {
+        commentJpaRepository.incrementLikeCount(commentId);
+    }
+
+    @Override
+    @Transactional
+    public void decrementLikeCount(Long commentId) {
+        commentJpaRepository.decrementLikeCount(commentId);
+    }
 }
