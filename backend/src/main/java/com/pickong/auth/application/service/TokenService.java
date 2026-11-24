@@ -113,4 +113,15 @@ public class TokenService implements TokenUseCase {
     private OffsetDateTime now() {
         return OffsetDateTime.now(clock);
     }
+
+    /**
+     * 기준 시각 = 지금 - 보관 기간. 만료 시각이 그보다 이전인 행만 지웁니다.
+     * 만료 전의 폐기된 토큰은 남겨 두므로, 탈취된 옛 토큰이 다시 오면 여전히 재사용으로 감지됩니다.
+     * 만료가 지나면 그 토큰은 어차피 쓸 수 없어서, 지워도 잃는 것은 재사용 '알림'뿐입니다.
+     */
+    @Override
+    @Transactional
+    public int deleteExpiredTokens() {
+        return refreshTokens.deleteExpiredBefore(now().minus(properties.cleanupRetention()));
+    }
 }

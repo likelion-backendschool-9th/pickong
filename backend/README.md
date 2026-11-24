@@ -66,6 +66,7 @@ Gradle을 따로 설치하지 않아도 `./gradlew`가 필요한 버전(9.8.2)�
   - 이미 폐기된 토큰이 다시 오면(탈취 의심) 그 로그인 세션 전체를 폐기하고 401 `REFRESH_TOKEN_REUSED`. 정지 · 탈퇴 회원은 401 `ACCOUNT_UNAVAILABLE`. 실패하면 쿠키도 지웁니다.
   - `POST /api/v1/auth/logout`: 이 기기의 세션만 폐기하고 쿠키 삭제, 항상 204.
   - 쿠키: 모두 HttpOnly · SameSite=Lax · Secure(`COOKIE_SECURE`). Access는 `Path=/`, Refresh는 `Path=/api/v1/auth`.
+  - 정리: 만료된 지 7일이 지난 토큰 행은 매일 04:00(한국 시간) `ExpiredTokenCleanupScheduler`가 지웁니다. 기간 · 시각은 `pickong.auth.refresh-token.cleanup-retention` · `cleanup-cron`.
 - **기본은 로그인 필요**이고, 공개 경로는 `auth/adapter/in/security/SecurityConfig`의 `PUBLIC_PATHS`에만 둡니다.
   - 경로는 `/api/v1`을 빼고 적습니다. DispatcherServlet이 `/api/v1`에 매핑되어 있으면 Spring Boot가 보안 경로의 기준을 `/api/v1`로 잡기 때문입니다 (`"/auth/**"` = `/api/v1/auth/**`).
   - `/feeds/**`는 #38(피드 인증 연동) 전까지 임시로 공개입니다.

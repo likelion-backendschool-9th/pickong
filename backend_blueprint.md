@@ -202,7 +202,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 > - **재발급 시 회원 상태 확인:** `UserAccountUseCase.canLogin`(user 모듈의 auth 전용 in-port). ACTIVE가 아니면 세션 폐기 + 401. 정지 회원 정책(8.5 #7)은 '로그인 불가'로 가정.
 > - **로그아웃:** 이 기기(family)만 폐기. 모든 기기 로그아웃은 필요해지면 추가.
 > - **쿠키:** `pickong_at`(Path=/, Max-Age 15분), `pickong_rt`(Path=/api/v1/auth, Max-Age 14일), 모두 HttpOnly · SameSite=Lax. Secure(`COOKIE_SECURE`, 기본 true) · Domain(`COOKIE_DOMAIN`, 기본 비움)은 설정값.
-> - 만료 · 폐기된 토큰 행을 지우는 `ExpiredTokenCleanupScheduler`는 아직 없음 (후속).
+> - **만료 토큰 정리:** `auth/adapter/in/scheduler/ExpiredTokenCleanupScheduler`가 매일 04:00(한국 시간)에 `TokenUseCase.deleteExpiredTokens`를 호출해, 만료된 지 7일(`cleanup-retention`)이 지난 행을 폐기 여부와 관계없이 지웁니다. 만료 전의 폐기된 토큰은 남기므로 재사용 감지는 만료까지 동작합니다. 같은 결과가 나오는 작업이라 분산 잠금은 쓰지 않습니다. `@EnableScheduling`은 `common/config/SchedulingConfig`.
 
 > **소셜 로그인 결정 (4단계)**
 > - Spring Security OAuth2 Client(`spring-boot-starter-security-oauth2-client`). 카카오는 provider 주소를 직접 등록, Google은 기본 등록(OIDC, `openid` scope로 ID 토큰 · nonce 검증).
