@@ -385,11 +385,11 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 ### moderation · creator · settlement · payment (관리자 API 포함)
 | 메서드 | 경로 | 모듈 | 입력 포트 · 메서드 |
 | --- | --- | --- | --- |
-| POST | `/reports` | moderation | `ReportUseCase.report` |
+| POST | `/reports` | moderation | `ReportUseCase.report` (회원 접수. 아직 없음) |
 | GET | `/admin/reports` | moderation | `ReportAdminUseCase.list` |
-| PATCH | `/admin/reports/{reportId}` | moderation | `ReportAdminUseCase.handle` |
-| POST | `/admin/users/{userId}/sanctions` | moderation | `SanctionUseCase.sanction` → user 상태 변경 |
-| DELETE | `/admin/users/{userId}/sanctions/{sanctionId}` | moderation | `SanctionUseCase.revoke` |
+| POST | `/admin/reports/{reportId}/resolve` | moderation | `ReportAdminUseCase.resolve` |
+| POST | `/admin/users/{userId}/sanctions` | moderation | `SanctionUseCase.sanction` → user 상태 변경 (아직 없음) |
+| DELETE | `/admin/users/{userId}/sanctions/{sanctionId}` | moderation | `SanctionUseCase.revoke` (아직 없음) |
 | POST | `/creators/apply` | creator | `CreatorUseCase.apply` |
 | GET | `/me/creator` | creator | `CreatorUseCase.myStatus` |
 | GET · PUT | `/me/creator/payout-account` | creator | `PayoutAccountUseCase.get / register` |
@@ -403,6 +403,8 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | GET | `/me/payments` | payment | `PaymentQueryUseCase.myPayments` |
 
 관리자 로그인 API는 명세서에 없습니다 (8.1 #8). 관리자 API는 모두 `admin`의 필터 체인과 역할 검사를 거칩니다.
+
+신고 목록은 `?status=PENDING|RESOLVED`이고 응답은 배열입니다. 공통 목록 규칙의 `page · size`는 이 화면에 페이지가 생기기 전까지 쓰지 않습니다. 정렬은 접수 시각 내림차순, 같으면 id 내림차순입니다. 저장 상태와 처리 액션은 분리합니다. 상태는 `PENDING · RESOLVED`, 액션은 `DISMISS · HIDE_CONTENT · SANCTION_USER`입니다. 도메인의 게시물 대상은 `FEED`이고 관리자 응답에서만 `POST`로 바꿉니다. 지금은 기각만 저장합니다. 같은 대상(`target_type`, `target_id`)의 다른 대기 신고도 그 기각과 같은 트랜잭션에서 함께 닫고, 이미 완료된 행은 그대로 둡니다. 숨김과 제재는 501 `REPORT_ACTION_NOT_SUPPORTED`이며 행은 대기로 남습니다. mock은 숨김·제재에서도 같은 대상의 다른 신고를 닫는데, 서버는 기각에서만 그렇게 합니다. 대상이 없어도 `snapshot`으로 목록을 만들고 링크는 비웁니다. `handled_by`는 `admins` 테이블이 없어 FK가 없습니다. `admin_action_logs`와 알림은 아직 호출하지 않습니다.
 
 ---
 
@@ -1501,7 +1503,7 @@ class ArchitectureTest {
 | # | 내용 |
 | --- | --- |
 | 1 ★ | **Spring Boot 버전:** 요청서는 3.4, `build.gradle`은 4.1.2. 3.4는 오픈소스 지원이 끝난 버전이라 새 프로젝트로 낮추는 것은 권하지 않습니다. 정하면 0.1과 `build.gradle`을 맞춥니다 |
-| 2 | enum 값 목록이 없는 컬럼: `media_files.purpose/status`, `payments.status/purpose/provider`, `import_jobs.status/source_type/platform`, `places.source_type/category`, `saved_places.source_type`, `reports.target_type/reason_code/status`, `notifications.type/target_type`, `messages.attachment_type`, `plan_item_reservations.type`, 이동 수단 `mode` |
+| 2 | enum 값 목록이 없는 컬럼: `media_files.purpose/status`, `payments.status/purpose/provider`, `import_jobs.status/source_type/platform`, `places.source_type/category`, `saved_places.source_type`, `reports.reason`(상태·대상·처리 액션은 확정), `notifications.type/target_type`, `messages.attachment_type`, `plan_item_reservations.type`, 이동 수단 `mode` |
 | 3 | 길찾기 · 날씨 · LLM · PG · 메일 제공자 |
 | 4 | 보류 테이블(tags 등)을 Flyway 초기 스크립트에 포함할지 (제안: 보류를 풀 때 마이그레이션 추가) |
 | 5 | R2 파일 접근 방식: 공개 버킷이면 비공개 게시물 · 유료 컬렉션 사진이 URL만으로 열림 → 비공개 버킷 + 서명 URL(GET) 여부 |
