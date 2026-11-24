@@ -1,6 +1,15 @@
 # 테스트 전용 설정. classpath:/config/application.yml은 main의 application.yml 위에 덮어써지므로
 # 여기에는 테스트에서 바꿀 값만 둡니다. (main 설정 전체를 가리지 않도록 파일 이름 · 위치를 이렇게 둠)
+#
+# main 설정은 개발자 로컬의 backend/.env도 읽기 때문에(COOKIE_SECURE=false 등),
+# 테스트가 기대하는 값은 여기서 고정해 .env 내용과 관계없이 같은 결과가 나오게 합니다.
 pickong:
+  frontend:
+    base-url: http://localhost:3000
   auth:
     jwt:
       secret: test-only-jwt-secret-0123456789-abcdefghij
+    cookie:
+      # 운영 기본값(HTTPS 전용 · 지금 도메인)을 기준으로 검증합니다.
+      secure: true
+      domain: ""
