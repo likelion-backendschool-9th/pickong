@@ -13,6 +13,13 @@ import { BottomSheet } from "@/shared/ui/BottomSheet";
 import { Button, ButtonLink } from "@/shared/ui/Button";
 import { Badge, Thumb } from "@/shared/ui/display";
 import { useToast } from "@/shared/ui/Toast";
+import {
+  hasBootstrappedMapGps,
+  markMapGpsBootstrapped,
+  readMapCamera,
+  writeMapCamera,
+  type MapCamera,
+} from "../_lib/mapSession";
 
 const POI = "poi:";
 
@@ -20,7 +27,7 @@ type FocusRequest = { key: string; position: LatLng; keepZoom?: boolean } | null
 
 /**
  * 내 지도 (지도 우선형): 주변 장소는 작은 점, 내가 저장한 곳은 초록 핀.
- * 진입 시 GPS로 현재 위치를 읽어 지도 중심으로 두고, 실패하면 기본 지역을 유지합니다.
+ * 세션 최초 진입 때만 GPS로 중심을 잡고, 이후 재진입은 마지막 카메라(중심·줌)를 복원합니다.
  * 장소를 누르면 지도가 그 핀으로 옮겨지고(카드에 가리지 않게), 아래에 작은 요약 카드가 뜹니다.
  */
 export function MyMapView({
@@ -48,13 +55,18 @@ export function MyMapView({
   const [mapFocus, setMapFocus] = useState<FocusRequest>(null);
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const [locating, setLocating] = useState(false);
+  /** 마운트 시점 세션 카메라. 재진입 시 마지막 중심·줌 복원에 씁니다. */
+  const [restoredCamera] = useState<MapCamera | null>(() => readMapCamera());
   /** 최초 GPS 응답 전에 사용자가 지도를 드래그하면, 늦게 온 GPS로 중심을 덮지 않습니다. */
   const skipInitialGpsPanRef = useRef(false);
 
-  // 지도 진입 시 GPS를 한 번 읽어 내 위치로 카메라를 옮깁니다. 실패하면 기본 지역 그대로 둡니다.
+  // 세션에서 아직 GPS를 안 했으면 한 번만 조회합니다. 이미 했으면 자동 재조회하지 않습니다.
   useEffect(() => {
+    if (hasBootstrappedMapGps()) return;
+
     let cancelled = false;
     skipInitialGpsPanRef.current = false;
+    markMapGpsBootstrapped();
 
     getCurrentPosition()
       .then((position) => {
@@ -157,6 +169,8 @@ export function MyMapView({
       </div>
       <MapView
         className="h-[calc(100dvh-250px)] min-h-[360px]"
+        center={restoredCamera?.center}
+        zoom={restoredCamera?.zoom}
         markers={[
           ...pois.map((p) => ({ id: POI + p.id, position: p.location, title: p.name, tone: "poi" as const })),
           ...saved.map((s, i) => ({
@@ -171,6 +185,7 @@ export function MyMapView({
         onMarkerClick={select}
         onMapClick={clearSelection}
         onBoundsChange={setBounds}
+        onCameraChange={writeMapCamera}
         onDragStart={() => {
           skipInitialGpsPanRef.current = true;
         }}
