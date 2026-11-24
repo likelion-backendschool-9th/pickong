@@ -230,7 +230,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 >   - OAuth 시작 필터가 JWT 쿠키 필터보다 앞에 있어 resolver가 쿠키를 직접 검증합니다. 시작 단계 예외는 Spring 기본값이 500이라, 시작 필터에도 `OAuth2LoginFailureHandler`를 연결했습니다(`withObjectPostProcessor`). 그래서 모르는 제공자로 시작해도 이제 `/login?error=OAUTH_FAILED`.
 > - 연결할 때만 `prompt=select_account`로 제공자의 계정 선택 화면을 띄웁니다(브라우저에 다른 사람 계정이 로그인돼 있어도 모르고 연결하지 않게). 일반 로그인은 그대로.
 > - **콜백 규칙(`SocialAccountService.link`):** 회원 상태(ACCOUNT_UNAVAILABLE) → 이미 내 계정에 연결된 같은 계정이면 그대로 성공 → 남의 계정이면 SOCIAL_ACCOUNT_ALREADY_LINKED → 같은 제공자의 다른 계정이 있으면 PROVIDER_ALREADY_LINKED → 인증된 이메일이 다른 회원의 소셜 계정에 있으면 EMAIL_ALREADY_REGISTERED. 동시 요청은 DB UNIQUE가 막고 어댑터가 제약 이름(`uk_user_social_accounts_user_provider` 추가)으로 같은 코드로 바꿉니다. 로그인 세션 쿠키는 건드리지 않습니다.
-> - 해제는 찜콩 DB에서만(카카오 unlink · Google revoke는 호출하지 않음, 제공자 토큰을 저장하지 않으므로). 탈퇴 기능을 만들 때 다시 검토합니다.
+> - 해제는 찜콩 DB에서만(카카오 unlink · Google revoke는 호출하지 않음, 제공자 토큰을 저장하지 않으므로). 탈퇴할 때도 같습니다(아래 '회원 탈퇴 결정').
 
 > **내 정보 · 프로필 수정 결정 (7단계)**
 > - **Flyway V3:** `users.region VARCHAR(20)`(활동 지역), `users.username_changed_at TIMESTAMPTZ`(마지막 아이디 변경 시각) 추가 (ERD 반영 필요).
@@ -241,13 +241,30 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 > - 응답의 `id`는 `users.public_id`(UUID, 순번 노출 방지). `postCount` · `followerCount` · `followingCount`는 users의 집계 컬럼(피드 · 팔로우 기능 전까지 0), `isCreator`는 크리에이터 기능 전까지 false.
 > - `isUsernameAvailable`은 `UserAccountService`(auth 전용)에서 `UserProfileService`로 옮겼습니다(Query · Command 유스케이스를 함께 구현).
 
+> **회원 탈퇴 결정 (정책 확정, 구현 전)**
+> - **30일 유예 후 익명화.** `DELETE /me` → `WITHDRAWN_PENDING`: 바로 모든 세션을 폐기하고, 프로필 · 게시물이 남에게 보이지 않습니다. 30일이 지나면 예약 작업(`user/adapter/in/scheduler`)이 익명화해 `WITHDRAWN`으로 바꿉니다.
+>   - 익명화: 이름 · 이메일 · 프로필 사진 · 소개 · 활동 지역을 지우고, 소셜 연결(`user_social_accounts`)을 삭제하고, 아이디를 내부 값(예: `deleted_{id}`)으로 바꿉니다. **원래 아이디는 다른 사람이 다시 쓸 수 있습니다.** `users` 행은 남깁니다(댓글 · 신고 등이 FK로 가리킴).
+>   - 검토한 다른 안: 즉시 익명화(실수로 탈퇴해도 복구 불가, 제재 회피 재가입을 못 막음), 유예하되 복구 없음(회원에게 유예의 이점이 없음).
+> - **탈퇴 취소:** 유예 기간에 같은 소셜 계정으로 로그인하면 새 가입이 아니라 탈퇴 취소 화면으로 보냅니다. 취소하면 `ACTIVE`로 돌아오고 숨겼던 게시물이 다시 보입니다. 취소 흐름(주소 · 토큰)은 구현할 때 정합니다.
+> - **재가입:** 유예 기간에는 소셜 연결이 남아 있어 같은 계정으로 새로 가입할 수 없습니다(로그인하면 탈퇴 취소로). 익명화한 뒤에는 연결이 지워져 같은 소셜 계정으로 새 회원으로 가입할 수 있습니다. 소셜 식별자를 따로 보관해 막는 방식은 제재 기능(moderation)이 생길 때 검토합니다.
+> - **게시물 · 댓글:** 게시물은 유예 기간에 숨기고 익명화할 때 삭제(`deleted_at`). 댓글은 남기고 작성자를 "탈퇴한 사용자"로 보여 줍니다(다른 사람의 대화 흐름 유지).
+>   - **숨김은 작성자 상태로 합니다.** feed의 게시물 조회는 작성자(`users.status`)가 `ACTIVE`가 아닌 게시물을 빼고 보여 줍니다(`WITHDRAWN_PENDING` · `WITHDRAWN` 제외). 게시물 데이터를 바꾸지 않으므로 탈퇴를 취소하면 바로 다시 보이고, 숨김 · 해제 이벤트가 필요 없어 이벤트가 유실돼도 어긋나지 않습니다. 댓글의 "탈퇴한 사용자" 표시도 같은 기준입니다.
+>   - 검토한 다른 안: `feeds.hidden_at`(신고 숨김과 섞여 탈퇴를 취소할 때 신고로 숨긴 글까지 다시 보임), 별도 컬럼 `withdrawal_hidden_at`(마이그레이션과 숨김 · 해제 이벤트가 필요하고, 이벤트가 유실되면 어긋남), `hidden_at` + `hidden_reason`(신고로 숨긴 글의 작성자가 탈퇴하면 사유를 하나밖에 담지 못해 같은 문제가 남음).
+> - **각 모듈의 회원 데이터:** 회원이 만든 개인 데이터(게시물 · 저장 장소 · 컬렉션 · 일정 등)는 각 모듈이 익명화 이벤트(`UserWithdrawnEvent`)를 받아 지웁니다. 남의 화면에 남는 기록(댓글 · 신고 · 장소 제보)은 지우지 않습니다.
+>   - **정리는 익명화와 같은 트랜잭션의 동기 이벤트(`@EventListener`)로 합니다.** 한 모듈이라도 실패하면 익명화까지 되돌아가 회원이 `WITHDRAWN_PENDING`으로 남고, 다음 날 예약 작업이 그 회원을 다시 집어 처음부터 처리합니다(회원마다 트랜잭션을 나눠 한 명의 실패가 다른 회원을 막지 않음). 그래서 '익명화됐는데 데이터가 남음' 상태가 생기지 않고 모듈별 재처리 작업이 필요 없습니다. 실패한 회원은 로그에 남깁니다.
+>   - 검토한 다른 안: 커밋 후 이벤트 + 모듈별 재처리 작업(`status = WITHDRAWN`인데 남은 데이터를 찾아 다시 지움). 모듈 오류가 익명화를 막지 않지만, 모듈마다 재처리 작업이 필요하고 그동안 데이터가 남습니다.
+>   - 구독하는 모듈은 각 리스너가 여러 번 불려도 결과가 같게(이미 지운 것은 건너뛰게) 만듭니다.
+> - **소셜 제공자:** 찜콩 DB에서만 연결을 지웁니다(카카오 unlink · Google revoke 호출 안 함). 카카오 · Google 계정 설정의 '연결된 앱'은 회원이 직접 끊습니다.
+> - **탈퇴 사유:** 사유와 기타 입력, 날짜만 저장하고 회원 id는 남기지 않습니다(통계용, 익명화 뒤에도 개인과 연결되지 않게). 테이블은 구현할 때 추가합니다.
+> - **안내 문구:** 결제 기록 보관 · 크리에이터 정산 안내는 그 기능을 만들 때 약관과 함께 넣습니다. 탈퇴 · 재가입 · 파기 조항은 약관 1.1에 넣습니다(먼저 새 버전 재동의 #99).
+
 ### user
 | 메서드 | 경로 | 입력 포트 · 메서드 | 비고 |
 | --- | --- | --- | --- |
 | GET | `/auth/username-availability` | `UserQueryUseCase.isUsernameAvailable` | 경로는 auth지만 데이터는 user. 대소문자 무시, 예약어는 사용 중 |
 | GET | `/me` | `UserQueryUseCase.getMe` | 프론트 UserDto 모양 + `usernameChangeableAt` |
 | PATCH | `/me` | `UserCommandUseCase.updateProfile` | 보낸 항목만 변경 (아이디 · 이름 · 소개 · 활동 지역) |
-| DELETE | `/me` | `UserCommandUseCase.requestWithdrawal` | WITHDRAWN_PENDING, 30일 후 익명화 |
+| DELETE | `/me` | `UserCommandUseCase.requestWithdrawal` | WITHDRAWN_PENDING(세션 폐기 · 30일 유예, 로그인하면 탈퇴 취소) → 30일 후 익명화(WITHDRAWN). 위 '회원 탈퇴 결정' |
 | GET | `/users/{username}` | `UserQueryUseCase.getProfile` | |
 | GET | `/users/search` | `UserQueryUseCase.search` | 차단 관계 제외 |
 | GET · PUT | `/me/settings` | `UserSettingsUseCase.get / update` | |
@@ -522,7 +539,7 @@ backend/src/main/java/com/pickong/
 │   ├── domain/
 │   │   ├── model/User.java                   # ACTIVE · SUSPENDED · WITHDRAWN_PENDING · WITHDRAWN 전이, 익명화
 │   │   ├── vo/Username.java                  # 영소문자·숫자·.·_ 3~20자
-│   │   └── event/                            # UserWithdrawalRequestedEvent, UserStatusChangedEvent
+│   │   └── event/                            # UserWithdrawalRequestedEvent, UserWithdrawnEvent, UserStatusChangedEvent
 │   ├── application/
 │   │   ├── port/in/                          # UserCommandUseCase, UserQueryUseCase, UserSettingsUseCase,
 │   │   │                                     # UserAccountUseCase(auth), UserStatusUseCase(moderation), UserCounterUseCase(social·feed)
@@ -1299,6 +1316,7 @@ common       ◀── 모든 모듈 (common은 어떤 모듈에도 의존하지
 | 이벤트 | 소유(발행) | 발행 시점 | 구독 | 방식 |
 | --- | --- | --- | --- | --- |
 | `UserWithdrawalRequestedEvent` | user | 탈퇴 신청 저장 후 | auth (토큰 폐기) | 커밋 후 |
+| `UserWithdrawnEvent` | user | 익명화 저장 직전 (30일 뒤 예약 작업) | auth (소셜 연결 · 토큰 삭제), feed (게시물 삭제), 회원 개인 데이터를 가진 모듈 (삭제) | **동기, 같은 트랜잭션** (하나라도 실패하면 익명화도 되돌아가 다음 날 다시 처리) |
 | `UserStatusChangedEvent` | user | 정지 · 영구 정지 · 해제 저장 후 | auth (영구 정지 시 토큰 폐기), notification | 커밋 후 |
 | `UserFollowedEvent` | social | 팔로우 저장 후 | notification | 커밋 후 |
 | `FeedLikedEvent`, `CommentCreatedEvent`, `CommentLikedEvent` | feed | 저장 후 | notification | 커밋 후 |
