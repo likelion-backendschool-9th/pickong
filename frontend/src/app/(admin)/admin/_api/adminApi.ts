@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ApiError } from "@/shared/api/errors";
 import { http } from "@/shared/api/http";
 import type { Visibility } from "@/shared/config/visibility";
 
@@ -22,7 +23,15 @@ export interface Report {
   id: string;
   targetType: ReportTarget;
   targetId: string;
-  target: { text: string; imageUrl: string | null; link: string | null };
+  target: {
+    text: string;
+    imageUrl: string | null;
+    link: string | null;
+    snapshot: { text: string | null; imageUrl: string | null } | null;
+    current: { text: string | null; imageUrl: string | null } | null;
+    modified: boolean | null;
+    visibility: "LIVE" | "HIDDEN" | "DELETED" | "UNAVAILABLE";
+  };
   reportedUser: AdminUserSummary | null;
   reporter: AdminUserSummary | null;
   reason: string;
@@ -120,10 +129,19 @@ export const useAdminSummary = () => useQuery({ queryKey: [...adminKey, "summary
 export const useReports = (status: Report["status"]) =>
   useQuery({ queryKey: [...adminKey, "reports", status], queryFn: () => http.get<Report[]>("/admin/reports", { query: { status } }) });
 
-export const useResolveReport = () =>
-  useAdminMutation(({ id, ...body }: { id: string; action: ReportAction; memo: string; sanctionType?: SanctionType }) =>
-    http.post<Report>(`/admin/reports/${id}/resolve`, body),
-  );
+export const useResolveReport = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; action: ReportAction; memo: string; sanctionType?: SanctionType }) =>
+      http.post<Report>(`/admin/reports/${id}/resolve`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: adminKey }),
+    onError: (error) => {
+      if (error instanceof ApiError && error.code === "ALREADY_RESOLVED") {
+        qc.invalidateQueries({ queryKey: adminKey });
+      }
+    },
+  });
+};
 
 export const useAdminUsers = (q: string, filter: "ALL" | "REPORTED" | "SANCTIONED") =>
   useQuery({

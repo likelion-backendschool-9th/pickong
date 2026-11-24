@@ -47,6 +47,7 @@ export function AgreementsScreen() {
                       label={`${a.title} 동의`}
                       hideLabel
                       checked={a.agreed}
+                      disabled={update.isPending} // 요청 중에는 막아 연달아 눌러 같은 요청이 겹치지 않게 (중복 기록은 서버가 막음)
                       onChange={(agreed) =>
                         update.mutate(
                           { type: a.type, agreed },

@@ -1,4 +1,4 @@
-import type { ReportAction, ReportTarget, Sanction, SanctionType } from "../_api/adminApi";
+import type { Report, ReportAction, ReportTarget, Sanction, SanctionType } from "../_api/adminApi";
 
 export const REPORT_TARGET: Record<ReportTarget, string> = { POST: "게시물", COMMENT: "댓글", USER: "사용자", COLLECTION: "컬렉션" };
 
@@ -11,6 +11,16 @@ const REPORT_REASON: Record<string, string> = {
   ETC: "기타",
 };
 export const reportReasonLabel = (reason: string) => REPORT_REASON[reason] ?? reason;
+
+const REPORT_VISIBILITY: Record<Exclude<Report["target"]["visibility"], "LIVE">, string> = {
+  HIDDEN: "숨김",
+  DELETED: "삭제됨",
+  UNAVAILABLE: "확인할 수 없음",
+};
+
+/** 정상 콘텐츠는 배지를 붙이지 않습니다. */
+export const reportVisibilityLabel = (visibility: Report["target"]["visibility"]) =>
+  visibility === "LIVE" ? null : REPORT_VISIBILITY[visibility];
 
 export const REPORT_ACTION: Record<ReportAction, string> = { DISMISS: "기각", HIDE_CONTENT: "콘텐츠 숨김", SANCTION_USER: "작성자 제재" };
 

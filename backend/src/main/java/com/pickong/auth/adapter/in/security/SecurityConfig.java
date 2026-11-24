@@ -120,6 +120,8 @@ public class SecurityConfig {
                         // 오류 응답을 만드는 내부 포워드(/error)는 막지 않아야 원래 오류(404 · 500 등)가 그대로 보입니다.
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(PUBLIC_PATHS).permitAll()
+                        // 약관 전문: 가입 화면의 '보기'에서 로그인 전에 엽니다. 조회(GET)만 엽니다.
+                        .requestMatchers(HttpMethod.GET, "/terms/**").permitAll()
                         // 피드 단건 조회 — 공유 링크로 비로그인 접근 허용 (목록·장소 조회는 로그인 필수)
                         .requestMatchers(HttpMethod.GET, "/feeds/*").permitAll()
                         // 관리자 API. 회원(ROLE_USER)은 403, 비로그인은 401. 공개로 열지 않습니다.
