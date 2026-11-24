@@ -28,7 +28,7 @@ export interface NaverMapViewProps {
   showZoom?: boolean;
   /** 지도 이동 시 중심 좌표 알림 (좌표 직접 지정용) */
   onCenterChange?: (center: LatLng) => void;
-  /** 화면에 보이는 범위가 바뀔 때 알림 (처음 맞춤 · 이동 · 확대/축소) */
+  /** 화면에 보이는 범위가 안정됐을 때 알림 (최초 · idle · 리사이즈 안정화). 드래그/줌 중간에는 호출하지 않습니다. */
   onBoundsChange?: (bounds: LatLngBounds) => void;
   /** idle 시 중심·줌 (탭 복귀용 카메라 저장) */
   onCameraChange?: (camera: { center: LatLng; zoom: number }) => void;
@@ -109,6 +109,7 @@ export function NaverMapView({
     let mapCreated = false;
     const listeners: object[] = [];
     let ro: ResizeObserver | undefined;
+    let resizeEmitTimer: ReturnType<typeof setTimeout> | undefined;
     /**
      * GL에서 idle 직후 getCenter()가 한 박자 늦은 중심을 주는 경우가 있습니다.
      * center_changed 이벤트 인자로만 스냅샷을 갱신하고, 세션 저장은 그 스냅샷을 씁니다.
@@ -154,6 +155,10 @@ export function NaverMapView({
             zoom: mapRef.current?.getZoom() ?? lastCamera.zoom,
           };
         };
+        /**
+         * 장소 조회는 이동·줌이 끝난 idle에만 bounds를 올립니다.
+         * zoom_changed/드래그 중간마다 올리면 bbox API가 불필요하게 반복됩니다.
+         */
         const onIdle = () => {
           emitBounds();
           if (mapRef.current) {
@@ -174,10 +179,8 @@ export function NaverMapView({
         );
         listeners.push(
           naver.maps.Event.addListener(map, "zoom_changed", () => {
-            emitBounds();
             if (mapRef.current) {
               lastCamera = { ...lastCamera, zoom: mapRef.current.getZoom() };
-              persistLastCamera();
             }
           }),
         );
@@ -190,7 +193,9 @@ export function NaverMapView({
 
         ro = new ResizeObserver(() => {
           map.autoResize();
-          emitBounds();
+          // 리사이즈 중 연속 emit을 막고, 레이아웃이 안정된 뒤 한 번만 알립니다.
+          clearTimeout(resizeEmitTimer);
+          resizeEmitTimer = setTimeout(emitBounds, 120);
         });
         ro.observe(containerRef.current);
       })
@@ -203,6 +208,7 @@ export function NaverMapView({
     return () => {
       cancelled = true;
       // teardown resize가 lastCamera를 건드리지 않도록 RO·리스너를 먼저 끊고 스냅샷만 저장
+      clearTimeout(resizeEmitTimer);
       ro?.disconnect();
       const saved = lastCamera;
       for (const listener of listeners) naver.maps.Event.removeListener(listener);
