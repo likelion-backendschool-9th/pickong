@@ -9,6 +9,10 @@ import org.springframework.data.repository.query.Param;
 
 public interface UserJpaRepository extends JpaRepository<UserJpaEntity, Long> {
 
+    /** username(대소문자 무시)으로 회원을 조회합니다. */
+    @Query("select u from UserJpaEntity u where lower(u.username) = lower(:username)")
+    java.util.Optional<UserJpaEntity> findByUsernameIgnoreCase(@Param("username") String username);
+
     /** lower(username) UNIQUE 인덱스와 같은 기준으로 비교합니다. */
     @Query("select count(u) > 0 from UserJpaEntity u where lower(u.username) = lower(:username)")
     boolean existsByUsernameIgnoreCase(@Param("username") String username);
@@ -31,4 +35,20 @@ public interface UserJpaRepository extends JpaRepository<UserJpaEntity, Long> {
     int updateProfile(@Param("id") Long id, @Param("username") String username, @Param("displayName") String displayName,
             @Param("bio") String bio, @Param("region") String region,
             @Param("usernameChangedAt") OffsetDateTime usernameChangedAt, @Param("updatedAt") OffsetDateTime updatedAt);
+
+    @Modifying
+    @Query("UPDATE UserJpaEntity u SET u.followerCount = u.followerCount + 1 WHERE u.id = :userId")
+    void incrementFollowerCount(@Param("userId") Long userId);
+
+    @Modifying
+    @Query("UPDATE UserJpaEntity u SET u.followerCount = u.followerCount - 1 WHERE u.id = :userId AND u.followerCount > 0")
+    void decrementFollowerCount(@Param("userId") Long userId);
+
+    @Modifying
+    @Query("UPDATE UserJpaEntity u SET u.followingCount = u.followingCount + 1 WHERE u.id = :userId")
+    void incrementFollowingCount(@Param("userId") Long userId);
+
+    @Modifying
+    @Query("UPDATE UserJpaEntity u SET u.followingCount = u.followingCount - 1 WHERE u.id = :userId AND u.followingCount > 0")
+    void decrementFollowingCount(@Param("userId") Long userId);
 }
