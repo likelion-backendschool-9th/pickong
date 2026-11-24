@@ -5,17 +5,23 @@ import com.pickong.common.domain.Visibility;
 import com.pickong.common.error.BusinessException;
 import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.common.error.GlobalExceptionHandler;
+import com.pickong.common.security.LoginUser;
+import com.pickong.common.web.CurrentUserArgumentResolver;
 import com.pickong.feed.application.port.in.FeedUseCase;
 import com.pickong.feed.domain.model.Feed;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -37,11 +43,21 @@ class FeedControllerTest {
 
     @BeforeEach
     void setUp() {
-        // 컨트롤러 + 전역 예외 처리기를 조합해 MockMvc를 직접 구성
+        // SecurityContextHolder에 인증 정보 주입 — @CurrentUser가 여기서 꺼냄
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(new LoginUser(1L), null, List.of()));
+
         mockMvc = MockMvcBuilders
                 .standaloneSetup(new FeedController(feedUseCase))
                 .setControllerAdvice(new GlobalExceptionHandler())
+                .setCustomArgumentResolvers(new CurrentUserArgumentResolver())
                 .build();
+    }
+
+    @AfterEach
+    void tearDown() {
+        // 테스트 간 SecurityContext 오염 방지
+        SecurityContextHolder.clearContext();
     }
 
     // 테스트용 샘플 Feed 객체 생성 헬퍼
@@ -56,10 +72,9 @@ class FeedControllerTest {
 
     @Test
     void createFeed_유효한요청_200반환() throws Exception {
-        // given
+        // given: userId는 SecurityContext에서 꺼내므로 본문에 포함하지 않음
         given(feedUseCase.createFeed(any())).willReturn(sampleFeed());
         Map<String, Object> body = Map.of(
-                "userId", 1,
                 "content", "테스트 게시물",
                 "visibility", "PUBLIC"
         );
@@ -76,10 +91,7 @@ class FeedControllerTest {
     @Test
     void createFeed_내용누락_400반환() throws Exception {
         // given: content 없이 요청 → @NotBlank 위반
-        Map<String, Object> body = Map.of(
-                "userId", 1,
-                "visibility", "PUBLIC"
-        );
+        Map<String, Object> body = Map.of("visibility", "PUBLIC");
 
         // when & then
         mockMvc.perform(post("/feeds")
@@ -91,10 +103,7 @@ class FeedControllerTest {
     @Test
     void createFeed_공개범위누락_400반환() throws Exception {
         // given: visibility 없이 요청 → @NotNull 위반
-        Map<String, Object> body = Map.of(
-                "userId", 1,
-                "content", "테스트 게시물"
-        );
+        Map<String, Object> body = Map.of("content", "테스트 게시물");
 
         // when & then
         mockMvc.perform(post("/feeds")
@@ -129,7 +138,7 @@ class FeedControllerTest {
     @Test
     void updateFeed_유효한요청_200반환() throws Exception {
         // given
-        given(feedUseCase.updateFeed(anyLong(), any())).willReturn(sampleFeed());
+        given(feedUseCase.updateFeed(anyLong(), anyLong(), any())).willReturn(sampleFeed());
         Map<String, Object> body = Map.of(
                 "content", "수정된 내용",
                 "visibility", "PUBLIC"
@@ -155,6 +164,21 @@ class FeedControllerTest {
     }
 
     @Test
+    void updateFeed_타인피드_수정시_403반환() throws Exception {
+        // given
+        given(feedUseCase.updateFeed(anyLong(), anyLong(), any()))
+                .willThrow(new BusinessException(FeedErrorCode.FEED_NOT_OWNER));
+        Map<String, Object> body = Map.of("content", "수정된 내용", "visibility", "PUBLIC");
+
+        // when & then
+        mockMvc.perform(put("/feeds/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403));
+    }
+
+    @Test
     void deleteFeed_성공_200반환() throws Exception {
         // when & then: 정상 삭제 → 200
         mockMvc.perform(delete("/feeds/1"))
@@ -165,10 +189,22 @@ class FeedControllerTest {
     void deleteFeed_존재하지않는id_404반환() throws Exception {
         // given
         willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND))
-                .given(feedUseCase).deleteFeed(999L);
+                .given(feedUseCase).deleteFeed(anyLong(), anyLong());
 
         // when & then
         mockMvc.perform(delete("/feeds/999"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void deleteFeed_타인피드_삭제시_403반환() throws Exception {
+        // given
+        willThrow(new BusinessException(FeedErrorCode.FEED_NOT_OWNER))
+                .given(feedUseCase).deleteFeed(anyLong(), anyLong());
+
+        // when & then
+        mockMvc.perform(delete("/feeds/1"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403));
     }
 }
