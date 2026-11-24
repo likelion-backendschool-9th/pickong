@@ -18,7 +18,7 @@
 | 스타일 | Tailwind CSS | 디자인 토큰은 `app/globals.css`의 `@theme` 한 곳에서 정의 |
 | 서버 상태 | TanStack Query | **클라이언트에서 다시 조회·변경되는 데이터에만** 사용 (8장) |
 | 클라이언트 전역 상태 | Zustand | **초기에는 사용하지 않음.** 도입 조건은 8장 |
-| 지도 | Kakao Maps JS SDK | `shared/map` 안에서만 SDK를 직접 사용 |
+| 지도 | Naver Maps JS SDK | `shared/map` 안에서만 SDK를 직접 사용 (`shared/map/naver/`) |
 | 폼 | React Hook Form + Zod | 스키마는 폼 옆에 둠 |
 | Mock | MSW 기반 독립 mock 서버 (제안) | API 주소만 바꿔서 실제 백엔드로 전환 |
 | 테스트 | Vitest + Testing Library, Playwright (제안) | 순수 로직 단위 테스트 우선 |
@@ -93,7 +93,7 @@
 | **라우트별 `loading.tsx` / `error.tsx` / `not-found.tsx`** | 데이터를 가져오는 페이지의 대기·오류 처리를 표준화 |
 | **Zustand 초기 미사용** | 세션은 서버 → Context로 읽기 전용 전달. 나머지는 지역 상태와 URL 상태로 해결 |
 | **일정 계산 로직을 순수 함수로 분리** (`entities/plan/model`) | React 없이 단위 테스트 가능. 화면(드래그 라이브러리 등)을 바꿔도 규칙은 그대로 |
-| **지도는 `shared/map`**, 카카오 SDK는 `shared/map/kakao/` 안에서만 | 모든 페이지가 같은 지도 컴포넌트를 쓰고, SDK 교체 영향은 폴더 하나로 끝남 |
+| **지도는 `shared/map`**, 네이버 SDK는 `shared/map/naver/` 안에서만 | 모든 페이지가 같은 지도 컴포넌트를 쓰고, SDK 교체 영향은 폴더 하나로 끝남 |
 
 ---
 
@@ -374,7 +374,7 @@ pickong/
     │       │   ├── Map.tsx
     │       │   ├── MapMarker.tsx
     │       │   ├── MarkerCluster.tsx
-    │       │   └── kakao/                  # 카카오 SDK를 아는 유일한 폴더
+    │       │   └── naver/                  # 네이버 SDK를 아는 유일한 폴더
     │       ├── api/
     │       │   ├── http.ts                 # fetch 래퍼 (서버/브라우저 공용)
     │       │   ├── errors.ts               # ApiError
@@ -426,7 +426,7 @@ pickong/
 | `entities/*/api/*Api.ts` | 실제 HTTP 호출. 반환값은 항상 도메인 모델 |
 | `entities/*/api/queries.ts` | TanStack Query의 query key + `queryOptions`. **커스텀 훅으로 감싸지 않음** |
 | `entities/*/ui` | props를 받아 그리기만 하는 컴포넌트. 데이터 조회·변경 금지. 행동 버튼은 `actions` 같은 slot으로 받음 |
-| `shared/map/kakao` | 카카오 SDK 로딩, 좌표 변환, 실제 지도 구현 |
+| `shared/map/naver` | 네이버 SDK 로딩, 좌표 변환, 실제 지도 구현 |
 | `mocks/` | 개발·테스트용 가짜 API. `src` 밖에 있어서 앱 번들에 포함되지 않음 |
 
 ### 왜 이 계층들만 쓰는가
@@ -501,7 +501,7 @@ feature A가 feature B를 import하지 않습니다. **조합은 위 계층에�
 
 - `eslint-plugin-boundaries`로 계층 간 import 방향 검사
 - `no-restricted-imports`로 슬라이스 내부 경로(`@/entities/*/*`) import 금지
-- `kakao` 전역 객체 사용은 `shared/map/kakao/**`에서만 허용
+- `naver` / `kakao` 등 지도 SDK 전역 객체 사용은 `shared/map/{provider}/**`에서만 허용
 - 서버 전용 모듈은 `server-only` 패키지로 클라이언트 import 시 빌드 실패
 
 ---
@@ -745,16 +745,16 @@ export async function getFeed(id: Id): Promise<Feed> {
 | 환경변수 | 용도 |
 | --- | --- |
 | `API_INTERNAL_URL` | 서버 → 백엔드(또는 mock) 주소. 서버 전용 |
-| `NEXT_PUBLIC_KAKAO_MAP_KEY` | 카카오 지도 JavaScript 키 (공개 키, 도메인 제한 설정) |
+| `NEXT_PUBLIC_NAVER_MAP_CLIENT_ID` | 네이버 지도 Client ID (`ncpKeyId`, Web 서비스 URL·Dynamic Map 설정) |
 
 장소 검색처럼 **카카오 REST 키가 필요한 호출은 브라우저에서 직접 하지 않고** 백엔드를 거칩니다 (`GET /api/places/search`). 백엔드 준비 전에는 mock 서버가 대신 응답합니다.
 
 ### 8.7 지도 SDK 경계
 
 - 페이지와 feature는 `@/shared/map`의 `Map`, `MapMarker`, `MarkerCluster`와 자체 타입(`LatLng`, `Bounds`)만 사용합니다.
-- `kakao.maps.*`는 `shared/map/kakao/` 밖에서 쓰지 않습니다 (lint로 강제).
-- **지도 제공자 인터페이스(`MapProvider` 등)는 만들지 않습니다.** 구현이 카카오 하나뿐인 인터페이스는 형식적인 추상화입니다. 컴포넌트 props가 이미 경계 역할을 합니다.
-- 제공자를 바꾸게 되면 `shared/map/google/` 같은 폴더를 추가하고 `Map.tsx`가 그것을 쓰도록 바꿉니다. 페이지는 수정하지 않습니다.
+- `naver.maps.*`는 `shared/map/naver/` 밖에서 쓰지 않습니다 (lint로 강제).
+- **지도 제공자 인터페이스(`MapProvider` 등)는 만들지 않습니다.** 구현이 하나뿐인 인터페이스는 형식적인 추상화입니다. 컴포넌트 props가 이미 경계 역할을 합니다.
+- 제공자를 바꾸게 되면 `shared/map/kakao/` 같은 폴더를 추가하고 `Map.tsx`가 그것을 쓰도록 바꿉니다. 페이지는 수정하지 않습니다.
 - 마커 안의 카테고리 핀 모양은 도메인 정보이므로 `entities/place/ui/PlacePin`이 담당하고, `MapMarker`의 children으로 넘깁니다.
 
 ---
@@ -805,13 +805,13 @@ app/(main)/map/
 shared/map/
 ├── index.ts                    # Map, MapMarker, MarkerCluster, LatLng, Bounds만 export
 ├── types.ts
-├── Map.tsx                     # 'use client' 공개 컴포넌트 (center, zoom, onBoundsChange …)
+├── Map.tsx                     # 'use client' 공개 컴포넌트 → NaverMapView 연결
 ├── MapMarker.tsx
 ├── MarkerCluster.tsx
-└── kakao/
-    ├── loadKakaoSdk.ts         # SDK 스크립트 1회 로딩
-    ├── KakaoMapView.tsx        # 실제 카카오 지도 구현
-    └── convert.ts              # LatLng ↔ kakao.maps.LatLng
+└── naver/
+    ├── loadNaverSdk.ts         # SDK 스크립트 1회 로딩
+    ├── NaverMapView.tsx        # 실제 네이버 지도 구현
+    └── convert.ts              # LatLng ↔ naver.maps.LatLng
 ```
 
 **흐름:** 필터는 URL에 있으므로 서버가 처음부터 필터된 결과를 그릴 수 있고, 링크를 공유해도 같은 화면이 열립니다. 1차에는 저장 장소 수가 적으므로 전부 불러오고, 많아지면 `savedPlaceQueries.inBounds(bounds)`(지도 화면 범위 조회, 기획서 8.1)로 바꿉니다. 이때 바뀌는 곳은 `MyMap.tsx`와 `entities/place/api`뿐입니다.
@@ -893,7 +893,7 @@ entities/plan/model/            # React import 금지. 입력 → 출력만 있�
 ### 로직 · 외부 의존
 16. **계산·검증 로직은 React를 import하지 않는 순수 함수로 작성하고, 바로 옆에 테스트를 둡니다.**
 17. **단순 UI에는 UseCase·Port·Adapter 같은 추상화를 만들지 않습니다.** 인터페이스는 구현이 둘 이상일 때 만듭니다.
-18. **`kakao.maps`는 `shared/map/kakao/` 밖에서 쓰지 않습니다.**
+18. **`naver.maps`는 `shared/map/naver/` 밖에서 쓰지 않습니다.**
 
 ### 이름 규칙
 
@@ -1125,5 +1125,5 @@ type PlanWarning =
 5. `app/` 라우트 생성 (빈 페이지 + `loading`/`not-found`), `(main)` 앱 셸, `proxy.ts` 접근 제어
 6. `entities/*` 모델 · DTO · mapper · queries
 7. 화면별 정적 UI: 피드 → 게시물 상세/작성 → 지도 → 컬렉션 → 외부 링크 가져오기 → 일정
-8. `shared/map` 카카오 지도 연동
+8. `shared/map` 네이버 지도 연동
 9. `entities/plan/model` 순수 함수 + 단위 테스트
