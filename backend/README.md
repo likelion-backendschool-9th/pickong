@@ -24,8 +24,8 @@ docker compose up -d db   # 저장소 루트에서. 로컬 PostgreSQL(PostGIS) �
 | `COOKIE_SECURE` | `true`. 로컬(http://localhost)은 `.env`에서 `false` |
 | `COOKIE_DOMAIN` | 비움 (지금 도메인에만 쿠키 저장) |
 | `FRONTEND_BASE_URL` | `http://localhost:3000`. 소셜 로그인 콜백 주소 · 로그인 후 이동할 화면의 기준 |
-| `KAKAO_CLIENT_ID` · `KAKAO_CLIENT_SECRET` | 없으면 앱은 뜨지만 카카오 로그인만 실패 |
-| `GOOGLE_CLIENT_ID` · `GOOGLE_CLIENT_SECRET` | 없으면 앱은 뜨지만 Google 로그인만 실패 |
+| `KAKAO_CLIENT_ID` · `KAKAO_CLIENT_SECRET` | 없으면 앱은 뜨지만 카카오 로그인만 실패. **값이 빈 줄(`KAKAO_CLIENT_ID=`)은 "없음"이 아니라 빈 값이라 앱이 시작하지 않으니** 키가 없으면 줄을 주석으로 둡니다 |
+| `GOOGLE_CLIENT_ID` · `GOOGLE_CLIENT_SECRET` | 위와 같음 (없으면 Google 로그인만 실패, 빈 줄은 시작 실패) |
 
 ### 처음 실행할 때: `backend/.env`
 
@@ -133,13 +133,17 @@ Gradle을 따로 설치하지 않아도 `./gradlew`가 필요한 버전(9.8.2)�
 1. 앱 키 > REST API 키 → `KAKAO_CLIENT_ID`
 2. 보안 > Client Secret 코드 생성 · 활성화 → `KAKAO_CLIENT_SECRET`
 3. 카카오 로그인 > 활성화, Redirect URI 등록: `http://localhost:3000/api/v1/auth/oauth2/callback/kakao` (운영: `https://프론트도메인/api/v1/auth/oauth2/callback/kakao`)
-4. 카카오 로그인 > 동의항목: 닉네임 · 프로필 사진(필수 또는 선택), 카카오계정(이메일) **선택 동의** (앱 상태에 따라 검수가 필요할 수 있음)
-5. 플랫폼 > Web 사이트 도메인: `http://localhost:3000` (운영 도메인 추가)
+4. 앱 설정 > 비즈 앱 전환 (개인 개발자도 가능). 비즈 앱이 아니면 이메일 동의항목을 켤 수 없습니다.
+5. 카카오 로그인 > 동의항목: 닉네임 · 프로필 사진(필수 또는 선택), 카카오계정(이메일) **필수 동의**
+   - 백엔드가 이 세 항목(`profile_nickname`, `profile_image`, `account_email`)을 요청하므로 하나라도 "사용 안 함"이면 카카오 로그인 뒤 `KOE205` 오류가 납니다.
+6. 플랫폼 > Web 사이트 도메인: `http://localhost:3000` (운영 도메인 추가)
 
 **Google** (console.cloud.google.com > API 및 서비스)
 1. OAuth 동의 화면 설정 (범위: `openid`, `email`, `profile`), 테스트 단계에서는 테스트 사용자 추가
 2. 사용자 인증 정보 > OAuth 2.0 클라이언트 ID(웹 애플리케이션) 생성 → `GOOGLE_CLIENT_ID` · `GOOGLE_CLIENT_SECRET`
 3. 승인된 리디렉션 URI: `http://localhost:3000/api/v1/auth/oauth2/callback/google` (운영 주소 추가)
+
+**로컬에서 실제 로그인 확인**: 키를 넣은 뒤 `frontend/.env.local`에 `BACKEND_URL=http://localhost:8080`을 넣고 백엔드와 프론트(`npm run dev`)를 띄워 `http://localhost:3000/login`에서 시작합니다. (Redirect URI가 3000이라 8080으로 직접 열면 콜백이 프론트로 돌아옵니다)
 
 ## 프론트엔드와 맞출 것
 
