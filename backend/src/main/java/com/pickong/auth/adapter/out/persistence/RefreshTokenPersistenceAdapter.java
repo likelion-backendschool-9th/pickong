@@ -43,4 +43,10 @@ public class RefreshTokenPersistenceAdapter implements RefreshTokenPersistencePo
     public void revokeFamily(String family, OffsetDateTime now) {
         repository.revokeFamily(family, now);
     }
+
+    @Override
+    @Transactional
+    public int deleteExpiredBefore(OffsetDateTime threshold) {
+        return repository.deleteExpiredBefore(threshold);
+    }
 }

@@ -15,7 +15,7 @@
 | ✅ | GET | `/feeds/{feedId}` | `FeedQueryUseCase.getDetail` | |
 | ✅ | PUT | `/feeds/{feedId}` | `FeedCommandUseCase.update` | |
 | ✅ | DELETE | `/feeds/{feedId}` | `FeedCommandUseCase.delete` | |
-| ☐ | GET | `/feeds?tab=following\|recommended` | `FeedQueryUseCase.feed` | 추천은 비로그인 허용. 알고리즘 미정 |
+| ✅ | GET | `/feeds?tab=following\|recommended` | `FeedQueryUseCase.feed` | 추천 비로그인 허용, 팔로잉 null이면 빈 리스트 반환. PR #92 |
 | ☐ | GET | `/feeds/places?tab=` | `FeedQueryUseCase.feedPlaces` | |
 
 ### 댓글 (Comment)
@@ -26,7 +26,7 @@
 | ✅ | POST | `/feeds/{feedId}/comments` | `CommentCommandUseCase.write` | |
 | ✅ | PUT | `/feeds/{feedId}/comments/{commentId}` | `CommentCommandUseCase.edit` | |
 | ✅ | DELETE | `/feeds/{feedId}/comments/{commentId}` | `CommentCommandUseCase.delete` | soft delete |
-| ☐ | GET | `/feeds/{feedId}/comments/{commentId}/replies` | `CommentQueryUseCase.replies` | |
+| ✅ | GET | `/feeds/{feedId}/comments/{commentId}/replies` | `CommentQueryUseCase.replies` | |
 
 ### 반응 (Reaction)
 
@@ -141,16 +141,22 @@ GET /feeds?tab=following&cursor=<마지막_feedId>&size=20
 ## 후속 작업 순서
 
 ```
-1. JWT 머지
-   └─ @CurrentUser 리졸버 생성
-   └─ likedByMe / bookmarkedByMe 필드 추가
-   └─ /me/bookmarked-feeds, /users/{username}/feeds 구현
+1. ✅ JWT 머지 (PR #85)
+   └─ ✅ @CurrentUser 리졸버 생성
+   └─ likedByMe / bookmarkedByMe 필드 추가 — issue #91 (공개 범위 필터와 묶어서)
+   └─ /me/bookmarked-feeds, /users/{username}/feeds 구현 — 별도 이슈
 
-2. GET /feeds?tab=following|recommended 구현
-   └─ social 모듈 팔로잉 포트 확인 (RelationQueryUseCase)
-   └─ 커서 페이지네이션 적용
+2. ✅ GET /feeds?tab=following|recommended 구현 (PR #92)
+   └─ ✅ social 모듈 팔로잉 JPQL subquery
+   └─ ✅ 커서 기반 페이지네이션
 
-3. GET /feeds/{feedId}/comments/{commentId}/replies 구현
+3. 댓글·좋아요·북마크 API JWT 인증 연동 — issue #90
+   └─ CommentController, CommentReactionController, ReactionController
+   └─ userId 쿼리 파라미터 → @CurrentUser LoginUser user 교체
 
-4. feedId UUID 전환 (팀 결정 후)
+4. 피드 공개 범위(FOLLOWERS·PRIVATE) 조회 필터 — issue #91
+
+5. GET /feeds/{feedId}/comments/{commentId}/replies 구현
+
+6. feedId UUID 전환 (팀 결정 후)
 ```

@@ -122,7 +122,7 @@ public class SecurityConfig {
                         .requestMatchers(PUBLIC_PATHS).permitAll()
                         // 약관 전문: 가입 화면의 '보기'에서 로그인 전에 엽니다. 조회(GET)만 엽니다.
                         .requestMatchers(HttpMethod.GET, "/terms/**").permitAll()
-                        // 피드 단일 조회(공유 링크) · 댓글 목록 · 대댓글 목록 — 비로그인도 볼 수 있음
+                        // 피드 단건 조회(공유 링크) · 댓글 목록 · 대댓글 목록 — 비로그인도 볼 수 있음
                         // 피드 목록(GET /feeds), 좋아요·북마크·댓글 작성·수정·삭제는 로그인 필요 (anyRequest 규칙 적용)
                         .requestMatchers(HttpMethod.GET, "/feeds/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/feeds/*/comments").permitAll()

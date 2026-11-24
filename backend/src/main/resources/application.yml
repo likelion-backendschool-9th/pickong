@@ -66,6 +66,10 @@ pickong:
     refresh-token:
       # 재발급할 때마다 '지금 + 14일'로 연장됩니다(슬라이딩).
       ttl: 14d
+      # 만료된 지 7일이 지난 토큰 행을 매일 04:00(한국 시간)에 지웁니다. (ExpiredTokenCleanupScheduler)
+      # 만료 전에는 지우지 않아서, 폐기된 토큰이 다시 오면 탈취로 감지하는 기능은 만료까지 그대로 동작합니다.
+      cleanup-retention: 7d
+      cleanup-cron: "0 0 4 * * *"
     cookie:
       # HTTPS에서만 쿠키 전송. 기본 true(운영), 로컬 http://localhost만 backend/.env에서 COOKIE_SECURE=false
       secure: ${COOKIE_SECURE:true}
