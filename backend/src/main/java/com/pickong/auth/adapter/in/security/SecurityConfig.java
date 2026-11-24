@@ -149,7 +149,7 @@ public class SecurityConfig {
      * 동의 받을 필수 약관이 남아 있어도 열어 둘 요청. 동의하러 가는 데 필요한 것만 둡니다.
      * <ul>
      *   <li>약관 전문 · 내 동의 상태 · 동의할 약관 · 동의 (/terms/**, /me/agreements/**)</li>
-     *   <li>내 정보 GET /me (프론트가 로그인 상태를 확인), 탈퇴 DELETE /me (동의 대신 탈퇴를 고를 수 있게)</li>
+     *   <li>내 정보 GET /me (프론트가 로그인 상태를 확인), 탈퇴 신청 POST /me/withdrawal (동의 대신 탈퇴를 고를 수 있게)</li>
      *   <li>로그아웃 · 재발급 (/auth/**)</li>
      * </ul>
      * matcher builder는 Spring Boot가 servlet path(/api/v1)를 붙여 만든 빈이라, 위 인가 규칙과 같은 경로 기준입니다.
@@ -160,7 +160,7 @@ public class SecurityConfig {
                 matchers.matcher("/me/agreements"),
                 matchers.matcher("/me/agreements/**"),
                 matchers.matcher(HttpMethod.GET, "/me"),
-                matchers.matcher(HttpMethod.DELETE, "/me"),
+                matchers.matcher(HttpMethod.POST, "/me/withdrawal"),
                 matchers.matcher("/auth/**"));
     }
 
