@@ -4,6 +4,7 @@ import com.pickong.common.domain.Visibility;
 import com.pickong.common.error.BusinessException;
 import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.feed.application.dto.CreateFeedCommand;
+import com.pickong.feed.application.dto.FeedPage;
 import com.pickong.feed.application.dto.UpdateFeedCommand;
 import com.pickong.feed.application.port.out.FeedRepository;
 import com.pickong.feed.domain.model.Feed;
@@ -81,8 +82,7 @@ class FeedServiceTest {
         UpdateFeedCommand command = new UpdateFeedCommand("수정된 내용", Visibility.PRIVATE, List.of(), List.of());
         given(feedRepository.findById(1L)).willReturn(sampleFeed());
         given(feedRepository.save(any(Feed.class))).willReturn(
-                Feed.builder().id(1L).userId(1L).content("수정된 내용").visibility(Visibility.PRIVATE).build()
-        );
+                Feed.builder().id(1L).userId(1L).content("수정된 내용").visibility(Visibility.PRIVATE).build());
 
         // when
         Feed result = feedService.updateFeed(1L, command);
@@ -137,5 +137,34 @@ class FeedServiceTest {
         // when & then
         assertThatThrownBy(() -> feedService.deleteFeed(999L))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void getRecommendedFeeds_성공() {
+        // given
+        given(feedRepository.findRecommendedFeeds(null, null, 11))
+                .willReturn(List.of(sampleFeed()));
+        // when
+        FeedPage page = feedService.getRecommendedFeeds(null, null, 10);
+
+        // then
+        assertThat(page.getFeeds()).hasSize(1);
+        assertThat(page.isHasNext()).isFalse();
+    }
+
+    @Test
+    void getFollowingFeeds_성공() {
+        given(feedRepository.findFollowingFeeds(1L, null, 11))
+                .willReturn(List.of(sampleFeed()));
+        FeedPage page = feedService.getFollowingFeeds(1L, null, 10);
+
+        assertThat(page.getFeeds()).hasSize(1);
+        assertThat(page.isHasNext()).isFalse();
+    }
+
+    @Test
+    void getFollowingFeeds_비로그인_빈피드반환() {
+        FeedPage page = feedService.getFollowingFeeds(null, null, 10);
+        assertThat(page.getFeeds()).isEmpty();
     }
 }
