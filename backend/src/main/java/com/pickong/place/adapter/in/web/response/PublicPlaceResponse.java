@@ -4,7 +4,7 @@ import com.pickong.place.domain.model.Place;
 
 /**
  * 공개 장소 목록 항목. id는 장소 공개 id입니다.
- * 공개 상태이고 삭제되지 않은 장소만 조회하며, visibility · owner · description은 내보내지 않습니다.
+ * visibility, owner, description은 Place 모델에 없어 만들지 않습니다. 행이 있으면 공개 장소입니다.
  */
 public record PublicPlaceResponse(
         String id,
