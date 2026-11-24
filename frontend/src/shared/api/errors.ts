@@ -1,3 +1,6 @@
+/** Access Token 재발급까지 실패해 다시 로그인해야 하는 상태. QueryClient가 받으면 로그인 화면으로 보냅니다. */
+export const SESSION_EXPIRED = "SESSION_EXPIRED";
+
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;

@@ -1,7 +1,7 @@
 /**
  * 개발용 mock API 서버 (localhost:4000).
- * 앱 번들에 포함되지 않으며, next.config.ts의 rewrites가 /api/*를 이 서버로 전달합니다.
- * 실제 백엔드로 바꿀 때는 API_BASE_URL만 변경합니다.
+ * 앱 번들에 포함되지 않으며, next.config.ts의 rewrites가 /api/*(BACKEND_URL을 정하면 백엔드에 있는 경로는 빼고)를 이 서버로 전달합니다.
+ * 실제 백엔드에 연결하는 방법은 frontend/README.md를 봅니다.
  *
  * 실행: npm run mock (npm run dev에 포함)
  */
@@ -16,6 +16,7 @@ import { importRoutes } from "./handlers/imports.ts";
 import { messageRoutes } from "./handlers/messages.ts";
 import { myPlaceRoutes } from "./handlers/myPlaces.ts";
 import { paymentRoutes } from "./handlers/payments.ts";
+import { placeSubmissionRoutes } from "./handlers/placeSubmissions.ts";
 import { placeRoutes } from "./handlers/places.ts";
 import { planRoutes } from "./handlers/plans.ts";
 import { postRoutes } from "./handlers/posts.ts";
@@ -29,6 +30,7 @@ const handle = createRouter([
   ...userRoutes,
   ...postRoutes,
   ...placeRoutes,
+  ...placeSubmissionRoutes,
   ...importRoutes,
   ...planRoutes,
   ...discoverRoutes,
@@ -42,5 +44,5 @@ const handle = createRouter([
 ]);
 
 createServer(handle).listen(PORT, () => {
-  console.log(`[mock] http://localhost:${PORT}/api`);
+  console.log(`[mock] http://localhost:${PORT}/api/v1`);
 });

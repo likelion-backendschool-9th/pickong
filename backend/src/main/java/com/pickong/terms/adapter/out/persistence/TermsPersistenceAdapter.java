@@ -1,0 +1,49 @@
+package com.pickong.terms.adapter.out.persistence;
+
+import com.pickong.terms.adapter.out.persistence.entity.TermsJpaEntity;
+import com.pickong.terms.adapter.out.persistence.entity.UserTermsAgreementJpaEntity;
+import com.pickong.terms.adapter.out.persistence.repository.TermsJpaRepository;
+import com.pickong.terms.adapter.out.persistence.repository.UserTermsAgreementJpaRepository;
+import com.pickong.terms.application.port.out.TermsPersistencePort;
+import com.pickong.terms.domain.model.Terms;
+import com.pickong.terms.domain.vo.TermsType;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Set;
+import org.springframework.stereotype.Component;
+
+/** 약관 · 약관 동의 저장소. JPA 엔티티는 이 어댑터 밖으로 내보내지 않습니다. */
+@Component
+public class TermsPersistenceAdapter implements TermsPersistencePort {
+
+    private final TermsJpaRepository termsRepository;
+    private final UserTermsAgreementJpaRepository agreementRepository;
+
+    public TermsPersistenceAdapter(TermsJpaRepository termsRepository, UserTermsAgreementJpaRepository agreementRepository) {
+        this.termsRepository = termsRepository;
+        this.agreementRepository = agreementRepository;
+    }
+
+    /** 종류별 최신순으로 받아서 종류마다 첫 번째(= 지금 시행 중인 버전)만 남깁니다. */
+    @Override
+    public List<Terms> findCurrent(OffsetDateTime now) {
+        Set<TermsType> seen = EnumSet.noneOf(TermsType.class);
+        List<Terms> current = new ArrayList<>();
+        for (TermsJpaEntity entity : termsRepository.findEffective(now)) {
+            Terms terms = entity.toDomain();
+            if (seen.add(terms.getType())) {
+                current.add(terms);
+            }
+        }
+        return current;
+    }
+
+    @Override
+    public void saveAgreements(Long userId, List<Long> termsIds, OffsetDateTime agreedAt) {
+        agreementRepository.saveAll(termsIds.stream()
+                .map(termsId -> UserTermsAgreementJpaEntity.agreed(userId, termsId, agreedAt))
+                .toList());
+    }
+}

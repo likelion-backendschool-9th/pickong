@@ -11,6 +11,7 @@ import {
   userDto,
 } from "../db.ts";
 import { HttpError, notFound, type Route } from "../router.ts";
+import { isUsernameTaken, USERNAME_PATTERN } from "./auth.ts";
 
 const userOr404 = (username: string) => findUserByName(username) ?? notFound("사용자");
 
@@ -18,13 +19,28 @@ const ALL_CATEGORIES = ["CAFE", "RESTAURANT", "PHOTO_SPOT", "SHOP", "EXHIBITION"
 const DEFAULT_MAP_CATEGORIES = ["CAFE", "RESTAURANT", "SHOP", "PARK", "PHOTO_SPOT", "EXHIBITION", "STREET"];
 
 export const userRoutes: Route[] = [
-  { method: "GET", path: "/api/me", handler: () => userDto(db.users.find((u) => u.id === ME_ID)!) },
+  { method: "GET", path: "/api/v1/me", handler: () => userDto(db.users.find((u) => u.id === ME_ID)!) },
   {
     method: "PATCH",
-    path: "/api/me",
+    path: "/api/v1/me",
     handler: ({ body }) => {
       const me = db.users.find((u) => u.id === ME_ID)!;
-      if (typeof body?.nickname === "string") me.nickname = body.nickname;
+      // 닉네임 = 사용자 ID: 바꾸면 프로필 주소(/users/닉네임)도 바뀝니다.
+      if (typeof body?.username === "string") {
+        const username = body.username.trim().toLowerCase();
+        if (!USERNAME_PATTERN.test(username)) throw new HttpError(400, "INVALID_USERNAME", "닉네임 형식을 확인해 주세요.");
+        if (isUsernameTaken(username, me.id)) throw new HttpError(409, "USERNAME_TAKEN", "이미 사용 중인 닉네임이에요.");
+        me.username = username;
+      }
+      // 이름: 중복 가능, 빈 값이면 이름 없음(null)
+      if (body?.name === null || typeof body?.name === "string") {
+        const name = typeof body.name === "string" ? body.name.trim() : "";
+        if ([...name].length > 20) throw new HttpError(400, "INVALID_NAME", "이름은 20자까지 쓸 수 있어요.");
+        me.name = name || null;
+      }
+      // 화면에 보여 줄 이름 = 이름 ?? 닉네임(username)
+      const name = me.name === undefined ? me.nickname : me.name;
+      me.nickname = name ?? me.username;
       if (typeof body?.bio === "string") me.bio = body.bio;
       if (typeof body?.region === "string") me.region = body.region;
       return userDto(me);
@@ -33,12 +49,12 @@ export const userRoutes: Route[] = [
   {
     /** 내 지도 카테고리 칩: 보이는 카테고리를 순서대로 */
     method: "GET",
-    path: "/api/me/map-categories",
+    path: "/api/v1/me/map-categories",
     handler: () => ({ categories: db.mapCategories[ME_ID] ?? DEFAULT_MAP_CATEGORIES }),
   },
   {
     method: "PUT",
-    path: "/api/me/map-categories",
+    path: "/api/v1/me/map-categories",
     handler: ({ body }) => {
       const list: unknown = body?.categories;
       if (!Array.isArray(list) || list.some((c) => !ALL_CATEGORIES.includes(c)) || new Set(list).size !== list.length) {
@@ -50,12 +66,12 @@ export const userRoutes: Route[] = [
   },
   {
     method: "GET",
-    path: "/api/users/:username",
+    path: "/api/v1/users/:username",
     handler: ({ params }) => userDto(userOr404(params.username)),
   },
   {
     method: "GET",
-    path: "/api/users/:username/posts",
+    path: "/api/v1/users/:username/posts",
     handler: ({ params }) => {
       const user = userOr404(params.username);
       return db.posts
@@ -66,7 +82,7 @@ export const userRoutes: Route[] = [
   },
   {
     method: "GET",
-    path: "/api/users/:username/collections",
+    path: "/api/v1/users/:username/collections",
     handler: ({ params }) => {
       const user = userOr404(params.username);
       return db.collections
@@ -80,7 +96,7 @@ export const userRoutes: Route[] = [
      * 저장 장소(내 지도)와는 별개이며, postIds는 최신 게시물부터입니다.
      */
     method: "GET",
-    path: "/api/users/:username/places",
+    path: "/api/v1/users/:username/places",
     handler: ({ params }) => {
       const user = userOr404(params.username);
       const byPlace = new Map<string, string[]>();
@@ -104,7 +120,7 @@ export const userRoutes: Route[] = [
   },
   {
     method: "GET",
-    path: "/api/users/:username/followers",
+    path: "/api/v1/users/:username/followers",
     handler: ({ params }) => {
       const user = userOr404(params.username);
       return db.follows
@@ -114,7 +130,7 @@ export const userRoutes: Route[] = [
   },
   {
     method: "GET",
-    path: "/api/users/:username/following",
+    path: "/api/v1/users/:username/following",
     handler: ({ params }) => {
       const user = userOr404(params.username);
       return db.follows
@@ -124,7 +140,7 @@ export const userRoutes: Route[] = [
   },
   {
     method: "POST",
-    path: "/api/users/:username/follow",
+    path: "/api/v1/users/:username/follow",
     handler: ({ params }) => {
       const user = userOr404(params.username);
       if (user.id !== ME_ID && !isFollowing(ME_ID, user.id)) {
@@ -135,7 +151,7 @@ export const userRoutes: Route[] = [
   },
   {
     method: "DELETE",
-    path: "/api/users/:username/follow",
+    path: "/api/v1/users/:username/follow",
     handler: ({ params }) => {
       const user = userOr404(params.username);
       if (isFollowing(ME_ID, user.id)) {

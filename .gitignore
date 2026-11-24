@@ -25,3 +25,6 @@ frontend/pnpm-lock.yaml
 # 로컬 개인 작업 템플릿
 _local/
 
+# Java 빌드 결과물
+backend/target/
+

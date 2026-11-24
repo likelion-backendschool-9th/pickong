@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -17,8 +17,8 @@ const sections: { title: string; rows: Row[] }[] = [
   {
     title: "계정",
     rows: [
-      { label: "프로필 편집", desc: "닉네임 · 소개 · 활동 지역", href: routes.editProfile() },
-      { label: "비밀번호 재설정", desc: "이메일 인증 후 새 비밀번호로 바꿔요", href: routes.passwordReset() },
+      { label: "프로필 편집", desc: "닉네임 · 이름 · 소개 · 활동 지역", href: routes.editProfile() },
+      { label: "로그인 수단 관리", desc: "카카오 · Google 계정 연결 · 해제", href: routes.loginMethods() },
       { label: "약관 및 동의 관리", desc: "필수 약관 확인 · 마케팅 수신 동의", href: routes.agreements() },
     ],
   },
@@ -55,11 +55,14 @@ const sections: { title: string; rows: Row[] }[] = [
 /** 계정 설정 목록: 설정 페이지와 프로필의 메뉴 패널이 함께 씁니다. */
 export function SettingsMenu({ onNavigate }: { onNavigate?: () => void }) {
   const router = useRouter();
+  const qc = useQueryClient();
   const logout = useMutation({
     mutationFn: authApi.logout,
     onSuccess: () => {
       onNavigate?.();
       router.replace(routes.start());
+      // 다른 계정으로 다시 로그인했을 때 이전 계정의 응답이 보이지 않도록 캐시를 비웁니다.
+      qc.clear();
     },
   });
 

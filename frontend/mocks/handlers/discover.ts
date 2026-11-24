@@ -7,7 +7,7 @@ export const discoverRoutes: Route[] = [
   {
     /** 통합 검색: 장소 / 사용자 / 게시물 / 컬렉션 */
     method: "GET",
-    path: "/api/search",
+    path: "/api/v1/search",
     delay: 250,
     handler: ({ query }) => {
       const q = norm(query.get("q") ?? "");
@@ -54,7 +54,7 @@ export const discoverRoutes: Route[] = [
   },
   {
     method: "GET",
-    path: "/api/notifications",
+    path: "/api/v1/notifications",
     handler: () =>
       db.notifications.map((n) => {
         const actor = n.actorId ? findUser(n.actorId) : null;
@@ -63,7 +63,7 @@ export const discoverRoutes: Route[] = [
   },
   {
     method: "POST",
-    path: "/api/notifications/read",
+    path: "/api/v1/notifications/read",
     handler: () => {
       for (const n of db.notifications) n.read = true;
       return undefined;

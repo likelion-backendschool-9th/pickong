@@ -133,18 +133,19 @@ pickong/
     │   │   ├── not-found.tsx
     │   │   ├── (auth)/
     │   │   │   ├── page.tsx                # / 시작 화면 (공개). 시작하기 → /login. 로그인 상태면 /feed로
-    │   │   │   ├── _components/AuthUi.tsx  # 시작·로그인·회원가입 공통 입력창·체크박스·알약 버튼
-    │   │   │   ├── _lib/validation.ts      # 이메일 검증
-    │   │   │   ├── login/
-    │   │   │   │   ├── page.tsx
-    │   │   │   │   └── _components/LoginForm.tsx
-    │   │   │   └── signup/
+    │   │   │   ├── _components/AuthUi.tsx  # 시작·로그인·온보딩 공통 입력창·체크박스·알약 버튼
+    │   │   │   ├── login/                  # 로그인 · 회원가입 통합 (카카오 · Google)
+    │   │   │   │   ├── page.tsx                # Server: 내 지도 그림 + 소셜 로그인 버튼(<a>)
+    │   │   │   │   ├── _lib/loginError.ts      # ?error= 사유 코드 → 안내 문구
+    │   │   │   │   └── _components/            # LoginHero, SocialLoginButton, LoginErrorNotice(Client)
+    │   │   │   └── signup/                 # 최초 가입 온보딩 (소셜 인증을 마친 신규 회원만)
     │   │   │       ├── page.tsx
-    │   │   │       ├── _lib/               # signup.ts(닉네임·비밀번호·약관), phone.ts(번호 형식·타이머)
+    │   │   │       ├── _api/signupApi.ts       # 가입 세션 조회 · 완료 · 그만두기
+    │   │   │       ├── _lib/signup.ts          # 단계 순서, 닉네임 기본값, 약관 동의
     │   │   │       └── _components/
-    │   │   │           ├── SignupFlow.tsx      # 정보 입력 → 휴대폰 인증 단계
-    │   │   │           ├── SignupForm.tsx
-    │   │   │           └── PhoneVerifyStep.tsx
+    │   │   │           ├── SignupFlow.tsx      # 닉네임 → 프로필 사진 · 이름(건너뛰기) → 약관 동의 시트
+    │   │   │           ├── NicknameStep.tsx · ProfileStep.tsx · TermsSheet.tsx
+    │   │   │           └── SignupUi.tsx        # 단계 화면 틀, o──o──o 진행 표시
     │   │   │
     │   │   └── (main)/                     # 앱 셸 레이아웃 (헤더 + 하단 탭)
     │   │       ├── layout.tsx
@@ -380,7 +381,9 @@ pickong/
     │       │   ├── pagination.ts           # Paginated<T>, CursorPage<T>
     │       │   └── queryClient.ts
     │       ├── auth/
-    │       │   ├── authApi.ts              # login, signup, logout, me
+    │       │   ├── authApi.ts              # logout (재발급은 http.ts가 401일 때 처리)
+    │       │   ├── socialProviders.ts      # KAKAO · GOOGLE, 로그인 시작 주소
+    │       │   ├── SocialLogo.tsx          # 제공자 로고 (public/icons)
     │       │   ├── session.server.ts       # 서버에서 세션 쿠키 읽기 (server-only)
     │       │   └── SessionProvider.tsx     # 현재 사용자 읽기 전용 Context
     │       ├── lib/                        # date.ts, time.ts, geo.ts(거리), cn.ts
@@ -613,7 +616,7 @@ feature A가 feature B를 import하지 않습니다. **조합은 위 계층에�
 
 | 공개 | 로그인 필요 (`proxy.ts`에서 `/login`으로) |
 | --- | --- |
-| `/`, `/login`, `/signup`, `/password/reset`, `/terms/[type]` | `/feed`, `/map`, `/import`, `/plans/**` |
+| `/`, `/login`, `/signup`, `/terms/[type]` | `/feed`, `/map`, `/import`, `/plans/**` |
 | `/posts/[postId]` (공개 범위 준수) | `/posts/new`, `/collections`, `/collections/new` |
 | `/places/[placeId]` | `/places/custom/new`, `/notifications`, `/settings/**` |
 | `/collections/[collectionId]` (공개 컬렉션) | |
@@ -721,26 +724,30 @@ export async function getFeed(id: Id): Promise<Feed> {
 ### 8.5 API 연동 구조
 
 ```
-[브라우저]  Client Component ─▶ entities/*/api ─▶ shared/api/http ─▶ /api/*  ─(Next rewrites)─▶ Spring Boot (또는 mock 서버)
+[브라우저]  Client Component ─▶ entities/*/api ─▶ shared/api/http ─▶ /api/v1/*  ─(Next rewrites)─▶ Spring Boot (또는 mock 서버)
 [서버]      page.tsx          ─▶ entities/*/api ─▶ shared/api/http ─▶ API_INTERNAL_URL (쿠키 전달) ─▶ Spring Boot (또는 mock 서버)
 ```
 
-- **브라우저는 같은 도메인의 `/api/*`로 요청**하고 `next.config.ts`의 rewrites가 백엔드로 전달합니다. CORS 설정이 필요 없고 httpOnly 쿠키를 그대로 쓸 수 있습니다.
+- **브라우저는 같은 도메인의 `/api/v1/*`로 요청**하고 `next.config.ts`의 rewrites가 백엔드로 전달합니다. CORS 설정이 필요 없고 httpOnly 쿠키를 그대로 쓸 수 있습니다.
 - **서버는 백엔드 주소로 직접 요청**하고, 들어온 요청의 쿠키를 함께 전달합니다.
 - `shared/api/http.ts`가 이 차이를 숨깁니다. `entities/*/api`는 어느 쪽에서 실행되는지 신경 쓰지 않습니다.
 - 백엔드 오류 응답은 `ApiError(status, code, message)`로 바꿔서 던집니다.
   - 페이지(Server): 404 → `notFound()`, 401 → `redirect('/login')`, 그 외 → `error.tsx`
-  - Client: QueryClient 전역 설정에서 401이면 로그인으로 이동, 나머지는 컴포넌트·토스트에서 처리
+  - Client: `http.ts`가 401을 받으면 `/auth/refresh`를 한 번 보내고(동시에 받은 401은 재발급 하나를 함께 기다리고, 여러 탭 사이는 Web Locks로 한 번에 한 탭만 재발급) 다시 요청합니다. 재발급도 실패하면 `SESSION_EXPIRED`를 던지고, QueryClient 전역 설정이 `/login?error=SESSION_EXPIRED`로 보냅니다. `/auth/*` 경로의 401은 재발급 없이 그대로 돌려줍니다. 나머지 오류는 컴포넌트·토스트에서 처리
 
 ### 8.6 Mock → 실제 API 전환
 
 - `mocks/`의 핸들러가 **DTO 형태의 응답**을 돌려줍니다. 따라서 mapper까지 실제와 같은 경로로 실행됩니다.
 - 개발 시 mock 서버(localhost:4000)를 띄우고, rewrites 대상과 `API_INTERNAL_URL`을 mock 서버로 지정합니다.
+- 백엔드에 일부 API만 있는 동안은 `BACKEND_URL`을 정합니다. `next.config.ts`의 `BACKEND_PATHS`에 있는 경로만 백엔드로 가고 나머지는 mock으로 갑니다. 백엔드에 API가 생기면 이 목록에 경로를 추가합니다.
+- 쓰기 요청(POST · PUT · PATCH · DELETE)은 `http.ts`가 `XSRF-TOKEN` 쿠키 값을 `X-XSRF-TOKEN` 헤더로 보냅니다. 403 `INVALID_CSRF_TOKEN`이면 쿠키를 다시 읽어 한 번만 재시도합니다.
 - **전환은 환경변수만 바꿉니다.** API 코드와 컴포넌트는 수정하지 않습니다. 기존 `USE_MOCK` 분기는 없앱니다.
 - 같은 핸들러를 Vitest 컴포넌트 테스트에서도 재사용합니다.
 
 | 환경변수 | 용도 |
 | --- | --- |
+| `API_BASE_URL` | 브라우저의 `/api/*`를 전달할 기본 주소. 개발은 mock, 배포는 백엔드 |
+| `BACKEND_URL` | 개발 전용. 정하면 `BACKEND_PATHS`의 경로만 이 백엔드로 보냄 |
 | `API_INTERNAL_URL` | 서버 → 백엔드(또는 mock) 주소. 서버 전용 |
 | `NEXT_PUBLIC_NAVER_MAP_CLIENT_ID` | 네이버 지도 Client ID (`ncpKeyId`, Web 서비스 URL·Dynamic Map 설정) |
 | `NEXT_PUBLIC_NAVER_MAP_STYLE_ID` | (선택) Map Style Editor My Style ID. 설정 시 GL + 커스텀 스타일 |
@@ -938,7 +945,7 @@ entities/plan/model/            # React import 금지. 입력 → 출력만 있�
 | 경로 | 화면 | 접근 | 주요 렌더링 | 단계 |
 | --- | --- | --- | --- | --- |
 | `/` | 시작 화면 (로그인 시 `/feed`로) | 공개 | Server | 껍데기 |
-| `/login`, `/signup` | 로그인 · 회원가입 (회원가입은 정보 입력 → 휴대폰 인증 단계) | 공개 | Server + 폼(Client) | 껍데기 |
+| `/login`, `/signup` | 로그인 · 회원가입 통합(카카오 · Google) · 최초 가입 온보딩(닉네임 = ID → 프로필 사진 · 이름(선택) → 약관). 온보딩은 서버의 임시 가입 세션이 기준이라 새로고침 · 재접속에도 상태가 유지되고, 세션이 없으면 `/login`, 이미 가입했으면 `/feed`로 | 공개 | Server + 폼(Client) | 껍데기 |
 | `/feed` | 팔로잉 피드 | 로그인 | Server prefetch + 무한 스크롤(Client) | 껍데기 |
 | `/explore` | 탐색 | 공개 | Server + 버튼(Client) | 껍데기 |
 | `/map` | 나만의 지도 | 로그인 | Server prefetch + 지도(Client) | 껍데기 |
@@ -958,9 +965,9 @@ entities/plan/model/            # React import 금지. 입력 → 출력만 있�
 | `/messages` | DM 대화 목록 | 로그인 | Client (주기적 갱신) | 껍데기 |
 | `/messages/[conversationId]` | DM 대화방 | 로그인 | Client (주기적 갱신) | 껍데기 |
 | `/notifications` | 알림 | 로그인 | Server | 3차 |
-| `/settings`, `/settings/profile` | 설정 · 프로필 편집 | 로그인 | 폼(Client) | 1차 |
+| `/settings`, `/settings/profile` | 설정 · 프로필 편집 (닉네임 = ID 변경 · 이름 · 소개 · 활동 지역) | 로그인 | 폼(Client) | 1차 |
+| `/settings/login-methods` | 로그인 수단 관리: 카카오 · Google 연결 · 해제 | 로그인 | Client | 껍데기 |
 | `/settings/agreements`, `/notifications`, `/devices`, `/withdraw` | 약관 및 동의 관리 · 푸시 알림 설정 · 디바이스 관리 · 회원 탈퇴 | 로그인 | Client | 껍데기 |
-| `/password/reset` | 비밀번호 재설정 (이메일 → 인증번호 → 새 비밀번호) | 공개 | 단계별 흐름(Client) | 껍데기 |
 | `/terms/[type]` | 약관 전문 (`service` · `privacy` · `marketing`) | 공개 | Client | 껍데기 |
 | `/tags`, `/tags/[name]` | 내 태그 검색(`?q=`) · 태그별 장소 | 로그인 | Client | 껍데기 (보류 기능, mock만) |
 | `/places/[placeId]/photos`, `/places/[placeId]/tags` | 저장한 장소의 개인 사진 추가 · 삭제 / 개인 태그 편집 | 로그인 | Client | 껍데기 |
@@ -974,7 +981,7 @@ entities/plan/model/            # React import 금지. 입력 → 출력만 있�
 **하단 탭 (모바일 우선):** 홈(`/feed`) · 내 지도(`/map`, `/collections`) · ➕ · DM(`/messages`) · 프로필(`/users/[username]`, 일정 탭 포함).
 ➕는 게시물 올리기(`/posts/new`) · 장소 직접 추가(`/places/new`) · AI 링크로 가져오기(`/import`) 세 갈래로 분기합니다. 탐색은 홈의 ‘추천’ 탭과 통합 검색(`/search`)이 대신합니다.
 하단 탭이 있는 화면은 `app/(main)/(tabs)`, 뒤로가기 중심의 세부 작업 화면은 `app/(main)/(sub)`에 둡니다 (URL에는 영향 없음).
-관리자 화면은 회원 화면과 섞이지 않도록 `app/(admin)/admin`에 둡니다. 관리자 계정으로 로그인하면 `/admin`으로 이동합니다 (mock 계정 `admin` / `123123123`).
+관리자 화면은 회원 화면과 섞이지 않도록 `app/(admin)/admin`에 둡니다. 관리자 로그인 방식은 소셜 로그인 전환 이후 아직 정하지 않았습니다(회원과 분리된 아이디 · 비밀번호 로그인 화면 검토 중). mock에서는 `/admin`으로 바로 들어갈 수 있습니다.
 
 ---
 
@@ -991,8 +998,9 @@ type Visibility = 'PUBLIC' | 'FOLLOWERS' | 'PRIVATE';
 // entities/user/model.ts
 interface User {
   id: Id;
-  username: string;
-  nickname: string;
+  username: string;               // 닉네임 = 사용자 ID (영문, 중복 불가)
+  nickname: string;               // 화면 표시 이름 = 이름 ?? username (서버 계산)
+  name?: string | null;           // 사용자가 정한 이름 (중복 가능, 없으면 null)
   profileImageUrl?: string;
   bio?: string;
   followerCount: number;

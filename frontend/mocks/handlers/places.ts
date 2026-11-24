@@ -68,7 +68,7 @@ export const placeRoutes: Route[] = [
      * 실제로는 카카오 장소 데이터(카테고리 · 영역 검색)로 바뀝니다.
      */
     method: "GET",
-    path: "/api/places",
+    path: "/api/v1/places",
     handler: ({ query }) => {
       const [west, south, east, north] = (query.get("bbox") ?? "").split(",").map(Number);
       if ([west, south, east, north].some((n) => !Number.isFinite(n))) throw new HttpError(400, "BAD_BBOX", "지도 범위를 확인해 주세요.");
@@ -83,7 +83,7 @@ export const placeRoutes: Route[] = [
   },
   {
     method: "GET",
-    path: "/api/places/search",
+    path: "/api/v1/places/search",
     delay: 250,
     handler: ({ query }) => {
       const q = (query.get("q") ?? "").trim().replace(/\s+/g, "");
@@ -98,7 +98,7 @@ export const placeRoutes: Route[] = [
   },
   {
     method: "GET",
-    path: "/api/places/:id",
+    path: "/api/v1/places/:id",
     handler: ({ params }) => {
       const place = placeOr404(params.id);
       const saved = mySaved().find((s) => s.placeId === place.id) ?? null;
@@ -130,7 +130,7 @@ export const placeRoutes: Route[] = [
   {
     /** 지도에서 좌표를 직접 지정한 개인 장소. 기본값은 비공개 */
     method: "POST",
-    path: "/api/places",
+    path: "/api/v1/places",
     delay: 400,
     handler: ({ body }) => {
       const name = String(body?.name ?? "").trim();
@@ -164,7 +164,7 @@ export const placeRoutes: Route[] = [
   // ── 저장한 장소 (내 지도) ──────────────────────────────
   {
     method: "GET",
-    path: "/api/saved-places",
+    path: "/api/v1/saved-places",
     delay: 250,
     handler: () =>
       mySaved()
@@ -177,7 +177,7 @@ export const placeRoutes: Route[] = [
      * 이미 저장된 장소는 새로 만들지 않고 선택한 컬렉션에만 연결합니다.
      */
     method: "POST",
-    path: "/api/saved-places",
+    path: "/api/v1/saved-places",
     delay: 400,
     handler: ({ body }) => {
       const placeIds: string[] = [...new Set<string>(body?.placeIds ?? [])];
@@ -213,7 +213,7 @@ export const placeRoutes: Route[] = [
   },
   {
     method: "PATCH",
-    path: "/api/saved-places",
+    path: "/api/v1/saved-places",
     handler: ({ body }) => {
       const ids: string[] = body?.ids ?? [];
       const targets = mySaved().filter((s) => ids.includes(s.id));
@@ -232,7 +232,7 @@ export const placeRoutes: Route[] = [
   },
   {
     method: "DELETE",
-    path: "/api/saved-places",
+    path: "/api/v1/saved-places",
     handler: ({ body }) => {
       const ids: string[] = body?.ids ?? [];
       db.savedPlaces = db.savedPlaces.filter((s) => !(s.ownerId === ME_ID && ids.includes(s.id)));
@@ -243,12 +243,12 @@ export const placeRoutes: Route[] = [
   // ── 컬렉션 ──────────────────────────────────────────
   {
     method: "GET",
-    path: "/api/collections",
+    path: "/api/v1/collections",
     handler: () => db.collections.filter((c) => c.ownerId === ME_ID).map(collectionDto),
   },
   {
     method: "POST",
-    path: "/api/collections",
+    path: "/api/v1/collections",
     handler: ({ body }) => {
       const title = String(body?.title ?? "").trim();
       if (!title) throw new HttpError(400, "NO_TITLE", "컬렉션 이름을 입력해 주세요.");
@@ -269,7 +269,7 @@ export const placeRoutes: Route[] = [
   },
   {
     method: "GET",
-    path: "/api/collections/:id",
+    path: "/api/v1/collections/:id",
     handler: ({ params }) => {
       const c = collectionOr404(params.id);
       const mine = new Set(mySaved().map((s) => s.placeId));
@@ -285,7 +285,7 @@ export const placeRoutes: Route[] = [
   },
   {
     method: "PATCH",
-    path: "/api/collections/:id",
+    path: "/api/v1/collections/:id",
     handler: ({ params, body }) => {
       const c = myCollectionOr404(params.id);
       if (typeof body?.title === "string" && body.title.trim()) c.title = body.title.trim();
@@ -309,7 +309,7 @@ export const placeRoutes: Route[] = [
      * PG 연결 후에는 결제창 승인 결과(paymentKey 등)를 받아 서버에서 결제 승인 API로 확인한 뒤 기록합니다.
      */
     method: "POST",
-    path: "/api/collections/:id/purchase",
+    path: "/api/v1/collections/:id/purchase",
     delay: 700,
     handler: ({ params, body }) => {
       const c = collectionOr404(params.id);
@@ -330,7 +330,7 @@ export const placeRoutes: Route[] = [
   {
     /** 컬렉션 삭제는 저장한 장소를 지우지 않고 연결만 끊습니다. */
     method: "DELETE",
-    path: "/api/collections/:id",
+    path: "/api/v1/collections/:id",
     handler: ({ params }) => {
       const c = myCollectionOr404(params.id);
       db.collections = db.collections.filter((col) => col.id !== c.id);

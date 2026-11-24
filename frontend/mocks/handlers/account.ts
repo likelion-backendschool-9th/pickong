@@ -17,7 +17,7 @@ const TERMS: Record<TermsType, { title: string; required: boolean; version: stri
       { heading: "제2조 (회원 가입)", body: "회원 가입은 이용자가 약관에 동의하고 가입 신청을 한 뒤, 서비스가 이를 승낙하면 완료됩니다." },
       { heading: "제3조 (게시물)", body: "회원이 올린 사진 · 후기 · 컬렉션의 권리는 회원에게 있습니다. 다른 사람의 권리를 침해하는 게시물은 신고에 따라 숨김 처리될 수 있습니다." },
       { heading: "제4조 (유료 콘텐츠)", body: "유료 컬렉션은 구매 후 7일 이내, 장소 목록을 열람하지 않은 경우 환불을 신청할 수 있습니다." },
-      { heading: "제5조 (탈퇴)", body: "회원은 언제든지 탈퇴할 수 있으며, 탈퇴 후 30일 동안은 같은 이메일로 다시 가입할 수 없습니다." },
+      { heading: "제5조 (탈퇴)", body: "회원은 언제든지 탈퇴할 수 있으며, 탈퇴 후 30일 동안은 같은 소셜 계정으로 다시 가입할 수 없습니다." },
     ],
   },
   PRIVACY: {
@@ -26,7 +26,7 @@ const TERMS: Record<TermsType, { title: string; required: boolean; version: stri
     version: "1.0",
     effectiveDate: "2026-11-01",
     sections: [
-      { heading: "수집 항목", body: "필수: 이메일, 비밀번호, 닉네임, 휴대폰 번호\n선택: 프로필 사진, 소개, 활동 지역" },
+      { heading: "수집 항목", body: "필수: 소셜 계정 식별자(카카오 · Google 회원번호), 닉네임, 사용자 ID\n선택: 이메일 · 프로필 사진(소셜 계정에서 제공하는 경우), 소개, 활동 지역" },
       { heading: "이용 목적", body: "회원 식별, 본인 확인, 서비스 제공, 부정 이용 방지" },
       { heading: "보관 기간", body: "탈퇴 시 바로 파기합니다. 단, 관련 법령에 따라 보관해야 하는 정보(결제 기록 5년 등)는 해당 기간 동안 보관합니다." },
     ],
@@ -75,18 +75,18 @@ const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 export const accountRoutes: Route[] = [
   {
     method: "GET",
-    path: "/api/terms/:type",
+    path: "/api/v1/terms/:type",
     handler: ({ params }) => {
       const type = params.type.toUpperCase() as TermsType;
       const terms = TERMS[type] ?? notFound("약관");
       return { type, ...terms };
     },
   },
-  { method: "GET", path: "/api/me/agreements", handler: agreementList },
+  { method: "GET", path: "/api/v1/me/agreements", handler: agreementList },
   {
     /** 필수 약관은 철회할 수 없고, 선택 약관(마케팅)만 바꿀 수 있습니다. */
     method: "PATCH",
-    path: "/api/me/agreements",
+    path: "/api/v1/me/agreements",
     handler: ({ body }) => {
       const type = String(body?.type ?? "") as TermsType;
       if (!TERMS[type]) throw new HttpError(400, "INVALID_INPUT", "약관 종류를 확인해 주세요.");
@@ -98,22 +98,21 @@ export const accountRoutes: Route[] = [
     },
   },
   {
-    /** 탈퇴: 사유와 비밀번호 확인. mock은 비밀번호가 비어 있지 않으면 통과합니다. */
+    /** 탈퇴: 사유 확인. 소셜 로그인 전용이라 비밀번호는 받지 않습니다. */
     method: "POST",
-    path: "/api/me/withdrawal",
+    path: "/api/v1/me/withdrawal",
     delay: 600,
     handler: ({ body }) => {
-      if (!String(body?.password ?? "")) throw new HttpError(400, "INVALID_INPUT", "비밀번호를 입력해 주세요.");
       if (!String(body?.reason ?? "")) throw new HttpError(400, "INVALID_INPUT", "탈퇴 사유를 선택해 주세요.");
       return undefined;
     },
   },
 
   // ── 푸시 알림 설정 ──────────────────────────────────
-  { method: "GET", path: "/api/me/notification-settings", handler: () => notificationSettings },
+  { method: "GET", path: "/api/v1/me/notification-settings", handler: () => notificationSettings },
   {
     method: "PUT",
-    path: "/api/me/notification-settings",
+    path: "/api/v1/me/notification-settings",
     handler: ({ body }) => {
       if (typeof body?.pushEnabled === "boolean") notificationSettings.pushEnabled = body.pushEnabled;
       if (body?.items && typeof body.items === "object") {
@@ -132,10 +131,10 @@ export const accountRoutes: Route[] = [
   },
 
   // ── 디바이스 (푸시 토큰) ────────────────────────────
-  { method: "GET", path: "/api/me/devices", handler: () => devices },
+  { method: "GET", path: "/api/v1/me/devices", handler: () => devices },
   {
     method: "PATCH",
-    path: "/api/me/devices/:id",
+    path: "/api/v1/me/devices/:id",
     handler: ({ params, body }) => {
       const d = devices.find((x) => x.id === params.id) ?? notFound("디바이스");
       if (typeof body?.pushEnabled === "boolean") d.pushEnabled = body.pushEnabled;
@@ -144,7 +143,7 @@ export const accountRoutes: Route[] = [
   },
   {
     method: "DELETE",
-    path: "/api/me/devices/:id",
+    path: "/api/v1/me/devices/:id",
     handler: ({ params }) => {
       const d = devices.find((x) => x.id === params.id) ?? notFound("디바이스");
       if (d.isCurrent) throw new HttpError(400, "CURRENT_DEVICE", "지금 사용 중인 기기는 로그아웃으로 해제해 주세요.");

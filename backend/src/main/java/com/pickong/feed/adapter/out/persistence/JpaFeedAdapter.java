@@ -1,7 +1,7 @@
 package com.pickong.feed.adapter.out.persistence;
 
 import com.pickong.common.error.BusinessException;
-import com.pickong.common.error.ErrorCode;
+import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.feed.adapter.out.persistence.entity.FeedJpaEntity;
 import com.pickong.feed.adapter.out.persistence.entity.FeedPhotoJpaEntity;
 import com.pickong.feed.adapter.out.persistence.entity.FeedPlaceJpaEntity;
@@ -67,7 +67,7 @@ public class JpaFeedAdapter implements FeedRepository {
     @Override
     public Feed findById(Long feedId) {
         FeedJpaEntity entity = feedJpaRepository.findById(feedId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.FEED_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(FeedErrorCode.FEED_NOT_FOUND));
         return toDomain(List.of(entity)).getFirst();
     }
 
@@ -76,11 +76,31 @@ public class JpaFeedAdapter implements FeedRepository {
     public void deleteById(Long feedId) {
         // 존재하지 않는 feedId 삭제 시 404 반환
         if (!feedJpaRepository.existsById(feedId)) {
-            throw new BusinessException(ErrorCode.FEED_NOT_FOUND);
+            throw new BusinessException(FeedErrorCode.FEED_NOT_FOUND);
         }
         feedPhotoJpaRepository.deleteAllByFeedId(feedId);
         feedPlaceJpaRepository.deleteAllByFeedId(feedId);
         feedJpaRepository.deleteById(feedId);
+    }
+
+    @Override
+    public void incrementLikeCount(Long feedId) {
+        feedJpaRepository.incrementLikeCount(feedId);
+    }
+
+    @Override
+    public void decrementLikeCount(Long feedId) {
+        feedJpaRepository.decrementLikeCount(feedId);
+    }
+
+    @Override
+    public void incrementBookmarkCount(Long feedId) {
+        feedJpaRepository.incrementBookmarkCount(feedId);
+    }
+
+    @Override
+    public void decrementBookmarkCount(Long feedId) {
+        feedJpaRepository.decrementBookmarkCount(feedId);
     }
 
     /** 사진 · 태그 장소를 게시물 id 묶음으로 한 번에 읽어 N+1 조회를 피합니다. */

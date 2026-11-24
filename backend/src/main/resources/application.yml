@@ -1,20 +1,91 @@
 spring:
   application:
     name: pickong-backend
+  # 로컬 비밀값(JWT_SECRET 등)은 git에 올라가지 않는 backend/.env에서 읽습니다. 운영은 환경변수로 넣습니다.
+  config:
+    import: optional:file:.env[.properties]
+  # 아이디 · 비밀번호 로그인을 쓰지 않으므로, Spring Boot가 만드는 임시 계정(로그에 비밀번호 출력)을 끕니다.
+  autoconfigure:
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
   mvc:
     servlet:
       path: /api/v1
 
+  # DB 접속 정보는 환경변수로 받습니다. 기본값은 로컬 개발용(compose.override.yml의 db 서비스)이고,
+  # 운영에서는 DB_URL · DB_USERNAME · DB_PASSWORD를 반드시 넣습니다.
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/pickong}
+    username: ${DB_USERNAME:pickong}
+    password: ${DB_PASSWORD:pickong}
+
+  # 카카오 · Google 소셜 로그인. Client ID · Secret은 환경변수(backend/.env)로만 넣습니다.
+  # 값이 없으면 앱은 뜨지만 소셜 로그인만 실패합니다(로그인 작업을 하지 않는 팀원도 키 없이 앱을 띄울 수 있게).
+  # Redirect URI는 프론트 도메인 기준이라 Next를 거쳐 쿠키가 프론트 도메인에 저장됩니다.
+  security:
+    oauth2:
+      client:
+        registration:
+          kakao:
+            client-id: ${KAKAO_CLIENT_ID:not-configured}
+            client-secret: ${KAKAO_CLIENT_SECRET:not-configured}
+            client-authentication-method: client_secret_post
+            authorization-grant-type: authorization_code
+            redirect-uri: ${FRONTEND_BASE_URL:http://localhost:3000}/api/v1/auth/oauth2/callback/{registrationId}
+            # 이메일(account_email)은 선택 동의. 카카오 콘솔 '동의항목'에서 켜야 합니다.
+            scope: profile_nickname, profile_image, account_email
+            client-name: Kakao
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:not-configured}
+            client-secret: ${GOOGLE_CLIENT_SECRET:not-configured}
+            redirect-uri: ${FRONTEND_BASE_URL:http://localhost:3000}/api/v1/auth/oauth2/callback/{registrationId}
+            # openid가 있어 OIDC로 동작합니다(ID 토큰 서명 · nonce 검증).
+            scope: openid, email, profile
+        provider:
+          # Google은 Spring에 기본 등록되어 있고, 카카오는 주소를 직접 적습니다.
+          kakao:
+            authorization-uri: https://kauth.kakao.com/oauth/authorize
+            token-uri: https://kauth.kakao.com/oauth/token
+            user-info-uri: https://kapi.kakao.com/v2/user/me
+            user-name-attribute: id
+
+  jpa:
+    hibernate:
+      # 스키마는 Flyway(resources/db/migration)만 만듭니다.
+      # V1에는 인증 테이블만 있고 JPA 엔티티는 전 테이블에 있어서, 스키마 검증(validate)은 쓰지 않습니다.
+      ddl-auto: none
+
+pickong:
+  frontend:
+    # 프론트 기준 주소: 소셜 로그인 콜백 주소와 로그인 후 이동할 화면 주소에 씁니다.
+    base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
+  auth:
+    jwt:
+      # 기본값 없음: 없거나 32바이트보다 짧으면 앱이 시작하지 않습니다. (backend/.env.example 참고)
+      secret: ${JWT_SECRET:}
+      access-token-ttl: 15m
+    refresh-token:
+      # 재발급할 때마다 '지금 + 14일'로 연장됩니다(슬라이딩).
+      ttl: 14d
+    cookie:
+      # HTTPS에서만 쿠키 전송. 기본 true(운영), 로컬 http://localhost만 backend/.env에서 COOKIE_SECURE=false
+      secure: ${COOKIE_SECURE:true}
+      # 비우면 지금 도메인에만 저장. 백엔드 하위 도메인과 쿠키를 나눠 써야 할 때만 .pickong.app처럼 넣습니다.
+      domain: ${COOKIE_DOMAIN:}
+
 server:
   port: 8080
 
-# 상태 확인: GET /actuator/health
+# 상태 확인: GET /api/v1/actuator/health (servlet path가 /api/v1)
 management:
   endpoints:
     web:
       exposure:
         include: health
 
-# API 문서: /swagger-ui.html (스펙 JSON: /v3/api-docs)
+# API 문서: /api/v1/swagger-ui.html (스펙 JSON: /api/v1/v3/api-docs)
 springdoc:
   paths-to-match: /api/v1/**
+  # Swagger UI에서 POST · PATCH · DELETE를 보낼 때 XSRF-TOKEN 쿠키 값을 헤더로 자동으로 붙입니다.
+  swagger-ui:
+    csrf:
+      enabled: true
