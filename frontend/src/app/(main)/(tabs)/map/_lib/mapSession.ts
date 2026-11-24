@@ -5,6 +5,9 @@ const GPS_BOOT_KEY = "pickong:map-gps-bootstrapped";
 /** 마지막으로 보던 지도 중심·줌 (탭 이탈 후 복귀용) */
 const CAMERA_KEY = "pickong:map-camera";
 
+/** 최초 GPS 성공 시·카메라 미저장 재진입 시 쓰는 동네 줌 */
+export const DEFAULT_MAP_ZOOM = 15;
+
 export type MapCamera = {
   center: LatLng;
   zoom: number;
@@ -15,7 +18,7 @@ export function hasBootstrappedMapGps(): boolean {
   return sessionStorage.getItem(GPS_BOOT_KEY) === "1";
 }
 
-/** 최초 GPS 시도가 시작되면 세션에 남겨, 재마운트·재진입 시 자동 재조회를 막습니다. */
+/** 최초 GPS 시도가 끝나면 세션에 남겨, 재마운트·재진입 시 자동 재조회를 막습니다. */
 export function markMapGpsBootstrapped(): void {
   if (typeof sessionStorage === "undefined") return;
   sessionStorage.setItem(GPS_BOOT_KEY, "1");

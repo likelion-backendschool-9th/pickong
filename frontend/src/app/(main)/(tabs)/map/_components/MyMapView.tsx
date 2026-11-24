@@ -2,7 +2,7 @@
 
 import { ChevronDown, ChevronUp, Info, Link2, LocateFixed, MapPinPlus } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { categoryLabel, formatHours, usePlacesInBounds, type Place, type PlaceCategory, type SavedPlace } from "@/entities/place";
 import { SavePlaceButton } from "@/features/save-place";
 import { routes } from "@/shared/config/routes";
@@ -11,9 +11,10 @@ import { getCurrentPosition, type LatLng, type LatLngBounds } from "@/shared/lib
 import { MapView } from "@/shared/map";
 import { BottomSheet } from "@/shared/ui/BottomSheet";
 import { Button, ButtonLink } from "@/shared/ui/Button";
-import { Badge, Thumb } from "@/shared/ui/display";
+import { Badge, Skeleton, Thumb } from "@/shared/ui/display";
 import { useToast } from "@/shared/ui/Toast";
 import {
+  DEFAULT_MAP_ZOOM,
   hasBootstrappedMapGps,
   markMapGpsBootstrapped,
   readMapCamera,
@@ -55,31 +56,46 @@ export function MyMapView({
   const [mapFocus, setMapFocus] = useState<FocusRequest>(null);
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const [locating, setLocating] = useState(false);
-  /** 마운트 시점 세션 카메라. 재진입 시 마지막 중심·줌 복원에 씁니다. */
-  const [restoredCamera] = useState<MapCamera | null>(() => readMapCamera());
-  /** 최초 GPS 응답 전에 사용자가 지도를 드래그하면, 늦게 온 GPS로 중심을 덮지 않습니다. */
-  const skipInitialGpsPanRef = useRef(false);
+  /**
+   * 클라이언트에서 세션을 읽은 뒤에만 지도를 만듭니다.
+   * (SSR hydrate 때 useState(sessionStorage)는 항상 null로 고정되는 문제를 피합니다.)
+   */
+  const [bootCamera, setBootCamera] = useState<MapCamera | null>(null);
+  const [bootReady, setBootReady] = useState(false);
 
-  // 세션에서 아직 GPS를 안 했으면 한 번만 조회합니다. 이미 했으면 자동 재조회하지 않습니다.
+  // 세션 카메라 복원 또는 최초 GPS → 카메라 확정 후에 MapView를 마운트합니다.
   useEffect(() => {
-    if (hasBootstrappedMapGps()) return;
-
     let cancelled = false;
-    skipInitialGpsPanRef.current = false;
-    markMapGpsBootstrapped();
 
-    getCurrentPosition()
-      .then((position) => {
+    async function boot() {
+      if (hasBootstrappedMapGps()) {
         if (cancelled) return;
-        setUserLocation(position);
-        if (!skipInitialGpsPanRef.current) {
-          setMapFocus({ key: `gps-boot:${position.lat},${position.lng}`, position });
-        }
-      })
-      .catch(() => {
-        // 권한 거부·타임아웃 등은 기본 지역(DEFAULT_CENTER) 유지
-      });
+        setBootCamera(readMapCamera());
+        setBootReady(true);
+        return;
+      }
 
+      try {
+        const position = await getCurrentPosition();
+        if (cancelled) return;
+        const camera: MapCamera = { center: position, zoom: DEFAULT_MAP_ZOOM };
+        // Strict Mode 재마운트에도 살아남도록 세션에 먼저 남깁니다.
+        writeMapCamera(camera);
+        setUserLocation(position);
+        setBootCamera(camera);
+      } catch {
+        if (cancelled) return;
+        // 권한 거부·실패 → MapView 기본 지역. 카메라는 비워 둡니다.
+        setBootCamera(null);
+      } finally {
+        if (!cancelled) {
+          markMapGpsBootstrapped();
+          setBootReady(true);
+        }
+      }
+    }
+
+    void boot();
     return () => {
       cancelled = true;
     };
@@ -140,6 +156,10 @@ export function MyMapView({
     }
   };
 
+  if (!bootReady) {
+    return <Skeleton className="h-[calc(100dvh-250px)] min-h-[360px] rounded-none" />;
+  }
+
   return (
     <div className="relative">
       {/* 범례는 작은 안내 버튼으로 접어 지도를 덜 가리게 */}
@@ -169,8 +189,8 @@ export function MyMapView({
       </div>
       <MapView
         className="h-[calc(100dvh-250px)] min-h-[360px]"
-        center={restoredCamera?.center}
-        zoom={restoredCamera?.zoom}
+        center={bootCamera?.center}
+        zoom={bootCamera?.zoom}
         markers={[
           ...pois.map((p) => ({ id: POI + p.id, position: p.location, title: p.name, tone: "poi" as const })),
           ...saved.map((s, i) => ({
@@ -186,9 +206,6 @@ export function MyMapView({
         onMapClick={clearSelection}
         onBoundsChange={setBounds}
         onCameraChange={writeMapCamera}
-        onDragStart={() => {
-          skipInitialGpsPanRef.current = true;
-        }}
         focus={mapFocus}
         userLocation={userLocation}
         caption={undefined}

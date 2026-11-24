@@ -189,10 +189,10 @@ export function NaverMapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // focus 이동
+  // focus 이동 (지도가 아직 없으면 status가 ready가 될 때 다시 적용)
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !focus || focus.key === focusedKeyRef.current) return;
+    if (status !== "ready" || !map || !focus || focus.key === focusedKeyRef.current) return;
     focusedKeyRef.current = focus.key;
     suppressMoveRef.current = true;
     map.panTo(toNaverLatLng(focus.position));
@@ -200,7 +200,7 @@ export function NaverMapView({
       const next = Math.max(map.getZoom(), metersPerPixelToZoom(2.6, USE_GL));
       map.setZoom(next, true);
     }
-  }, [focus]);
+  }, [focus, status]);
 
   // 마커 동기화
   useEffect(() => {
