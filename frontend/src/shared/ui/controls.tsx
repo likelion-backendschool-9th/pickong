@@ -214,6 +214,7 @@ export function Switch({
   onChange,
   label,
   hideLabel = false,
+  disabled = false,
   className,
 }: {
   checked: boolean;
@@ -221,6 +222,8 @@ export function Switch({
   label: string;
   /** 라벨을 화면에서 숨기고 화면 낭독기에만 읽힘 (옆에 설명이 따로 있을 때) */
   hideLabel?: boolean;
+  /** 누를 수 없음 (예: 바꾸는 요청이 진행 중일 때 연달아 누르지 못하게) */
+  disabled?: boolean;
   className?: string;
 }) {
   return (
@@ -228,8 +231,9 @@ export function Switch({
       type="button"
       role="switch"
       aria-checked={checked}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={cn("inline-flex h-8 items-center gap-2 text-[13px] text-ink-sub", className)}
+      className={cn("inline-flex h-8 items-center gap-2 text-[13px] text-ink-sub disabled:cursor-not-allowed disabled:opacity-40", className)}
     >
       <span className={hideLabel ? "sr-only" : undefined}>{label}</span>
       <span className={cn("relative h-[18px] w-8 rounded-full transition-colors", checked ? "bg-primary-deep" : "bg-line")} aria-hidden>
