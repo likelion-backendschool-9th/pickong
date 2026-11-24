@@ -43,11 +43,29 @@ const TERMS: Record<TermsType, { title: string; required: boolean; version: stri
   },
 };
 
+/**
+ * 재동의 화면을 mock으로 보려면 MOCK_RECONSENT=PRIVACY,MARKETING처럼 지정합니다.
+ * 지정한 약관이 '재동의 필요' 1.1로 바뀐 것으로 보고, 다시 동의할 때까지 동의하지 않음으로 둡니다.
+ * (서버의 403 TERMS_RECONSENT_REQUIRED 차단은 흉내 내지 않습니다. 백엔드로 확인하세요)
+ */
+const reconsent = new Set(
+  (process.env.MOCK_RECONSENT ?? "")
+    .split(",")
+    .map((type) => type.trim().toUpperCase())
+    .filter((type): type is TermsType => type === "SERVICE" || type === "PRIVACY" || type === "MARKETING"),
+);
+for (const type of reconsent) TERMS[type].version = "1.1";
+
 const agreements: Record<TermsType, { agreed: boolean; agreedAt: string | null }> = {
   SERVICE: { agreed: true, agreedAt: ago(40) },
   PRIVACY: { agreed: true, agreedAt: ago(40) },
   MARKETING: { agreed: false, agreedAt: null },
 };
+
+for (const type of reconsent) agreements[type] = { agreed: false, agreedAt: null };
+
+/** 다시 동의를 받아야 하는 약관 (백엔드 GET /me/agreements/pending과 같은 모양). 마케팅은 예전에 동의했던 것으로 봅니다 */
+let pendingTerms: TermsType[] = [...reconsent];
 
 const agreementList = () =>
   (Object.keys(TERMS) as TermsType[]).map((type) => ({
@@ -83,6 +101,37 @@ export const accountRoutes: Route[] = [
     },
   },
   { method: "GET", path: "/api/v1/me/agreements", handler: agreementList },
+  {
+    method: "GET",
+    path: "/api/v1/me/agreements/pending",
+    handler: () =>
+      pendingTerms.map((type) => ({ type, title: TERMS[type].title, required: TERMS[type].required, version: TERMS[type].version })),
+  },
+  {
+    /** 재동의 화면: 동의를 한 번에 저장. 필수가 빠지면 400, 보내지 않은 선택 약관은 거절(동의 안 함)로 둡니다. (백엔드와 같은 오류 코드) */
+    method: "POST",
+    path: "/api/v1/me/agreements",
+    handler: ({ body }) => {
+      const agreed = new Set<TermsType>();
+      for (const value of Array.isArray(body?.agreedTerms) ? body.agreedTerms : []) {
+        const type = String(value).toUpperCase() as TermsType;
+        if (!TERMS[type]) throw new HttpError(400, "UNKNOWN_TERMS", "알 수 없는 약관이에요.");
+        agreed.add(type);
+      }
+      if (pendingTerms.some((type) => TERMS[type].required && !agreed.has(type))) {
+        throw new HttpError(400, "REQUIRED_TERMS_NOT_AGREED", "필수 약관에 동의해 주세요.");
+      }
+      for (const type of agreed) {
+        if (!agreements[type].agreed) agreements[type] = { agreed: true, agreedAt: new Date().toISOString() };
+      }
+      for (const type of pendingTerms) {
+        if (!agreed.has(type)) agreements[type] = { agreed: false, agreedAt: null };
+      }
+      notificationSettings.items.marketing = agreements.MARKETING.agreed;
+      pendingTerms = [];
+      return agreementList();
+    },
+  },
   {
     /** 필수 약관은 철회할 수 없고, 선택 약관(마케팅)만 바꿀 수 있습니다. 이미 같은 상태면 그대로 둡니다. (백엔드와 같은 오류 코드) */
     method: "PATCH",
