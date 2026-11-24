@@ -1,6 +1,7 @@
 package com.pickong.feed.adapter.in.web;
 
 import com.pickong.TestcontainersConfiguration;
+import com.pickong.common.security.LoginUser;
 import com.pickong.feed.application.dto.FeedPage;
 import com.pickong.feed.application.port.in.FeedUseCase;
 import org.junit.jupiter.api.BeforeEach;
@@ -8,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -19,6 +21,8 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -37,17 +41,23 @@ class FeedControllerParamValidationTest {
 
     private MockMvc mockMvc;
 
+    // 테스트용 인증 객체 — LoginUser(userId=1L)를 principal로 넣어 @CurrentUser 리졸버를 통과시킴
+    private static final UsernamePasswordAuthenticationToken AUTH =
+            new UsernamePasswordAuthenticationToken(new LoginUser(1L), null, List.of());
+
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+        mockMvc = MockMvcBuilders.webAppContextSetup(context)
+                .apply(springSecurity())
+                .build();
     }
 
     @Test
     void getFeeds_limit_0이하_400반환() throws Exception {
         // given: limit=0 → @Min(1) 위반 → ConstraintViolationException → 400
         mockMvc.perform(get("/feeds")
+                        .with(authentication(AUTH))
                         .param("tab", "recommended")
-                        .param("userId", "1")
                         .param("limit", "0"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
@@ -57,8 +67,8 @@ class FeedControllerParamValidationTest {
     void getFeeds_limit_51이상_400반환() throws Exception {
         // given: limit=51 → @Max(50) 위반 → ConstraintViolationException → 400
         mockMvc.perform(get("/feeds")
+                        .with(authentication(AUTH))
                         .param("tab", "recommended")
-                        .param("userId", "1")
                         .param("limit", "51"))
                 .andExpect(status().isBadRequest());
     }
@@ -66,7 +76,9 @@ class FeedControllerParamValidationTest {
     @Test
     void getFeed_feedId_음수_400반환() throws Exception {
         // given: feedId=-1 → @Positive 위반 → ConstraintViolationException → 400
-        mockMvc.perform(get("/feeds/-1"))
+        // 단건 조회는 비로그인 허용이지만 Spring Security 패턴 매칭 이슈로 테스트에서는 auth 추가
+        mockMvc.perform(get("/feeds/-1")
+                        .with(authentication(AUTH)))
                 .andExpect(status().isBadRequest());
     }
 
@@ -77,8 +89,8 @@ class FeedControllerParamValidationTest {
                 .willReturn(new FeedPage(List.of(), null, false));
 
         mockMvc.perform(get("/feeds")
+                        .with(authentication(AUTH))
                         .param("tab", "recommended")
-                        .param("userId", "1")
                         .param("limit", "10"))
                 .andExpect(status().isOk());
     }
