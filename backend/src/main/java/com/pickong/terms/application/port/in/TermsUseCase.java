@@ -1,6 +1,7 @@
 package com.pickong.terms.application.port.in;
 
 import com.pickong.terms.application.dto.AgreementStatus;
+import com.pickong.terms.application.dto.PendingTerms;
 import com.pickong.terms.application.dto.TermsDocument;
 import java.util.List;
 import java.util.Set;
@@ -38,4 +39,24 @@ public interface TermsUseCase {
      * @throws com.pickong.common.error.BusinessException 400 UNKNOWN_TERMS · REQUIRED_TERMS_CANNOT_BE_REVOKED
      */
     List<AgreementStatus> updateAgreement(Long userId, String type, boolean agreed);
+
+    /**
+     * 지금 동의를 받아야 하는 약관 (재동의 화면). 없으면 빈 목록.
+     * 필수 약관은 재동의 필요 버전이 시행됐는데 그 뒤의 동의가 없으면, 선택 약관은 예전에 동의했는데 재동의가 필요한 새 버전이 시행됐을 때 들어갑니다.
+     */
+    List<PendingTerms> getPendingTerms(Long userId);
+
+    /**
+     * 동의하지 않으면 서비스를 쓸 수 없는 필수 약관이 남아 있는지. auth의 재동의 필터가 로그인한 요청마다 부릅니다.
+     */
+    boolean hasPendingRequiredTerms(Long userId);
+
+    /**
+     * 재동의 화면의 동의를 한 번에 기록하고, 바뀐 동의 상태 전체를 돌려줍니다.
+     * 보낸 종류는 시행 중인 버전으로 기록하고, 동의 받을 선택 약관 중 보내지 않은 것은 예전 동의를 철회합니다(거절).
+     *
+     * @param agreedTypes 동의한 약관 종류 (대소문자 무관)
+     * @throws com.pickong.common.error.BusinessException 400 REQUIRED_TERMS_NOT_AGREED(동의 받을 필수 약관이 빠짐) · UNKNOWN_TERMS
+     */
+    List<AgreementStatus> agreeToPendingTerms(Long userId, Set<String> agreedTypes);
 }

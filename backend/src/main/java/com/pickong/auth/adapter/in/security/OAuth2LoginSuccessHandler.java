@@ -6,6 +6,7 @@ import com.pickong.auth.application.port.in.LoginUseCase;
 import com.pickong.auth.application.port.in.SocialAccountUseCase;
 import com.pickong.auth.application.port.in.TokenUseCase;
 import com.pickong.common.error.BusinessException;
+import com.pickong.terms.application.port.in.TermsUseCase;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -35,19 +36,24 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
     private final TokenUseCase tokenUseCase;
     private final TokenCookieWriter cookieWriter;
     private final FrontendProperties frontend;
+    private final TermsUseCase termsUseCase;
+
+    /** 로그인한 회원이 동의할 약관이 있으면 피드 대신 보내는 화면 (재동의) */
+    static final String TERMS_CONSENT_PATH = "/terms/consent";
 
     /** 탈퇴 유예 중인 회원을 보내는 탈퇴 취소 화면 (프론트) */
     static final String ACCOUNT_RESTORE_PATH = "/account/restore";
 
     public OAuth2LoginSuccessHandler(OAuth2ProfileMapper profileMapper, LoginUseCase loginUseCase,
             SocialAccountUseCase socialAccountUseCase, TokenUseCase tokenUseCase, TokenCookieWriter cookieWriter,
-            FrontendProperties frontend) {
+            FrontendProperties frontend, TermsUseCase termsUseCase) {
         this.profileMapper = profileMapper;
         this.loginUseCase = loginUseCase;
         this.socialAccountUseCase = socialAccountUseCase;
         this.tokenUseCase = tokenUseCase;
         this.cookieWriter = cookieWriter;
         this.frontend = frontend;
+        this.termsUseCase = termsUseCase;
     }
 
     /**
@@ -91,7 +97,8 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
     /**
      * 로그인. 결과별 처리:
      * <ul>
-     *   <li>기존 회원 → 세션 쿠키(Access · Refresh) 발급, 남아 있던 가입 쿠키 삭제 → /feed</li>
+     *   <li>기존 회원 → 세션 쿠키(Access · Refresh) 발급, 남아 있던 가입 쿠키 삭제 → /feed
+     *       (동의할 약관이 있으면 /terms/consent. 필수 약관이면 동의 전까지 다른 API가 막히고, 선택 약관이면 한 번 묻기만 함)</li>
      *   <li>신규 회원 → 임시 가입 쿠키 발급, 남아 있던 다른 계정의 세션 쿠키 삭제 → /signup</li>
      *   <li>탈퇴 유예 중(30일 안) → 세션 · 가입 쿠키 삭제, 탈퇴 취소 쿠키 발급 → /account/restore</li>
      *   <li>정지 · 탈퇴(30일 지남 포함) → /login?error=ACCOUNT_UNAVAILABLE</li>
@@ -103,7 +110,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
             case SocialLoginResult.ExistingMember member -> {
                 cookieWriter.clearSignup(response);
                 cookieWriter.write(response, tokenUseCase.issue(member.userId()));
-                yield "/feed";
+                yield termsUseCase.getPendingTerms(member.userId()).isEmpty() ? "/feed" : TERMS_CONSENT_PATH;
             }
             case SocialLoginResult.NewMember member -> {
                 // 다른 계정으로 로그인돼 있던 쿠키가 남아 있으면 온보딩 중에 섞이지 않게 지웁니다.

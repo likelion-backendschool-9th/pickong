@@ -2,7 +2,9 @@ package com.pickong.auth.adapter.in.security;
 
 import com.pickong.auth.adapter.out.external.jwt.JwtProperties;
 import com.pickong.common.security.AccessTokenVerifier;
+import com.pickong.terms.application.port.in.TermsUseCase;
 import jakarta.servlet.DispatcherType;
+import java.util.List;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,8 +16,11 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 /**
  * 회원 API 보안 설정.
@@ -76,7 +81,8 @@ public class SecurityConfig {
             RestAuthenticationEntryPoint authenticationEntryPoint, RestAccessDeniedHandler accessDeniedHandler,
             SignedCookieAuthorizationRequestRepository authorizationRequestRepository,
             LinkAwareAuthorizationRequestResolver authorizationRequestResolver,
-            OAuth2LoginSuccessHandler oauth2SuccessHandler, OAuth2LoginFailureHandler oauth2FailureHandler) {
+            OAuth2LoginSuccessHandler oauth2SuccessHandler, OAuth2LoginFailureHandler oauth2FailureHandler,
+            TermsUseCase termsUseCase, ErrorResponseWriter errorWriter, PathPatternRequestMatcher.Builder matchers) {
         http
                 // ① CSRF: SPA용 설정(spa) + SameSite=Lax 쿠키 저장소. POST · PUT · PATCH · DELETE에 X-XSRF-TOKEN 헤더가 필요해집니다.
                 .csrf(csrf -> csrf.spa().csrfTokenRepository(csrfTokenRepository()))
@@ -131,8 +137,31 @@ public class SecurityConfig {
                         // POST의 CSRF 검사는 이 규칙보다 먼저라, 토큰이 없으면 403 INVALID_CSRF_TOKEN입니다.
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         // 나머지는 전부 로그인 필요. 새 API를 만들면 기본으로 보호됩니다.
-                        .anyRequest().authenticated());
+                        .anyRequest().authenticated())
+                // ⑥ 재동의가 필요한 필수 약관에 동의하지 않은 회원은 동의 · 로그아웃 · 탈퇴 외의 요청을 403 TERMS_RECONSENT_REQUIRED로 막습니다.
+                //    인가(⑤) 뒤라 비로그인 요청은 원래대로 처리됩니다.
+                .addFilterAfter(new TermsConsentFilter(termsUseCase, reconsentAllowedRequests(matchers), errorWriter),
+                        AuthorizationFilter.class);
         return http.build();
+    }
+
+    /**
+     * 동의 받을 필수 약관이 남아 있어도 열어 둘 요청. 동의하러 가는 데 필요한 것만 둡니다.
+     * <ul>
+     *   <li>약관 전문 · 내 동의 상태 · 동의할 약관 · 동의 (/terms/**, /me/agreements/**)</li>
+     *   <li>내 정보 GET /me (프론트가 로그인 상태를 확인), 탈퇴 신청 POST /me/withdrawal (동의 대신 탈퇴를 고를 수 있게)</li>
+     *   <li>로그아웃 · 재발급 (/auth/**)</li>
+     * </ul>
+     * matcher builder는 Spring Boot가 servlet path(/api/v1)를 붙여 만든 빈이라, 위 인가 규칙과 같은 경로 기준입니다.
+     */
+    private static List<RequestMatcher> reconsentAllowedRequests(PathPatternRequestMatcher.Builder matchers) {
+        return List.of(
+                matchers.matcher("/terms/**"),
+                matchers.matcher("/me/agreements"),
+                matchers.matcher("/me/agreements/**"),
+                matchers.matcher(HttpMethod.GET, "/me"),
+                matchers.matcher(HttpMethod.POST, "/me/withdrawal"),
+                matchers.matcher("/auth/**"));
     }
 
     /**

@@ -10,8 +10,11 @@ import java.util.List;
 /** 약관 · 약관 동의 저장소 포트. 구현: {@code terms.adapter.out.persistence.TermsPersistenceAdapter} */
 public interface TermsPersistencePort {
 
-    /** 지금 시행 중인 약관: 종류마다 시행일(effective_at)이 now 이전인 것 중 가장 최근 버전 하나씩 */
-    List<Terms> findCurrent(OffsetDateTime now);
+    /**
+     * 이미 시행된 약관 버전 전체 (시행일이 now 이전). 종류마다 가장 늦은 것이 지금 시행 중인 버전이고,
+     * 예전 버전들은 예전 동의가 아직 유효한지 판단하는 데 씁니다({@code TermsHistory}).
+     */
+    List<Terms> findEffective(OffsetDateTime now);
 
     /** 약관 버전 하나의 조항을 순서대로 */
     List<TermsSection> findSections(Long termsId);

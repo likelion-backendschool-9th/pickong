@@ -1,6 +1,9 @@
 /** Access Token 재발급까지 실패해 다시 로그인해야 하는 상태. QueryClient가 받으면 로그인 화면으로 보냅니다. */
 export const SESSION_EXPIRED = "SESSION_EXPIRED";
 
+/** 재동의가 필요한 필수 약관에 아직 동의하지 않음(서버 403). QueryClient가 받으면 재동의 화면으로 보냅니다. */
+export const TERMS_RECONSENT_REQUIRED = "TERMS_RECONSENT_REQUIRED";
+
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;

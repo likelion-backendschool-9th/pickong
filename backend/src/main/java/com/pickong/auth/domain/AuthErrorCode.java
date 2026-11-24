@@ -30,6 +30,8 @@ public enum AuthErrorCode implements ErrorCode {
     SOCIAL_ACCOUNT_NOT_LINKED(404, "연결되지 않은 로그인 수단이에요."),
     /** 가입할 때 쓴 로그인 수단은 해제할 수 없음 (가입 수단 = 가장 먼저 연결된 소셜 계정) */
     SIGNUP_METHOD_CANNOT_BE_UNLINKED(409, "가입할 때 사용한 로그인 수단은 해제할 수 없어요."),
+    /** 재동의가 필요한 필수 약관이 시행됐는데 아직 동의하지 않음. 동의 · 로그아웃 · 탈퇴 외의 요청은 이 오류로 막힘 (프론트는 /terms/consent로 이동) */
+    TERMS_RECONSENT_REQUIRED(403, "바뀐 약관에 동의해야 계속 이용할 수 있어요."),
     /** 탈퇴 취소 쿠키가 없거나 만료 (10분) → 프론트는 로그인 화면으로 (다시 로그인하면 새로 발급) */
     RESTORE_SESSION_EXPIRED(401, "시간이 지났어요. 다시 로그인해 주세요.");
 
