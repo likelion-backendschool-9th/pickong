@@ -34,17 +34,17 @@ public class PlacePersistenceAdapter implements PlacePersistencePort {
         }
         Long id = jdbc.queryForObject("""
                 INSERT INTO places (
-                    public_id, name, address, location, category, source_type, external_id, phone, website_url,
+                    public_id, name, address, location, category, source_type, phone,
                     created_at, updated_at
                 ) VALUES (
-                    ?, ?, ?, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography, ?, ?, ?, ?, ?, ?, ?
+                    ?, ?, ?, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography, ?, ?, ?, ?, ?
                 )
                 RETURNING id
                 """, Long.class,
                 place.getPublicId(), place.getName(), place.getAddress(),
                 place.getLocation().longitude(), place.getLocation().latitude(),
-                place.getCategory(), place.getSourceType().name(), place.getExternalId(), place.getPhone(),
-                place.getWebsiteUrl(), place.getCreatedAt(), place.getUpdatedAt());
+                place.getCategory(), place.getSourceType().name(), place.getPhone(),
+                place.getCreatedAt(), place.getUpdatedAt());
         return Place.builder()
                 .id(id)
                 .publicId(place.getPublicId())
@@ -53,9 +53,7 @@ public class PlacePersistenceAdapter implements PlacePersistencePort {
                 .location(place.getLocation())
                 .category(place.getCategory())
                 .sourceType(place.getSourceType())
-                .externalId(place.getExternalId())
                 .phone(place.getPhone())
-                .websiteUrl(place.getWebsiteUrl())
                 .createdAt(place.getCreatedAt())
                 .updatedAt(place.getUpdatedAt())
                 .build();
@@ -91,7 +89,7 @@ public class PlacePersistenceAdapter implements PlacePersistencePort {
     }
 
     private static final String SELECT = """
-            SELECT id, public_id, name, address, category, source_type, external_id, phone, website_url,
+            SELECT id, public_id, name, address, category, source_type, phone,
                    ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng, created_at, updated_at
               FROM places
             """;
@@ -105,9 +103,7 @@ public class PlacePersistenceAdapter implements PlacePersistencePort {
                 .location(new GeoPoint(rs.getDouble("lat"), rs.getDouble("lng")))
                 .category(rs.getString("category"))
                 .sourceType(PlaceSourceType.valueOf(rs.getString("source_type")))
-                .externalId(rs.getString("external_id"))
                 .phone(rs.getString("phone"))
-                .websiteUrl(rs.getString("website_url"))
                 .createdAt(rs.getObject("created_at", java.time.OffsetDateTime.class))
                 .updatedAt(rs.getObject("updated_at", java.time.OffsetDateTime.class))
                 .build();
