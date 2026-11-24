@@ -14,6 +14,8 @@ import com.pickong.common.security.CurrentUser;
 import com.pickong.common.security.LoginUser;
 import com.pickong.user.domain.UserErrorCode;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -29,6 +31,8 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 public class WithdrawalController {
+
+    private static final Logger log = LoggerFactory.getLogger(WithdrawalController.class);
 
     private final AccountWithdrawalUseCase withdrawal;
     private final TokenUseCase tokenUseCase;
@@ -84,12 +88,25 @@ public class WithdrawalController {
     public RestoredAccountResponse cancel(@CookieValue(name = AuthCookies.RESTORE_TOKEN, required = false) String restoreToken,
                                  HttpServletResponse response) {
         try {
-            RestoredAccount restored = withdrawal.cancelWithdrawal(restoreToken);
-            cookieWriter.write(response, tokenUseCase.issue(restored.userId()));
+            RestoredAccount restored = withdrawal.cancelWithdrawal(restoreToken); // 여기서 취소가 커밋됩니다
+            issueSession(restored, response);
             cookieWriter.clearRestore(response);
             return new RestoredAccountResponse(restored.username());
         } catch (BusinessException e) {
             clearRestoreCookieIfExpired(e, response);
+            throw e;
+        }
+    }
+
+    /**
+     * 취소가 커밋된 뒤 세션을 발급합니다. 여기서 실패하면 회원은 ACTIVE인데 세션 쿠키가 없는 상태가 됩니다.
+     * 다시 소셜 로그인하면 정상 세션이 발급되므로 되돌리지 않고, 찾아볼 수 있게 회원 id와 함께 로그만 남긴 뒤 그대로 던집니다(500).
+     */
+    private void issueSession(RestoredAccount restored, HttpServletResponse response) {
+        try {
+            cookieWriter.write(response, tokenUseCase.issue(restored.userId()));
+        } catch (RuntimeException e) {
+            log.error("탈퇴는 취소됐지만 세션 발급 실패 (회원 {}): 다시 로그인하면 세션이 발급됩니다", restored.userId(), e);
             throw e;
         }
     }
