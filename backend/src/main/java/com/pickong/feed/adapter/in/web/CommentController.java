@@ -28,7 +28,7 @@ public class CommentController {
         this.commentUseCase = commentUseCase;
     }
 
-    // 댓글 목록 조회 (최상위 댓글만) — 비로그인 허용
+    // 댓글 목록 조회 (최상위 댓글만) — 로그인 필수
     @GetMapping
     public CommentPageResponse getComments(
             @PathVariable @Positive Long feedId,
@@ -42,7 +42,7 @@ public class CommentController {
         );
     }
 
-    // 대댓글 목록 조회 — 비로그인 허용
+    // 대댓글 목록 조회 — 로그인 필수
     @GetMapping("/{commentId}/replies")
     public CommentPageResponse getReplies(
             @PathVariable @Positive Long feedId,
@@ -67,21 +67,23 @@ public class CommentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    // 댓글 수정 — 로그인 필수
+    // 댓글 수정 — 로그인 필수, 본인 댓글만 가능
     @PutMapping("/{commentId}")
     public CommentResponse updateComment(
             @PathVariable @Positive Long feedId,
             @PathVariable @Positive Long commentId,
+            @CurrentUser LoginUser user,
             @Valid @RequestBody UpdateCommentRequest request) {
-        return CommentResponse.from(commentUseCase.updateComment(feedId, commentId, request.toCommand()));
+        return CommentResponse.from(commentUseCase.updateComment(feedId, commentId, user.userId(), request.toCommand()));
     }
 
-    // 댓글 삭제 — 로그인 필수, 삭제 성공 시 204 No Content
+    // 댓글 삭제 — 로그인 필수, 본인 댓글만 가능, 삭제 성공 시 204 No Content
     @DeleteMapping("/{commentId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteComment(
             @PathVariable @Positive Long feedId,
-            @PathVariable @Positive Long commentId) {
-        commentUseCase.deleteComment(feedId, commentId);
+            @PathVariable @Positive Long commentId,
+            @CurrentUser LoginUser user) {
+        commentUseCase.deleteComment(feedId, commentId, user.userId());
     }
 }

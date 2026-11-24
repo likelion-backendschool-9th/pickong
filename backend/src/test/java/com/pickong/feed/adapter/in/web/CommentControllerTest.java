@@ -119,7 +119,7 @@ class CommentControllerTest {
 
     @Test
     void updateComment_유효한요청_200반환() throws Exception {
-        given(commentUseCase.updateComment(anyLong(), anyLong(), any())).willReturn(sampleComment());
+        given(commentUseCase.updateComment(anyLong(), anyLong(), anyLong(), any())).willReturn(sampleComment());
         Map<String, Object> body = Map.of("content", "수정된 댓글");
 
         mockMvc.perform(put("/feeds/10/comments/1")
@@ -141,7 +141,7 @@ class CommentControllerTest {
 
     @Test
     void updateComment_존재하지않는id_404반환() throws Exception {
-        given(commentUseCase.updateComment(anyLong(), anyLong(), any()))
+        given(commentUseCase.updateComment(anyLong(), anyLong(), anyLong(), any()))
                 .willThrow(new BusinessException(FeedErrorCode.COMMENT_NOT_FOUND));
         Map<String, Object> body = Map.of("content", "수정된 댓글");
 
@@ -153,6 +153,19 @@ class CommentControllerTest {
     }
 
     @Test
+    void updateComment_타인댓글_수정시_403반환() throws Exception {
+        given(commentUseCase.updateComment(anyLong(), anyLong(), anyLong(), any()))
+                .willThrow(new BusinessException(FeedErrorCode.COMMENT_NOT_OWNER));
+        Map<String, Object> body = Map.of("content", "수정된 댓글");
+
+        mockMvc.perform(put("/feeds/10/comments/2")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403));
+    }
+
+    @Test
     void deleteComment_성공_204반환() throws Exception {
         mockMvc.perform(delete("/feeds/10/comments/1"))
                 .andExpect(status().isNoContent());
@@ -161,9 +174,19 @@ class CommentControllerTest {
     @Test
     void deleteComment_존재하지않는id_404반환() throws Exception {
         willThrow(new BusinessException(FeedErrorCode.COMMENT_NOT_FOUND))
-                .given(commentUseCase).deleteComment(anyLong(), anyLong());
+                .given(commentUseCase).deleteComment(anyLong(), anyLong(), anyLong());
 
         mockMvc.perform(delete("/feeds/10/comments/999"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void deleteComment_타인댓글_삭제시_403반환() throws Exception {
+        willThrow(new BusinessException(FeedErrorCode.COMMENT_NOT_OWNER))
+                .given(commentUseCase).deleteComment(anyLong(), anyLong(), anyLong());
+
+        mockMvc.perform(delete("/feeds/10/comments/2"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403));
     }
 }
