@@ -10,7 +10,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface UserTermsAgreementJpaRepository extends JpaRepository<UserTermsAgreementJpaEntity, Long> {
 
-    /** 철회하지 않은 동의 기록 한 줄: 동의한 약관 버전의 종류 · 버전 · 제목과 동의 시각 (terms와 이어 붙인 결과) */
+    /** 철회하지 않은 동의 기록 한 줄: 동의한 약관 버전의 종류 · 버전 · 제목 · 시행일과 동의 시각 (terms와 이어 붙인 결과) */
     interface ActiveAgreementRow {
         String getType();
 
@@ -18,12 +18,14 @@ public interface UserTermsAgreementJpaRepository extends JpaRepository<UserTerms
 
         String getTitle();
 
+        OffsetDateTime getEffectiveAt();
+
         OffsetDateTime getAgreedAt();
     }
 
     /** 이 회원의 철회하지 않은 동의 기록을 최근 동의 순으로 */
     @Query("""
-            select t.type as type, t.version as version, t.title as title, a.agreedAt as agreedAt
+            select t.type as type, t.version as version, t.title as title, t.effectiveAt as effectiveAt, a.agreedAt as agreedAt
             from UserTermsAgreementJpaEntity a, TermsJpaEntity t
             where a.termsId = t.id and a.userId = :userId and a.revokedAt is null
             order by a.agreedAt desc, a.id desc

@@ -42,6 +42,10 @@ public class TermsJpaEntity {
     @Column(name = "effective_at", nullable = false)
     private OffsetDateTime effectiveAt;
 
+    /** 이 버전이 시행되면 기존 회원에게 다시 동의를 받는지 (V10) */
+    @Column(name = "requires_reconsent", nullable = false)
+    private boolean requiresReconsent;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
@@ -55,6 +59,7 @@ public class TermsJpaEntity {
                 .contentUrl(contentUrl)
                 .required(isRequired)
                 .effectiveAt(effectiveAt)
+                .requiresReconsent(requiresReconsent)
                 .createdAt(createdAt)
                 .build();
     }

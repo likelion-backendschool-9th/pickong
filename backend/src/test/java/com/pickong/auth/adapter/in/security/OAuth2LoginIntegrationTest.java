@@ -200,6 +200,27 @@ class OAuth2LoginIntegrationTest {
     }
 
     @Test
+    @DisplayName("기존 회원인데 재동의가 필요한 필수 약관이 시행됨: 세션은 발급하고 /terms/consent로 이동")
+    void existingMemberWithPendingTermsGoesToConsent() throws Exception {
+        long userId = insertUser("seoyeon", "ACTIVE");
+        linkSocial(userId, "KAKAO", "4242", "kong@kakao.com");
+        jdbc.update("""
+                INSERT INTO terms (type, version, title, content_url, is_required, effective_at, requires_reconsent)
+                VALUES ('PRIVACY', '9.9-login-test', '개인정보 새 버전', '/terms/privacy', TRUE, now() - interval '1 day', TRUE)
+                """);
+        try {
+            MvcResult result = loginWithKakao();
+
+            assertThat(result.getResponse().getRedirectedUrl()).isEqualTo("http://localhost:3000/terms/consent");
+            assertThat(hasLiveCookie(result, AuthCookies.ACCESS_TOKEN)).as("동의하러 가야 하므로 로그인은 된 상태").isTrue();
+        } finally {
+            // 이 테스트만 약관 버전을 넣으므로 바로 지웁니다 (남기면 다른 테스트의 시행 중인 약관이 바뀜)
+            jdbc.update("DELETE FROM user_terms_agreements WHERE user_id = ?", userId);
+            jdbc.update("DELETE FROM terms WHERE version = '9.9-login-test'");
+        }
+    }
+
+    @Test
     @DisplayName("정지된 회원: /login?error=ACCOUNT_UNAVAILABLE, 토큰 없음")
     void suspendedMember() throws Exception {
         long userId = insertUser("seoyeon", "SUSPENDED");

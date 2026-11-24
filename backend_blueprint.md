@@ -284,13 +284,26 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | GET | `/terms/{type}` | `TermsUseCase.getCurrentTerms` (로그인 없이, 시행 중인 버전과 조항) |
 | GET | `/me/agreements` | `TermsUseCase.getMyAgreements` |
 | PATCH | `/me/agreements` | `TermsUseCase.updateAgreement` (선택 약관만 동의 · 철회) |
+| GET | `/me/agreements/pending` | `TermsUseCase.getPendingTerms` (재동의 화면: 지금 동의 받을 약관) |
+| POST | `/me/agreements` | `TermsUseCase.agreeToPendingTerms` (재동의 화면의 동의를 한 번에) |
 
 > **약관 동의 결정**
 > - 가입할 때의 동의는 `POST /auth/signup` 안에서 `TermsUseCase.agreeOnSignup`으로 남깁니다(위 auth 표).
 > - `user_terms_agreements`는 동의 · 철회 이력이라 (user_id, terms_id)가 UNIQUE가 아닙니다. 대신 **철회하지 않은 동의는 부분 유니크 인덱스 `uk_user_terms_agreements_active`(V8, `WHERE revoked_at IS NULL`)로 하나만** 둡니다. 동의 요청이 동시에 와서 둘 다 서비스의 '동의 중 아님' 확인을 통과해도 기록은 하나입니다.
 > - 회원의 동의는 `INSERT … ON CONFLICT DO NOTHING`(native)으로 저장합니다. 유니크 예외를 잡는 방식은 PostgreSQL 트랜잭션이 중단돼 뒤이은 조회가 실패하므로 쓰지 않습니다.
 > - 철회는 행을 지우지 않고 `revoked_at`만 채웁니다. 필수 약관은 동의 · 철회 모두 400(해지는 탈퇴로만).
-> - 동의 상태의 버전 · 제목은 **동의한 버전**의 것을 함께 보여 줍니다(새 버전에서 제목이 바뀌어도 섞이지 않게). 새 버전 시행 뒤 재동의 흐름은 아직 없습니다.
+> - 동의 상태의 버전 · 제목은 **동의한 버전**의 것을 함께 보여 줍니다(새 버전에서 제목이 바뀌어도 섞이지 않게).
+>
+> **새 버전 재동의 결정 (#99)**
+> - **버전마다 DB에서 정합니다(`terms.requires_reconsent`, V10).** `true`면 이 버전이 시행된 뒤 이전 버전에 한 동의를 인정하지 않고, `false`면 공지만 하고 이전 동의를 그대로 인정합니다. 예: 개인정보 수집 항목 · 목적이 바뀌면 `true`, 문구 정리는 `false`. 새 버전을 넣는 마이그레이션에서 고릅니다.
+>   - 검토한 다른 안: 항상 재동의(오타만 고쳐도 모두에게 동의 화면), 재동의 없음(개인정보 항목이 바뀔 때 다시 동의를 받을 방법이 없음).
+> - **유효 규칙(`terms.domain.model.TermsHistory`):** 그 종류에서 가장 최근에 시행된 '재동의 필요' 버전이 기준입니다. 회원이 동의한 버전이 기준과 같거나 그 뒤에 시행된 것이면 유효합니다. 예: 1.0 → 1.1(필요) → 1.2(필요 없음)이면 1.1 · 1.2 동의는 유효, 1.0 동의는 무효. 문구 정리 버전이 나올 때마다 다시 묻지 않으려고 기준을 '지금 버전'이 아니라 '마지막 재동의 필요 버전'으로 둡니다.
+> - **동의 받을 약관(`getPendingTerms`):** 필수 약관은 재동의 필요 버전이 시행됐는데 유효한 동의가 없을 때, 선택 약관은 예전 동의가 남아 있지만 더 이상 유효하지 않을 때(예전에 동의했던 회원에게만 다시 묻기). 재동의 필요 버전이 없는 종류는 동의 기록이 없어도 묻지 않습니다. 그래서 **새 필수 약관 종류를 추가할 때는 `requires_reconsent = true`로 넣어야** 기존 회원에게 동의를 받습니다.
+> - **필수 약관 차단:** 동의할 때까지 서비스를 쓸 수 없습니다. 화면뿐 아니라 서버도 막습니다. `auth`의 `TermsConsentFilter`가 인가 단계 뒤에서 로그인한 요청마다 `TermsUseCase.hasPendingRequiredTerms`를 확인하고 403 `TERMS_RECONSENT_REQUIRED`를 줍니다. 열어 둔 요청: `/terms/**` · `/me/agreements/**` · `GET /me` · `POST /me/withdrawal`(탈퇴 신청) · `/auth/**`(로그아웃 · 재발급).
+>   - 확인은 요청마다 DB로 합니다(시행된 약관 · 내 동의 조회 두 번). 토큰에 넣으면 새 버전 시행 뒤 최대 15분(Access Token 수명) 동안 막지 못하고, 동의한 뒤 토큰을 다시 발급해야 합니다. 약관 행은 몇 개뿐이라 캐시는 두지 않았습니다.
+> - **로그인 직후:** 동의 받을 약관이 있으면 `/feed` 대신 `/terms/consent`로 보냅니다(`OAuth2LoginSuccessHandler`). 선택 약관만 남은 경우에도 한 번 묻습니다.
+> - **재동의 저장(`POST /me/agreements {agreedTerms}`):** 가입과 같은 규칙으로 한 트랜잭션에서 처리합니다. 동의 받을 필수 약관이 빠지면 400 `REQUIRED_TERMS_NOT_AGREED`이고 아무것도 저장하지 않습니다. 보낸 종류 중 유효한 동의가 없는 것만 시행 버전으로 기록합니다. 다시 물은 선택 약관을 보내지 않으면 예전 동의를 철회해 다음 로그인부터 묻지 않습니다.
+> - 설정의 마케팅 스위치(PATCH)도 같은 규칙입니다. 재동의 필요 버전이 시행된 뒤에는 '동의하지 않음'으로 보이고, 켜면 시행 버전으로 기록합니다.
 
 ### media
 | 메서드 | 경로 | 입력 포트 · 메서드 |
