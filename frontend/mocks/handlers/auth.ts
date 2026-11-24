@@ -129,6 +129,14 @@ function consentPage(provider: Provider, mode: "login" | "link", state: string) 
   const options = [
     ...existing,
     { href: callback({ code: "new" }), title: `새 ${LABEL[provider]} 계정`, desc: "찜콩에 처음 오는 계정 → 온보딩으로 이동" },
+    {
+      href: callback({ code: "email-taken" }),
+      title: "다른 회원과 이메일이 같은 계정",
+      desc: "처음 오는 계정인데 인증된 이메일이 이미 다른 찜콩 회원 것 → EMAIL_ALREADY_REGISTERED",
+    },
+    ...(mode === "login"
+      ? [{ href: callback({ code: "suspended" }), title: "정지된 회원의 계정", desc: "이용할 수 없는 계정 → ACCOUNT_UNAVAILABLE" }]
+      : []),
     { href: callback({ error: "access_denied" }), title: "취소", desc: "동의 화면에서 취소한 경우" },
     { href: `/api/v1/auth/oauth2/callback/${slug(provider)}?code=new&state=forged`, title: "state 위조", desc: "로그인 CSRF 공격처럼 state가 다른 콜백" },
   ];
@@ -204,6 +212,16 @@ export const authRoutes: Route[] = [
       if (ctx.query.get("error")) return fail(saved.mode, "OAUTH_CANCELLED");
 
       const code = ctx.query.get("code") ?? "";
+      if (code === "suspended" && saved.mode === "login") return fail("login", "ACCOUNT_UNAVAILABLE");
+      if (code === "email-taken") {
+        // 백엔드: 처음 오는 소셜 계정의 인증된 이메일이 다른 회원 것이면 막습니다(1인 1계정, 자동 연결 없음).
+        const owner = socialAccounts.find((a) => a.email && a.userId !== saved.userId);
+        if (owner) {
+          return saved.mode === "link"
+            ? fail("link", "EMAIL_ALREADY_REGISTERED")
+            : redirect(`/login?error=EMAIL_ALREADY_REGISTERED&provider=${slug(owner.provider)}`, cookies);
+        }
+      }
       const known = code.startsWith("id:") ? socialAccounts.find((a) => a.provider === provider && a.providerUserId === code.slice(3)) : undefined;
       const identity = known
         ? { providerUserId: known.providerUserId, name: null, email: known.email, profileImageUrl: null }
@@ -352,9 +370,10 @@ export const authRoutes: Route[] = [
     path: "/api/v1/me/social-accounts",
     handler: (ctx) => {
       const userId = requireUser(ctx);
+      // 연결한 순서대로. 가장 먼저 연결된 것이 가입할 때 사용한 수단이라 해제할 수 없습니다(백엔드와 같은 규칙).
       return socialAccounts
         .filter((a) => a.userId === userId)
-        .map(({ provider, email, connectedAt }) => ({ provider, email, connectedAt }));
+        .map(({ provider, email, connectedAt }, i) => ({ provider, email, connectedAt, canUnlink: i > 0 }));
     },
   },
   {
@@ -365,7 +384,7 @@ export const authRoutes: Route[] = [
       const userId = requireUser(ctx);
       const provider = providerOf(ctx);
       if (socialAccounts.some((a) => a.userId === userId && a.provider === provider)) {
-        throw new HttpError(409, "PROVIDER_ALREADY_LINKED", `이미 ${LABEL[provider]} 계정이 연결돼 있어요.`);
+        throw new HttpError(409, "PROVIDER_ALREADY_LINKED", "이 로그인 수단은 이미 연결돼 있어요.");
       }
       const link = token();
       linkTokens.set(link, { userId, provider, expiresAt: now() + LINK_TTL_SEC * 1000 });
@@ -380,8 +399,8 @@ export const authRoutes: Route[] = [
       const provider = providerOf(ctx);
       const mine = socialAccounts.filter((a) => a.userId === userId);
       const target = mine.find((a) => a.provider === provider);
-      if (!target) throw new HttpError(404, "NOT_FOUND", "연결되지 않은 로그인 수단이에요.");
-      if (mine.length <= 1) throw new HttpError(409, "LAST_LOGIN_METHOD", "마지막 로그인 수단은 해제할 수 없어요. 다른 계정을 먼저 연결해 주세요.");
+      if (!target) throw new HttpError(404, "SOCIAL_ACCOUNT_NOT_LINKED", "연결되지 않은 로그인 수단이에요.");
+      if (target === mine[0]) throw new HttpError(409, "SIGNUP_METHOD_CANNOT_BE_UNLINKED", "가입할 때 사용한 로그인 수단은 해제할 수 없어요.");
       socialAccounts.splice(socialAccounts.indexOf(target), 1);
       return undefined;
     },

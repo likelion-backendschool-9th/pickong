@@ -23,7 +23,7 @@ const LOGO_BG: Record<SocialProvider, string> = {
 
 /**
  * 로그인 수단 관리: 카카오 · Google 계정 연결 · 해제.
- * 연결한 계정 중 어느 것으로 로그인해도 같은 찜콩 계정으로 들어오며, 마지막 남은 수단은 해제할 수 없습니다.
+ * 연결한 계정 중 어느 것으로 로그인해도 같은 찜콩 계정으로 들어오며, 가입할 때 사용한 수단은 해제할 수 없습니다.
  */
 export function LoginMethodsScreen() {
   const router = useRouter();
@@ -54,7 +54,7 @@ export function LoginMethodsScreen() {
     });
 
   const rows = data ? loginMethodRows(data) : [];
-  const onlyOne = data?.length === 1;
+  const hasSignupMethod = rows.some((r) => r.isSignupMethod);
 
   return (
     <div>
@@ -75,7 +75,7 @@ export function LoginMethodsScreen() {
         <ErrorState message={errorMessage(error)} onRetry={() => refetch()} />
       ) : (
         <ul className="divide-y divide-line px-5">
-          {rows.map(({ provider, account, canUnlink }) => {
+          {rows.map(({ provider, account, canUnlink, isSignupMethod }) => {
             const label = SOCIAL_PROVIDER_LABEL[provider];
             const connecting = startLink.isPending && startLink.variables === provider;
             return (
@@ -87,21 +87,19 @@ export function LoginMethodsScreen() {
                   <div className="flex items-center gap-1.5">
                     <span className="text-[15px] font-bold">{label}</span>
                     {account && <Badge>연결됨</Badge>}
+                    {isSignupMethod && <Badge tone="neutral">가입한 수단</Badge>}
                   </div>
                   <p className="mt-0.5 truncate text-[12px] text-ink-sub">
                     {account ? `${formatDotDate(account.connectedAt)} 연결 · ${account.email ?? "이메일 비공개"}` : "연결되지 않음"}
                   </p>
                 </div>
                 {account ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!canUnlink}
-                    onClick={() => setTarget(provider)}
-                    aria-label={`${label} 연결 해제`}
-                  >
-                    연결 해제
-                  </Button>
+                  // 가입한 수단은 해제할 수 없어서 버튼을 보여 주지 않습니다(목록 아래 안내).
+                  canUnlink && (
+                    <Button variant="outline" size="sm" onClick={() => setTarget(provider)} aria-label={`${label} 연결 해제`}>
+                      연결 해제
+                    </Button>
+                  )
                 ) : (
                   <Button variant="secondary" size="sm" loading={connecting} disabled={startLink.isPending} onClick={() => connect(provider)}>
                     연결하기
@@ -113,9 +111,7 @@ export function LoginMethodsScreen() {
         </ul>
       )}
 
-      {onlyOne && (
-        <Notice className="mx-5 mt-3">로그인 수단이 하나뿐이라 해제할 수 없어요. 다른 계정을 먼저 연결해 주세요.</Notice>
-      )}
+      {hasSignupMethod && <Notice className="mx-5 mt-3">가입할 때 사용한 로그인 수단은 해제할 수 없어요.</Notice>}
       {startLink.isError && (
         <Notice tone="danger" className="mx-5 mt-3">
           {errorMessage(startLink.error)}

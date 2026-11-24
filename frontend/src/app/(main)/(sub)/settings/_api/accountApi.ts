@@ -33,11 +33,13 @@ export interface Device {
   pushEnabled: boolean;
 }
 
-/** 연결된 소셜 로그인 수단. 이메일은 제공자가 주지 않으면 null */
+/** 연결된 소셜 로그인 수단. 이메일은 제공자가 주지 않으면 null. 목록은 연결한 순서입니다. */
 export interface SocialAccount {
   provider: SocialProvider;
   email: string | null;
   connectedAt: string;
+  /** 해제할 수 있는지. 가입할 때 사용한 수단(가장 먼저 연결된 것)은 서버가 false로 줍니다. */
+  canUnlink: boolean;
 }
 
 export const accountKeys = {
@@ -60,7 +62,7 @@ export const useStartSocialLink = () =>
       http.post<{ authorizationUrl: string }>(`/me/social-accounts/${providerSlug(provider)}`),
   });
 
-/** 연결 해제. 마지막 로그인 수단이면 서버가 409 LAST_LOGIN_METHOD로 거절합니다. */
+/** 연결 해제. 가입할 때 사용한 수단이면 409 SIGNUP_METHOD_CANNOT_BE_UNLINKED, 연결되지 않았으면 404 SOCIAL_ACCOUNT_NOT_LINKED */
 export function useUnlinkSocialAccount() {
   const qc = useQueryClient();
   return useMutation({

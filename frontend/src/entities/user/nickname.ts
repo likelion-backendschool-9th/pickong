@@ -9,6 +9,21 @@ export const NICKNAME_MIN = 3;
 export const NICKNAME_MAX = 20;
 const NICKNAME_CHARS = /^[a-z0-9._]+$/;
 
+/** 닉네임은 바꾼 뒤 이 기간 동안 다시 바꿀 수 없습니다. 기준은 서버(users.username_changed_at)이고 화면은 안내만 합니다. */
+export const NICKNAME_CHANGE_INTERVAL_DAYS = 14;
+
+/**
+ * 닉네임 변경 잠금 안내. 아직 바꿀 수 없으면 "12월 8일부터 다시 바꿀 수 있어요." 같은 문구, 바꿀 수 있으면 null.
+ * @param changeableAt 서버가 준 다음 변경 가능 시각(ISO). null이면 지금 바꿀 수 있음
+ * @param now 지금 시각(ms). 화면에 오래 머물러 그 시각이 지났으면 잠그지 않습니다(서버가 최종 판단)
+ */
+export function nicknameLockMessage(changeableAt: string | null, now: number = Date.now()): string | null {
+  if (!changeableAt) return null;
+  const at = new Date(changeableAt);
+  if (Number.isNaN(at.getTime()) || at.getTime() <= now) return null;
+  return `${at.getMonth() + 1}월 ${at.getDate()}일부터 다시 바꿀 수 있어요.`;
+}
+
 /** 입력하는 동안 대문자는 소문자로 바꾸고 공백은 지웁니다. */
 export function normalizeNicknameInput(value: string): string {
   return value.toLowerCase().replace(/\s/g, "");

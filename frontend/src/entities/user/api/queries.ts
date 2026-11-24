@@ -65,6 +65,10 @@ export function useUpdateMe() {
       if (error instanceof ApiError && error.code === "USERNAME_TAKEN") {
         qc.setQueryData(userKeys.nicknameAvailability(input.username), { available: false });
       }
+      // 다른 기기에서 먼저 닉네임을 바꾼 경우: 내 정보를 다시 받아 입력칸 잠금과 다음 변경 가능 날짜를 보여 줍니다.
+      if (error instanceof ApiError && error.code === "USERNAME_CHANGE_TOO_SOON") {
+        qc.invalidateQueries({ queryKey: userKeys.me() });
+      }
     },
   });
 }

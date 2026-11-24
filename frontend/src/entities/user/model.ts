@@ -16,6 +16,8 @@ export interface User {
   isMe: boolean;
   /** 유료 컬렉션을 판매할 수 있는 크리에이터 */
   isCreator: boolean;
+  /** 내 정보에만 있음: 닉네임을 다시 바꿀 수 있는 시각(ISO). 지금 바꿀 수 있거나 다른 사람이면 null */
+  usernameChangeableAt: string | null;
 }
 
 /** 다른 엔티티에 포함되는 작성자·소유자 요약 */

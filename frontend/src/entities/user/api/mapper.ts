@@ -15,6 +15,7 @@ export const toUser = (dto: UserDto): User => ({
   isFollowing: dto.isFollowing,
   isMe: dto.isMe,
   isCreator: dto.isCreator ?? false,
+  usernameChangeableAt: dto.usernameChangeableAt ?? null,
 });
 
 export const toUserSummary = (dto: UserSummaryDto): UserSummary => ({
