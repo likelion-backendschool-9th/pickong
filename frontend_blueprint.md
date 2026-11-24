@@ -724,26 +724,30 @@ export async function getFeed(id: Id): Promise<Feed> {
 ### 8.5 API 연동 구조
 
 ```
-[브라우저]  Client Component ─▶ entities/*/api ─▶ shared/api/http ─▶ /api/*  ─(Next rewrites)─▶ Spring Boot (또는 mock 서버)
+[브라우저]  Client Component ─▶ entities/*/api ─▶ shared/api/http ─▶ /api/v1/*  ─(Next rewrites)─▶ Spring Boot (또는 mock 서버)
 [서버]      page.tsx          ─▶ entities/*/api ─▶ shared/api/http ─▶ API_INTERNAL_URL (쿠키 전달) ─▶ Spring Boot (또는 mock 서버)
 ```
 
-- **브라우저는 같은 도메인의 `/api/*`로 요청**하고 `next.config.ts`의 rewrites가 백엔드로 전달합니다. CORS 설정이 필요 없고 httpOnly 쿠키를 그대로 쓸 수 있습니다.
+- **브라우저는 같은 도메인의 `/api/v1/*`로 요청**하고 `next.config.ts`의 rewrites가 백엔드로 전달합니다. CORS 설정이 필요 없고 httpOnly 쿠키를 그대로 쓸 수 있습니다.
 - **서버는 백엔드 주소로 직접 요청**하고, 들어온 요청의 쿠키를 함께 전달합니다.
 - `shared/api/http.ts`가 이 차이를 숨깁니다. `entities/*/api`는 어느 쪽에서 실행되는지 신경 쓰지 않습니다.
 - 백엔드 오류 응답은 `ApiError(status, code, message)`로 바꿔서 던집니다.
   - 페이지(Server): 404 → `notFound()`, 401 → `redirect('/login')`, 그 외 → `error.tsx`
-  - Client: `http.ts`가 401을 받으면 `/auth/refresh`를 한 번 보내고(동시에 받은 401은 재발급 하나를 함께 기다림) 다시 요청합니다. 재발급도 실패하면 `SESSION_EXPIRED`를 던지고, QueryClient 전역 설정이 `/login?error=SESSION_EXPIRED`로 보냅니다. `/auth/*` 경로의 401은 재발급 없이 그대로 돌려줍니다. 나머지 오류는 컴포넌트·토스트에서 처리
+  - Client: `http.ts`가 401을 받으면 `/auth/refresh`를 한 번 보내고(동시에 받은 401은 재발급 하나를 함께 기다리고, 여러 탭 사이는 Web Locks로 한 번에 한 탭만 재발급) 다시 요청합니다. 재발급도 실패하면 `SESSION_EXPIRED`를 던지고, QueryClient 전역 설정이 `/login?error=SESSION_EXPIRED`로 보냅니다. `/auth/*` 경로의 401은 재발급 없이 그대로 돌려줍니다. 나머지 오류는 컴포넌트·토스트에서 처리
 
 ### 8.6 Mock → 실제 API 전환
 
 - `mocks/`의 핸들러가 **DTO 형태의 응답**을 돌려줍니다. 따라서 mapper까지 실제와 같은 경로로 실행됩니다.
 - 개발 시 mock 서버(localhost:4000)를 띄우고, rewrites 대상과 `API_INTERNAL_URL`을 mock 서버로 지정합니다.
+- 백엔드에 일부 API만 있는 동안은 `BACKEND_URL`을 정합니다. `next.config.ts`의 `BACKEND_PATHS`에 있는 경로만 백엔드로 가고 나머지는 mock으로 갑니다. 백엔드에 API가 생기면 이 목록에 경로를 추가합니다.
+- 쓰기 요청(POST · PUT · PATCH · DELETE)은 `http.ts`가 `XSRF-TOKEN` 쿠키 값을 `X-XSRF-TOKEN` 헤더로 보냅니다. 403 `INVALID_CSRF_TOKEN`이면 쿠키를 다시 읽어 한 번만 재시도합니다.
 - **전환은 환경변수만 바꿉니다.** API 코드와 컴포넌트는 수정하지 않습니다. 기존 `USE_MOCK` 분기는 없앱니다.
 - 같은 핸들러를 Vitest 컴포넌트 테스트에서도 재사용합니다.
 
 | 환경변수 | 용도 |
 | --- | --- |
+| `API_BASE_URL` | 브라우저의 `/api/*`를 전달할 기본 주소. 개발은 mock, 배포는 백엔드 |
+| `BACKEND_URL` | 개발 전용. 정하면 `BACKEND_PATHS`의 경로만 이 백엔드로 보냄 |
 | `API_INTERNAL_URL` | 서버 → 백엔드(또는 mock) 주소. 서버 전용 |
 | `NEXT_PUBLIC_KAKAO_MAP_KEY` | 카카오 지도 JavaScript 키 (공개 키, 도메인 제한 설정) |
 
