@@ -97,9 +97,17 @@ export function NaverMapView({
 
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  /** 로딩 실패 후 다시 시도할 때 effect를 재실행합니다. */
+  const [bootId, setBootId] = useState(0);
 
   const pins = markers.filter((m) => m.tone !== "poi");
   const pinCount = pins.length;
+
+  const retryLoad = () => {
+    setErrorMessage(null);
+    setStatus("loading");
+    setBootId((n) => n + 1);
+  };
 
   // SDK 로드 + 지도 생성
   useEffect(() => {
@@ -221,9 +229,9 @@ export function NaverMapView({
       mapRef.current?.destroy();
       mapRef.current = null;
     };
-    // 최초 마운트 시 한 번만 생성 (initialCenter/mpp/zoom은 첫 값만 사용)
+    // bootId가 바뀔 때(재시도)만 다시 생성. initialCenter/mpp/zoom은 첫 값만 사용합니다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [bootId]);
 
   // focus 이동 (지도가 아직 없으면 status가 ready가 될 때 다시 적용)
   // panTo + setZoom을 연속 호출하면 애니메이션이 겹쳐 줌만 되고 중심 이동이 빠질 수 있어,
@@ -358,8 +366,15 @@ export function NaverMapView({
         </div>
       )}
       {status === "error" && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-map-land px-6 text-center text-[13px] text-ink-sub">
-          {errorMessage}
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-map-land px-6 text-center">
+          <p className="text-[13px] text-ink-sub">{errorMessage}</p>
+          <button
+            type="button"
+            onClick={retryLoad}
+            className="rounded-lg border border-line bg-white px-3 py-1.5 text-[13px] font-bold text-ink shadow-sm active:bg-fill"
+          >
+            다시 시도
+          </button>
         </div>
       )}
 
