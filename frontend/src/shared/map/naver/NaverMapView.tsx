@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/shared/lib/cn";
 import type { LatLng, LatLngBounds, MapMarker } from "../types";
 import { naverMapGlOptions, shouldUseNaverGl } from "./config";
-import { clampNaverZoom, fromNaverBounds, fromNaverLatLng, metersPerPixelToZoom, toNaverLatLng } from "./convert";
+import { clampNaverZoom, fromNaverBounds, metersPerPixelToZoom, toNaverLatLng } from "./convert";
 import { loadNaverSdk } from "./loadNaverSdk";
 
 const DEFAULT_CENTER: LatLng = { lat: 37.5446, lng: 127.0525 };
@@ -106,21 +106,29 @@ export function NaverMapView({
     const el = containerRef.current;
     if (!el) return;
     let cancelled = false;
+    let mapCreated = false;
     const listeners: object[] = [];
     let ro: ResizeObserver | undefined;
+    /**
+     * GL에서 idle 직후 getCenter()가 한 박자 늦은 중심을 주는 경우가 있습니다.
+     * center_changed 이벤트 인자로만 스냅샷을 갱신하고, 세션 저장은 그 스냅샷을 씁니다.
+     * (매 이벤트마다 sessionStorage에 쓰면 탭 이탈 teardown이 좌표를 덮어씁니다.)
+     */
+    let lastCamera: { center: LatLng; zoom: number } = {
+      center: initialCenter ?? DEFAULT_CENTER,
+      zoom:
+        initialZoom !== undefined
+          ? clampNaverZoom(initialZoom, USE_GL)
+          : metersPerPixelToZoom(initialMpp ?? 4, USE_GL),
+    };
 
     loadNaverSdk()
       .then(() => {
         if (cancelled || !containerRef.current) return;
 
-        const center = initialCenter ?? DEFAULT_CENTER;
-        const zoom =
-          initialZoom !== undefined
-            ? clampNaverZoom(initialZoom, USE_GL)
-            : metersPerPixelToZoom(initialMpp ?? 4, USE_GL);
         const map = new naver.maps.Map(containerRef.current, {
-          center: toNaverLatLng(center),
-          zoom,
+          center: toNaverLatLng(lastCamera.center),
+          zoom: lastCamera.zoom,
           scaleControl: false,
           mapDataControl: false,
           logoControl: true,
@@ -128,37 +136,49 @@ export function NaverMapView({
           ...naverMapGlOptions(),
         });
         mapRef.current = map;
+        mapCreated = true;
         setStatus("ready");
 
         const emitBounds = () => {
           if (!mapRef.current) return;
           onBoundsChangeRef.current?.(fromNaverBounds(mapRef.current.getBounds()));
         };
-        const emitCamera = () => {
-          if (!mapRef.current) return;
-          onCameraChangeRef.current?.({
-            center: fromNaverLatLng(mapRef.current.getCenter()),
-            zoom: mapRef.current.getZoom(),
-          });
+        const persistLastCamera = () => {
+          onCameraChangeRef.current?.(lastCamera);
         };
-        const emitCenter = () => {
-          if (!mapRef.current || suppressMoveRef.current) return;
-          onCenterChangeRef.current?.(fromNaverLatLng(mapRef.current.getCenter()));
+        const noteCenterFromEvent = (value: unknown) => {
+          const snapped = latLngFromNaverCenter(value);
+          if (!snapped) return;
+          lastCamera = {
+            center: snapped,
+            zoom: mapRef.current?.getZoom() ?? lastCamera.zoom,
+          };
         };
         const onIdle = () => {
           emitBounds();
-          emitCamera();
+          if (mapRef.current) {
+            lastCamera = { ...lastCamera, zoom: mapRef.current.getZoom() };
+          }
+          persistLastCamera();
           suppressMoveRef.current = false;
         };
 
         listeners.push(naver.maps.Event.addListener(map, "idle", onIdle));
-        listeners.push(naver.maps.Event.addListener(map, "center_changed", emitCenter));
-        // idle만 기다리면 드래그 직후 탭 이탈 시 카메라가 안 남을 수 있어 dragend·줌 변경에도 저장합니다.
-        listeners.push(naver.maps.Event.addListener(map, "dragend", emitCamera));
+        listeners.push(
+          naver.maps.Event.addListener(map, "center_changed", (nextCenter: unknown) => {
+            noteCenterFromEvent(nextCenter);
+            if (!suppressMoveRef.current) {
+              onCenterChangeRef.current?.(lastCamera.center);
+            }
+          }),
+        );
         listeners.push(
           naver.maps.Event.addListener(map, "zoom_changed", () => {
             emitBounds();
-            emitCamera();
+            if (mapRef.current) {
+              lastCamera = { ...lastCamera, zoom: mapRef.current.getZoom() };
+              persistLastCamera();
+            }
           }),
         );
         listeners.push(naver.maps.Event.addListener(map, "dragstart", () => onDragStartRef.current?.()));
@@ -166,7 +186,7 @@ export function NaverMapView({
         listeners.push(naver.maps.Event.addListener(map, "click", () => onMapClickRef.current?.()));
 
         emitBounds();
-        emitCamera();
+        persistLastCamera();
 
         ro = new ResizeObserver(() => {
           map.autoResize();
@@ -182,8 +202,11 @@ export function NaverMapView({
 
     return () => {
       cancelled = true;
-      for (const listener of listeners) naver.maps.Event.removeListener(listener);
+      // teardown resize가 lastCamera를 건드리지 않도록 RO·리스너를 먼저 끊고 스냅샷만 저장
       ro?.disconnect();
+      const saved = lastCamera;
+      for (const listener of listeners) naver.maps.Event.removeListener(listener);
+      if (mapCreated) onCameraChangeRef.current?.(saved);
       clearMarkers(markersRef, markerListenersRef);
       userLocationMarkerRef.current?.setMap(null);
       userLocationMarkerRef.current = null;
@@ -364,6 +387,19 @@ export function NaverMapView({
       {children}
     </div>
   );
+}
+
+/** center_changed 인자가 LatLng인지 확인한 뒤 { lat, lng }로 변환합니다. */
+function latLngFromNaverCenter(value: unknown): LatLng | null {
+  if (!value || typeof value !== "object") return null;
+  const latFn = (value as { lat?: unknown }).lat;
+  const lngFn = (value as { lng?: unknown }).lng;
+  if (typeof latFn !== "function" || typeof lngFn !== "function") return null;
+  const lat = (latFn as () => unknown).call(value);
+  const lng = (lngFn as () => unknown).call(value);
+  if (typeof lat !== "number" || typeof lng !== "number") return null;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
 }
 
 function clearMarkers(
