@@ -39,12 +39,23 @@ public class CommentReactionService implements CommentReactionUseCase {
             throw new BusinessException(FeedErrorCode.COMMENT_FEED_MISMATCH);
         }
 
+        // 삭제된 댓글에는 좋아요 불가
+        if (comment.getDeletedAt() != null) {
+            throw new BusinessException(FeedErrorCode.COMMENT_ALREADY_DELETED);
+        }
+
+        // 숨김 처리된 댓글에는 좋아요 불가
+        if (comment.getHiddenAt() != null) {
+            throw new BusinessException(FeedErrorCode.COMMENT_HIDDEN);
+        }
+
         // 이미 좋아요했는지 확인 — 중복 좋아요 방지
         if (commentReactionRepository.existsCommentLike(commentId, userId)) {
             throw new BusinessException(FeedErrorCode.ALREADY_COMMENT_LIKED);
         }
 
         commentReactionRepository.saveCommentLike(commentId, userId);
+        commentRepository.incrementLikeCount(commentId);
     }
 
     @Override
@@ -66,5 +77,6 @@ public class CommentReactionService implements CommentReactionUseCase {
         if (!deleted) {
             throw new BusinessException(FeedErrorCode.COMMENT_LIKE_NOT_FOUND);
         }
+        commentRepository.decrementLikeCount(commentId);
     }
 }

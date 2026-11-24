@@ -3,6 +3,7 @@ package com.pickong.feed.adapter.out.persistence.repository;
 import com.pickong.feed.adapter.out.persistence.entity.CommentJpaEntity;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -33,4 +34,12 @@ public interface CommentJpaRepository extends JpaRepository<CommentJpaEntity, Lo
     List<CommentJpaEntity> findRepliesByParentId(@Param("parentId") Long parentId,
             @Param("cursor") Long cursor,
             Pageable pageable);
+
+    @Modifying
+    @Query("UPDATE CommentJpaEntity c SET c.likeCount = c.likeCount + 1 WHERE c.id = :commentId")
+    void incrementLikeCount(@Param("commentId") Long commentId);
+
+    @Modifying
+    @Query("UPDATE CommentJpaEntity c SET c.likeCount = c.likeCount - 1 WHERE c.id = :commentId AND c.likeCount > 0")
+    void decrementLikeCount(@Param("commentId") Long commentId);
 }

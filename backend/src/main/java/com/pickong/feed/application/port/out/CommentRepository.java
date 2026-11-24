@@ -16,4 +16,8 @@ public interface CommentRepository {
     Comment findById(Long commentId);
 
     void deleteById(Long commentId);
+
+    void incrementLikeCount(Long commentId);
+
+    void decrementLikeCount(Long commentId);
 }
