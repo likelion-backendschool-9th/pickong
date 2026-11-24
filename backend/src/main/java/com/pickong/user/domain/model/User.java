@@ -4,6 +4,7 @@ import com.pickong.common.error.BusinessException;
 import com.pickong.user.domain.UserErrorCode;
 import com.pickong.user.domain.vo.UserStatus;
 import com.pickong.user.domain.vo.Username;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -16,7 +17,7 @@ import lombok.Getter;
  * <p>email · passwordHash는 소셜 전용 계정이면 없습니다.
  */
 @Getter
-@Builder
+@Builder(toBuilder = true)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class User {
     private Long id;
@@ -29,6 +30,8 @@ public class User {
     /** 이름 (중복 가능, 없으면 null) */
     private String displayName;
     private String bio;
+    /** 활동 지역 (자유 입력, 없으면 null) */
+    private String region;
     private String profileImageUrl;
     private UserStatus status;
     private OffsetDateTime suspendedUntil;
@@ -38,11 +41,19 @@ public class User {
     private OffsetDateTime withdrawalRequestedAt;
     private OffsetDateTime deletedAt;
     private OffsetDateTime lastLoginAt;
+    /** 마지막으로 아이디를 바꾼 시각. 가입 후 바꾼 적이 없으면 null */
+    private OffsetDateTime usernameChangedAt;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 
     /** 이름(display_name) 최대 길이. 프론트(entities/user/name.ts)와 같음 */
     public static final int NAME_MAX = 20;
+    /** 소개 최대 길이. 프론트 프로필 편집 입력 제한과 같음 */
+    public static final int BIO_MAX = 150;
+    /** 활동 지역 최대 길이. 프론트 프로필 편집 입력 제한과 같음 */
+    public static final int REGION_MAX = 20;
+    /** 아이디를 다시 바꿀 수 있기까지의 간격 */
+    public static final Duration USERNAME_CHANGE_INTERVAL = Duration.ofDays(14);
 
     /**
      * 온보딩을 마친 신규 회원을 만듭니다. (id는 저장할 때 DB가 채움)
@@ -70,12 +81,57 @@ public class User {
 
     /** 이름 규칙: 공백 정리 → 비면 null → 20자(코드 포인트 기준, 한글 · 이모지 한 글자 = 1) 초과면 오류 */
     static String normalizeName(String name) {
-        if (name == null || name.isBlank()) {
+        return normalizeText(name, NAME_MAX, UserErrorCode.INVALID_NAME);
+    }
+
+    /**
+     * 아이디를 바꾼 새 회원 값을 돌려줍니다. (domain 모델은 값을 직접 바꾸지 않고 새 값을 만듭니다)
+     * <ul>
+     *   <li>지금 아이디와 같으면 바꾸지 않은 것으로 보고 그대로 돌려줍니다. (프로필 편집은 아이디를 늘 함께 보내므로,
+     *       다른 항목만 고쳤는데 14일 제한이 시작되면 안 됨)</li>
+     *   <li>마지막 변경 후 14일이 지나지 않았으면 USERNAME_CHANGE_TOO_SOON</li>
+     * </ul>
+     * 다른 회원이 쓰는지 · 예약어인지는 저장소를 봐야 해서 서비스가 확인합니다.
+     */
+    public User changeUsername(Username newUsername, OffsetDateTime now) {
+        if (newUsername.value().equals(username)) {
+            return this;
+        }
+        OffsetDateTime changeableAt = usernameChangeableAt();
+        if (changeableAt != null && now.isBefore(changeableAt)) {
+            throw new BusinessException(UserErrorCode.USERNAME_CHANGE_TOO_SOON);
+        }
+        return toBuilder().username(newUsername.value()).usernameChangedAt(now).updatedAt(now).build();
+    }
+
+    /** 다음에 아이디를 바꿀 수 있는 시각. 바꾼 적이 없으면 null(지금 바로 가능) */
+    public OffsetDateTime usernameChangeableAt() {
+        return usernameChangedAt == null ? null : usernameChangedAt.plus(USERNAME_CHANGE_INTERVAL);
+    }
+
+    /** 이름을 바꿉니다. null · 빈 값이면 이름을 지웁니다(화면에는 아이디가 대신 보임). 규칙은 가입과 같습니다. */
+    public User rename(String name, OffsetDateTime now) {
+        return toBuilder().displayName(normalizeName(name)).updatedAt(now).build();
+    }
+
+    /** 소개를 바꿉니다. 앞뒤 공백 정리 → 비면 null → 150자 초과면 INVALID_BIO (줄바꿈은 그대로 둠) */
+    public User changeBio(String bio, OffsetDateTime now) {
+        return toBuilder().bio(normalizeText(bio, BIO_MAX, UserErrorCode.INVALID_BIO)).updatedAt(now).build();
+    }
+
+    /** 활동 지역을 바꿉니다. 앞뒤 공백 정리 → 비면 null → 20자 초과면 INVALID_REGION */
+    public User changeRegion(String region, OffsetDateTime now) {
+        return toBuilder().region(normalizeText(region, REGION_MAX, UserErrorCode.INVALID_REGION)).updatedAt(now).build();
+    }
+
+    /** 자유 입력 칸 공통 규칙: 앞뒤 공백 정리 → 비면 null → 최대 글자 수(코드 포인트 기준) 초과면 오류 */
+    private static String normalizeText(String value, int max, UserErrorCode tooLong) {
+        if (value == null || value.isBlank()) {
             return null;
         }
-        String trimmed = name.trim();
-        if (trimmed.codePointCount(0, trimmed.length()) > NAME_MAX) {
-            throw new BusinessException(UserErrorCode.INVALID_NAME);
+        String trimmed = value.strip();
+        if (trimmed.codePointCount(0, trimmed.length()) > max) {
+            throw new BusinessException(tooLong);
         }
         return trimmed;
     }

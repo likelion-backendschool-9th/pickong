@@ -19,4 +19,10 @@ public interface UserPersistencePort {
      * 그 경우 USERNAME_TAKEN · EMAIL_ALREADY_REGISTERED로 바꿔 던집니다.
      */
     User save(User user);
+
+    /**
+     * 프로필 항목(아이디 · 이름 · 소개 · 활동 지역 · 아이디 변경 시각)만 저장합니다. 다른 컬럼은 건드리지 않습니다.
+     * 동시에 같은 아이디로 바꾸면 DB UNIQUE가 막고 USERNAME_TAKEN으로 바꿔 던집니다.
+     */
+    void updateProfile(User user);
 }

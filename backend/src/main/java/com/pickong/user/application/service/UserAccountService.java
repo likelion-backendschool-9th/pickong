@@ -4,7 +4,6 @@ import com.pickong.common.error.BusinessException;
 import com.pickong.user.application.dto.RegisterUserCommand;
 import com.pickong.user.application.dto.RegisteredUser;
 import com.pickong.user.application.port.in.UserAccountUseCase;
-import com.pickong.user.application.port.in.UserQueryUseCase;
 import com.pickong.user.application.port.out.UserPersistencePort;
 import com.pickong.user.domain.UserErrorCode;
 import com.pickong.user.domain.model.User;
@@ -15,12 +14,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 회원 계정: 로그인 가능 여부, 신규 회원 생성, 닉네임 사용 가능 여부.
- * (in-port는 사용처별로 나눴지만 규칙이 같은 닉네임 · 회원 데이터를 다뤄서 구현은 하나입니다)
+ * auth 모듈 전용 회원 계정 기능: 로그인 가능 여부, 신규 회원 생성.
+ * (닉네임 사용 가능 여부 · 내 정보 · 프로필 수정은 {@link UserProfileService})
  */
 @Service
 @Transactional(readOnly = true)
-public class UserAccountService implements UserAccountUseCase, UserQueryUseCase {
+public class UserAccountService implements UserAccountUseCase {
 
     private final UserPersistencePort userPersistencePort;
     private final Clock clock;
@@ -54,12 +53,5 @@ public class UserAccountService implements UserAccountUseCase, UserQueryUseCase 
         User user = User.register(username, command.name(), command.email(), command.profileImageUrl(), OffsetDateTime.now(clock));
         User saved = userPersistencePort.save(user);
         return new RegisteredUser(saved.getId(), saved.getUsername());
-    }
-
-    /** 형식이 틀리면 400, 예약어이거나 누가 쓰고 있으면 false */
-    @Override
-    public boolean isUsernameAvailable(String rawUsername) {
-        Username username = Username.of(rawUsername);
-        return !username.isReserved() && !userPersistencePort.existsByUsername(username.value());
     }
 }

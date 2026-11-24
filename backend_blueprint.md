@@ -232,12 +232,21 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 > - **콜백 규칙(`SocialAccountService.link`):** 회원 상태(ACCOUNT_UNAVAILABLE) → 이미 내 계정에 연결된 같은 계정이면 그대로 성공 → 남의 계정이면 SOCIAL_ACCOUNT_ALREADY_LINKED → 같은 제공자의 다른 계정이 있으면 PROVIDER_ALREADY_LINKED → 인증된 이메일이 다른 회원의 소셜 계정에 있으면 EMAIL_ALREADY_REGISTERED. 동시 요청은 DB UNIQUE가 막고 어댑터가 제약 이름(`uk_user_social_accounts_user_provider` 추가)으로 같은 코드로 바꿉니다. 로그인 세션 쿠키는 건드리지 않습니다.
 > - 해제는 찜콩 DB에서만(카카오 unlink · Google revoke는 호출하지 않음, 제공자 토큰을 저장하지 않으므로). 탈퇴 기능을 만들 때 다시 검토합니다.
 
+> **내 정보 · 프로필 수정 결정 (7단계)**
+> - **Flyway V3:** `users.region VARCHAR(20)`(활동 지역), `users.username_changed_at TIMESTAMPTZ`(마지막 아이디 변경 시각) 추가 (ERD 반영 필요).
+> - **아이디는 14일에 한 번.** 가입 후 첫 변경은 바로 가능(온보딩 오타 수정). 지금과 같은 아이디를 보내면 변경으로 치지 않습니다(프로필 편집은 아이디를 늘 함께 보냄). 다음 변경 가능 시각은 `GET /me`의 `usernameChangeableAt`(지금 가능하면 null). 예전 아이디 보호(다른 사람이 바로 가져가는 것 방지)는 하지 않았고, 필요해지면 아이디 이력 테이블로 추가합니다.
+> - **PATCH는 보낸 항목만 변경**, `null`은 지우기(아이디는 지울 수 없어 400). Jackson 3은 record · Optional로 '없음'과 'null'을 구분하지 못해, 요청 DTO는 setter가 불린 항목만 기록합니다. 한 항목이라도 틀리면 아무것도 저장하지 않습니다.
+> - 규칙은 domain(`User.changeUsername` · `rename` · `changeBio` · `changeRegion`): 앞뒤 공백 정리 → 비면 null → 이름 20 · 소개 150 · 지역 20자(코드 포인트). 사용 중 · 예약어 확인은 `UserProfileService`.
+> - **저장은 프로필 컬럼만 UPDATE**(`UserJpaRepository.updateProfile`). 엔티티 전체를 저장하면 같은 순간 다른 모듈이 바꾼 `follower_count` · `feed_count`를 옛 값으로 덮을 수 있어서입니다.
+> - 응답의 `id`는 `users.public_id`(UUID, 순번 노출 방지). `postCount` · `followerCount` · `followingCount`는 users의 집계 컬럼(피드 · 팔로우 기능 전까지 0), `isCreator`는 크리에이터 기능 전까지 false.
+> - `isUsernameAvailable`은 `UserAccountService`(auth 전용)에서 `UserProfileService`로 옮겼습니다(Query · Command 유스케이스를 함께 구현).
+
 ### user
 | 메서드 | 경로 | 입력 포트 · 메서드 | 비고 |
 | --- | --- | --- | --- |
 | GET | `/auth/username-availability` | `UserQueryUseCase.isUsernameAvailable` | 경로는 auth지만 데이터는 user. 대소문자 무시, 예약어는 사용 중 |
-| GET | `/me` | `UserQueryUseCase.getMe` | |
-| PUT | `/me` | `UserCommandUseCase.updateProfile` | |
+| GET | `/me` | `UserQueryUseCase.getMe` | 프론트 UserDto 모양 + `usernameChangeableAt` |
+| PATCH | `/me` | `UserCommandUseCase.updateProfile` | 보낸 항목만 변경 (아이디 · 이름 · 소개 · 활동 지역) |
 | DELETE | `/me` | `UserCommandUseCase.requestWithdrawal` | WITHDRAWN_PENDING, 30일 후 익명화 |
 | GET | `/users/{username}` | `UserQueryUseCase.getProfile` | |
 | GET | `/users/search` | `UserQueryUseCase.search` | 차단 관계 제외 |
