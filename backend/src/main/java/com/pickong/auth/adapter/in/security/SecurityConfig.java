@@ -6,6 +6,7 @@ import jakarta.servlet.DispatcherType;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -119,8 +120,8 @@ public class SecurityConfig {
                         // 오류 응답을 만드는 내부 포워드(/error)는 막지 않아야 원래 오류(404 · 500 등)가 그대로 보입니다.
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(PUBLIC_PATHS).permitAll()
-                        // TODO(#38): 피드 API에 @CurrentUser 연동이 끝나면 이 줄을 지우고, 공개할 조회 API만 따로 엽니다.
-                        .requestMatchers("/feeds/**").permitAll()
+                        // 피드 단건 조회 — 공유 링크로 비로그인 접근 허용 (목록·장소 조회는 로그인 필수)
+                        .requestMatchers(HttpMethod.GET, "/feeds/*").permitAll()
                         // 관리자 API. 회원(ROLE_USER)은 403, 비로그인은 401. 공개로 열지 않습니다.
                         // 관리자 로그인 필터는 아직 없고, 인증된 AdminPrincipal(ROLE_ADMIN)만 통과합니다.
                         // POST의 CSRF 검사는 이 규칙보다 먼저라, 토큰이 없으면 403 INVALID_CSRF_TOKEN입니다.
