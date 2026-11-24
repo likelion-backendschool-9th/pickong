@@ -242,6 +242,11 @@ API 명세서에서 **'보류'**로 표시한 기능입니다. 프론트·백엔
   - 약관 본문은 버전마다 DB(`terms_sections`)에 두므로 회원이 동의한 버전의 내용이 그대로 남음. 문구를 바꾸면 새 버전을 추가하고 고치지 않음
   - API: `GET /terms/{type}` → `{ type, title, required, version, effectiveDate, sections: [{ heading, body }] }`(지금 시행 중인 버전, 없으면 404 `TERMS_NOT_FOUND`) · `GET /me/agreements` → `[{ type, title, required, version, agreed, agreedAt }]`(동의했으면 동의한 버전과 그 버전의 제목) · `PATCH /me/agreements` `{ type, agreed }` → 바뀐 목록 (필수 약관이면 400 `REQUIRED_TERMS_CANNOT_BE_REVOKED`, 모르는 종류 400 `UNKNOWN_TERMS`, `agreed`가 true · false가 아니면(빠짐 · 숫자 · 문자열) 400 `INVALID_INPUT`)
   - 철회는 동의 기록을 지우지 않고 철회 시각만 남김. 같은 상태를 다시 보내거나 동시에 보내도 동의 기록은 하나
+- 약관 새 버전 재동의(`/terms/consent`, 로그인 필요): 새 버전마다 '재동의 필요' 여부를 정함. 필요한 버전이 시행되면 예전 동의를 인정하지 않음
+  - 필수 약관: 동의할 때까지 서비스를 쓸 수 없음. 서버가 동의 · 로그아웃 · 탈퇴 외의 요청을 403 `TERMS_RECONSENT_REQUIRED`로 막고, 프론트는 이 오류를 받으면 `/terms/consent`로 이동
+  - 선택 약관(마케팅): 예전에 동의했던 회원에게만 다시 묻고, 거절해도 서비스는 그대로. 거절하면 예전 동의를 철회해 다시 묻지 않음
+  - 로그인 직후 동의 받을 약관이 있으면 `/feed` 대신 `/terms/consent`로 이동
+  - API: `GET /me/agreements/pending` → `[{ type, title, required, version }]`(지금 시행 중인 버전, 없으면 빈 배열) · `POST /me/agreements` `{ agreedTerms: ["SERVICE", "PRIVACY"] }` → 바뀐 동의 목록(`GET /me/agreements`와 같은 모양). 동의 받을 필수 약관이 빠지면 400 `REQUIRED_TERMS_NOT_AGREED`, 모르는 종류 400 `UNKNOWN_TERMS`
 - [껍데기] 프로필 페이지: 게시물 · 컬렉션 · 방문 탭 (본인 프로필에는 일정 탭 추가)
   - 방문: 그 사용자가 게시물에 연결한 장소를 기록(목록) ↔ 지도로 전환해서 봄 (`GET /api/users/:username/posts`, `GET /api/users/:username/places`, 내가 볼 수 있는 게시물만). 저장한 장소 전체를 다루는 ‘내 지도’와 별개
   - 일정: 곧 떠나는 하루 + 지난 일정(방문 기록). 본인만 조회. `/plans`는 내 프로필 일정 탭으로 이동
