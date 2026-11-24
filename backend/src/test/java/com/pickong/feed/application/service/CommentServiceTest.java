@@ -1,7 +1,7 @@
 package com.pickong.feed.application.service;
 
 import com.pickong.common.error.BusinessException;
-import com.pickong.common.error.ErrorCode;
+import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.feed.application.dto.CommentPage;
 import com.pickong.feed.application.dto.CreateCommentCommand;
 import com.pickong.feed.application.dto.UpdateCommentCommand;
@@ -85,7 +85,7 @@ class CommentServiceTest {
     void updateComment_존재하지않는id_예외발생() {
         // given
         given(commentRepository.findById(999L))
-                .willThrow(new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
+                .willThrow(new BusinessException(FeedErrorCode.COMMENT_NOT_FOUND));
 
         // when & then
         assertThatThrownBy(() -> commentService.updateComment(10L, 999L,
@@ -117,7 +117,7 @@ class CommentServiceTest {
     void deleteComment_존재하지않는id_예외발생() {
         // given
         given(commentRepository.findById(999L))
-                .willThrow(new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
+                .willThrow(new BusinessException(FeedErrorCode.COMMENT_NOT_FOUND));
 
         // when & then
         assertThatThrownBy(() -> commentService.deleteComment(10L, 999L))
@@ -146,7 +146,7 @@ class CommentServiceTest {
     void createComment_존재하지않는_feedId_예외발생() {
         // given: 없는 feedId → FEED_NOT_FOUND
         given(feedRepository.findById(999L))
-                .willThrow(new BusinessException(ErrorCode.FEED_NOT_FOUND));
+                .willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND));
 
         CreateCommentCommand command = new CreateCommentCommand(1L, null, "댓글");
 

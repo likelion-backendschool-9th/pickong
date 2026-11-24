@@ -36,7 +36,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | DB | PostgreSQL 16 + PostGIS | `GEOGRAPHY(Point, 4326)`, GiST 인덱스, 부분 UNIQUE 인덱스 |
 | 영속성 | Spring Data JPA (+ Hibernate Spatial) | 화면 조회는 JdbcClient 네이티브 SQL 또는 QueryDSL (팀 결정) |
 | 마이그레이션 | Flyway (`spring-boot-starter-flyway`) | `resources/db/migration`. V1은 인증 테이블만, 나머지는 각 모듈이 V2부터 추가. 스키마는 Flyway만 만들고 `ddl-auto: none` |
-| 보안 | Spring Security, OAuth2 Client(카카오 · Google), JWT | 이메일 · 비밀번호 로그인 없음 |
+| 보안 | Spring Security 7, OAuth2 Client(카카오 · Google), JWT(Spring Security의 Nimbus 인코더 · 디코더) | 이메일 · 비밀번호 로그인 없음. 보안 설정 상세는 아래 '보안 결정' |
 | 실시간 | Spring WebSocket + STOMP | DM |
 | 테스트 | JUnit 5, ArchUnit, Testcontainers(PostGIS 16) | `TestcontainersConfiguration`. Docker가 없으면 DB 테스트는 실패(건너뛰지 않음) |
 
@@ -136,7 +136,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | 관리자 API | **업무 규칙과 컨트롤러는 담당 모듈, `admin`은 인증 · 역할 · 작업 기록** | 1.3 #1 |
 | `/me/**` API | 경로가 아니라 **반환 데이터의 소유자**로 배정 | `/me/purchases` → `collection`, `/me/payments` → `payment`, `/me/creator/settlements` → `settlement`, `/me/bookmarked-feeds` → `feed` |
 | `/users/{username}/**` API | 마찬가지로 반환 데이터 기준 | `/feeds` → `feed`, `/collections` → `collection`, `/plans` → `plan`, `/saved-places` → `savedplace` |
-| `GET /auth/check-username` | **`user`** | `users.username`의 규칙과 UNIQUE는 `user`가 소유합니다 |
+| `GET /auth/username-availability` | **`user`** | `users.username`의 규칙과 UNIQUE는 `user`가 소유합니다 (`UsernameController`) |
 
 ### 2.3 다른 모듈의 요청으로 바뀌는 컬럼
 
@@ -168,13 +168,16 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 ### auth
 | 메서드 | 경로 | 입력 포트 · 메서드 | 비고 |
 | --- | --- | --- | --- |
-| POST | `/auth/signup` | `SignUpUseCase.signUp` | 필수 약관 확인(terms) → 회원 생성(user) → 토큰 |
-| POST | `/auth/login` | `LoginUseCase.login` | |
-| GET | `/oauth2/authorization/google` | Spring Security → `OAuth2LoginSuccessHandler` → `LoginUseCase.loginWithSocial` | 컨트롤러 없음 |
+| GET | `/auth/signup` | `SignUpUseCase.getSession` | 임시 가입 쿠키의 소셜 계정 정보 (온보딩 기본값) |
+| POST | `/auth/signup` | `SignUpUseCase.signUp` + `TokenUseCase.issue` | 회원 생성(user) → 소셜 계정 연결 → 약관 동의(terms), 한 트랜잭션 → 세션 쿠키 |
+| DELETE | `/auth/signup` | 컨트롤러만 (가입 쿠키 삭제) | 서버에 남는 것 없음 |
+| GET | `/auth/oauth2/authorization/{kakao\|google}` → 콜백 `/auth/oauth2/callback/{provider}` | Spring Security → `OAuth2LoginSuccessHandler` → `LoginUseCase.loginWithSocial` + `TokenUseCase.issue` | 컨트롤러 없음 |
 | POST | `/auth/refresh` | `TokenUseCase.refresh` | 로테이션 · 재사용 감지 |
 | POST | `/auth/logout` | `TokenUseCase.logout` | |
-| POST | `/auth/password-reset/request` | `PasswordResetUseCase.request` | |
-| POST | `/auth/password-reset/confirm` | `PasswordResetUseCase.confirm` | |
+| GET | `/me/social-accounts` | `SocialAccountUseCase.list` | 연결 순서대로, 가입 수단은 `canUnlink=false` |
+| POST | `/me/social-accounts/{kakao\|google}` | `SocialAccountUseCase.startLink` | 연결 토큰(5분)이 붙은 시작 주소 `{authorizationUrl}` |
+| (콜백) | `/auth/oauth2/authorization/{provider}?link=` → 콜백 | `LinkAwareAuthorizationRequestResolver` → `OAuth2LoginSuccessHandler` → `SocialAccountUseCase.link` | 결과는 `/settings/login-methods?linked=` · `?error=` |
+| DELETE | `/me/social-accounts/{kakao\|google}` | `SocialAccountUseCase.unlink` | 찜콩에서만 해제, 가입 수단은 409 |
 | WS | `/ws` (CONNECT) | `auth/adapter/in/websocket` 인증 인터셉터 | 5.4 |
 
 > **소셜 로그인 스키마 결정 (V1)**
@@ -182,12 +185,68 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 > - 이메일 1인 1계정: 제공자가 준 **인증된** 이메일만 저장합니다 (가입 계정 → `users.email`, 연결 계정마다 → `user_social_accounts.email`, ERD에 컬럼 추가). 가입 · 연결하려는 소셜 계정의 이메일이 다른 회원의 이메일과 겹치면 "이미 가입된 이메일"로 막고 자동 연결은 하지 않습니다. `users.email`은 대소문자 무시 UNIQUE로 DB가 보장하고, 연결 계정 이메일은 같은 회원의 카카오 · Google 이메일이 같을 수 있어 서비스에서 확인합니다. 카카오는 이메일을 주지 않을 수 있어 확실한 1인 1계정은 이후 휴대폰 본인확인으로 보장합니다.
 > - 닉네임(`username`)은 대소문자 무시 UNIQUE, 이름(`display_name`)은 NULL 허용. 회원 행은 온보딩을 마칠 때 만들어지므로 온보딩 완료 여부 컬럼은 두지 않습니다.
 
+> **보안 결정 (2단계)**
+> - **Access Token:** JWT · HS256 · 15분, 쿠키 `pickong_at`. 내용은 `iss=pickong`, `sub=회원 id`, `iat`, `exp`만 (개인정보 없음). 비밀값은 환경변수 `JWT_SECRET` 또는 `backend/.env`, 기본값 없음(없으면 시작 실패).
+>   - 백엔드와 **별개인 서버**(예: 분리된 WebSocket 서버, 다른 서비스)가 토큰을 직접 검증하게 되면 비밀값을 나눠 주지 않도록 **RS256(공개키 검증)으로 바꿉니다.** Refresh Token은 DB에 있는 별개 값이라 바꿔도 사용자는 로그아웃되지 않습니다.
+> - **인증 필터:** `JwtCookieAuthenticationFilter`가 쿠키 토큰을 검증하고, 실패하면 거절하지 않고 비로그인으로 통과시킵니다. 로그인이 필요한 경로는 인가 단계가 401로 막고, 공개 경로(재발급 등)는 만료된 쿠키가 있어도 동작해야 하기 때문입니다. (Resource Server 필터는 잘못된 토큰이면 공개 경로에서도 401을 내서 쓰지 않음)
+> - **세션 없음(STATELESS)**, 폼 로그인 · Basic · 기본 로그아웃 끔. 401 · 403은 공통 오류 형식 JSON.
+> - **CSRF:** 쿠키 SameSite=Lax + Spring CSRF 토큰(SPA 방식: `XSRF-TOKEN` 쿠키 → `X-XSRF-TOKEN` 헤더). 토큰 오류는 403 `INVALID_CSRF_TOKEN`으로 권한 오류와 구분합니다. GET으로 상태를 바꾸지 않습니다.
+> - **경로 기준:** DispatcherServlet이 `/api/v1`이라 Spring Boot가 보안 경로 패턴의 basePath를 `/api/v1`로 잡습니다. 보안 설정의 경로는 `/api/v1`을 빼고 적습니다.
+> - **`@CurrentUser LoginUser`**(common/security) + `CurrentUserArgumentResolver`(common/web). `required = false`면 비로그인 시 null.
+
+> **Refresh Token 결정 (3단계)**
+> - 랜덤 256비트 문자열(JWT 아님), DB에는 SHA-256 해시만. 수명 14일, 재발급할 때마다 '지금 + 14일'로 연장(슬라이딩).
+> - **로테이션 · 재사용 감지:** 재발급하면 쓴 토큰을 폐기(`revoked_at`)하고 같은 family로 새 토큰 발급. 폐기된 토큰이 다시 오면 family 전체 폐기. 폐기는 조건부 UPDATE(`WHERE revoked_at IS NULL`)라 같은 토큰으로 동시에 와도 한 요청만 성공합니다. 별도 '로테이션됨' 컬럼 없이 `revoked_at` 하나로 판단합니다.
+> - 세션 폐기 후 401을 던질 때 폐기가 롤백되지 않도록 `refresh`는 `@Transactional(noRollbackFor = BusinessException.class)`.
+> - **동시 재발급:** 서버는 엄격(유예 시간 없음). 여러 탭이 같은 토큰으로 동시에 재발급하지 않도록 프론트가 Web Locks API로 줄을 세웁니다(프론트 연동 단계).
+> - **재발급 시 회원 상태 확인:** `UserAccountUseCase.canLogin`(user 모듈의 auth 전용 in-port). ACTIVE가 아니면 세션 폐기 + 401. 정지 회원 정책(8.5 #7)은 '로그인 불가'로 가정.
+> - **로그아웃:** 이 기기(family)만 폐기. 모든 기기 로그아웃은 필요해지면 추가.
+> - **쿠키:** `pickong_at`(Path=/, Max-Age 15분), `pickong_rt`(Path=/api/v1/auth, Max-Age 14일), 모두 HttpOnly · SameSite=Lax. Secure(`COOKIE_SECURE`, 기본 true) · Domain(`COOKIE_DOMAIN`, 기본 비움)은 설정값.
+> - 만료 · 폐기된 토큰 행을 지우는 `ExpiredTokenCleanupScheduler`는 아직 없음 (후속).
+
+> **소셜 로그인 결정 (4단계)**
+> - Spring Security OAuth2 Client(`spring-boot-starter-security-oauth2-client`). 카카오는 provider 주소를 직접 등록, Google은 기본 등록(OIDC, `openid` scope로 ID 토큰 · nonce 검증).
+> - 경로: 시작 `/api/v1/auth/oauth2/authorization/{provider}`, 콜백 `/api/v1/auth/oauth2/callback/{provider}`. **OAuth2 필터 matcher에는 Boot basePath가 붙지 않아 전체 경로로 설정**(실제 서버 TRACE 로그로 확인).
+> - Redirect URI는 `FRONTEND_BASE_URL` 기준(프론트 도메인으로 받아 Next가 전달 → 쿠키가 프론트 도메인에 저장). Spring 7은 콜백 URL과 등록 주소의 일치가 아니라 state만 비교하므로 백엔드가 Next 뒤에 있어도 동작.
+> - **OAuth state:** 세션 대신 서명된 쿠키(`pickong_oauth`, 10분, `SignedCookieAuthorizationRequestRepository`). 콜백의 state와 쿠키의 state가 같을 때만 진행, 한 번 쓰면 삭제.
+> - **서명 토큰 종류 구분:** Access · 임시 가입 · OAuth state를 모두 같은 키(HS256)로 서명하므로 `token_type` 클레임으로 구분하고(`JwtCodec`), 읽을 때 기대한 종류가 아니면 거절. (임시 가입 토큰의 sub는 카카오 회원번호라, 구분하지 않으면 Access Token으로 통과할 수 있음)
+> - **판단(`LoginService`)과 세션 발급(`TokenService`)을 분리**하고 OAuth2 성공 처리(`OAuth2LoginSuccessHandler`)가 이어 붙임. 서비스끼리 호출하지 않는 규칙(4.3) 때문.
+> - 임시 가입 세션: 서명된 쿠키 토큰(`pickong_signup`, 30분, Path=/api/v1/auth). 회원 행은 온보딩 완료(5단계) 때 생성.
+> - 이메일: 제공자가 인증한 것만(카카오 `is_email_valid` · `is_email_verified`, Google `email_verified`), 소문자로 저장 · 비교. 신규 소셜 계정의 이메일이 이미 연결된 소셜 계정 이메일과 같으면 가입 차단(자동 연결 안 함).
+> - 제공자의 Access Token은 저장하지 않음(`NoOpAuthorizedClientRepository`). 프로필 사진은 제공자 URL을 https로 바꿔 그대로 사용(업로드 기능 생기면 복사 검토).
+
+> **온보딩 결정 (5단계)**
+> - 이메일 · 비밀번호 로그인과 비밀번호 재설정은 소셜 로그인 전환으로 없앴습니다(위 표에서 제거). `password_reset_tokens` 엔티티는 남아 있지만 V1에 테이블이 없습니다.
+> - 가입 흐름은 `auth.SignUpService`가 맡고, 회원 생성은 `user`의 `UserAccountUseCase.register`, 약관 동의는 `terms`의 `TermsUseCase.agreeOnSignup`으로 처리합니다. 회원 생성 · 소셜 계정 연결 · 약관 동의가 **한 트랜잭션**이라 하나라도 실패하면 아무것도 남지 않습니다. 세션 발급은 커밋 뒤 컨트롤러가 `TokenUseCase.issue`로.
+> - **닉네임(= ID) 규칙은 `user.domain.vo.Username`**: 영문으로 시작 3~20자, 영문 소문자 · 숫자 · `_` · `.`, 끝 · 연속 마침표 금지, 소문자로 저장. 예약어(admin · pickong · official 등)는 '사용 중'. 이름은 `User.register`에서 공백 정리 · 비면 null · 20자(코드 포인트) 초과 금지.
+> - **약관 초기 데이터는 Flyway `V2__seed_terms.sql`**(SERVICE · PRIVACY 필수, MARKETING 선택, 1.0). 필수 여부는 DB(`is_required`)를 따르고, 종류마다 시행일이 지난 최신 버전으로 동의를 기록. 약관을 바꿀 때는 새 버전 행을 넣는 새 마이그레이션 추가.
+> - **동시 가입:** 서비스가 먼저 확인해 정확한 사유를 알려 주고, 동시에 사전 확인을 통과한 경우는 DB UNIQUE가 막습니다. 어댑터가 `saveAndFlush` 후 제약 이름(`uk_users_username_lower` · `uk_users_email_lower` · `uk_user_social_accounts_provider_id`)으로 `USERNAME_TAKEN` · `EMAIL_ALREADY_REGISTERED` · `SOCIAL_ACCOUNT_ALREADY_LINKED`로 바꿉니다.
+> - 사진은 클라이언트가 주소를 보내지 않고 `useSocialProfileImage` 여부만 보내며, 서버는 임시 가입 토큰에 있는 주소만 씁니다(임의 URL 저장 방지).
+
+> **로그인 수단 연결 결정 (6단계)**
+> - 카카오 · Google을 한 계정에 함께 연결할 수 있고(제공자마다 하나), **가입할 때 쓴 수단은 해제할 수 없습니다.** 가입 수단 = 가장 먼저 연결된 소셜 계정(id가 가장 작은 행). 그 행은 지울 수 없어 계속 첫 번째로 남으므로 DB 컬럼 없이 판별하고, '마지막 남은 수단 해제'도 저절로 생기지 않습니다.
+>   - 검토한 다른 안: 연결 없음(복구 수단 없음), 자체 로그인(비밀번호 · 재설정 메일/SMS · 무차별 대입 방어가 필요하고 소셜 전용 정책이 바뀜), 카카오톡 메시지로 재설정(카카오를 잃으면 받을 수 없음). 소셜과 무관한 복구가 필요해지면 휴대폰 본인확인을 붙입니다.
+> - **연결 시작:** CSRF 보호된 `POST /me/social-accounts/{provider}` → 서명 연결 토큰(`token_type=link`, sub=회원 id, provider, 5분)을 붙인 시작 주소. 시작할 때 `LinkAwareAuthorizationRequestResolver`가 ① 토큰이 유효하고 같은 제공자용인지 ② 로그인 쿠키(`pickong_at`)의 회원과 같은지 확인합니다. 둘 다 맞아야 회원 id를 OAuth 시작 정보에 넣어 서명된 state 쿠키로 콜백까지 가져갑니다. 다른 사이트가 링크로 연결을 시작시키거나, 새어 나간 주소를 남이 쓰는 것을 막습니다. 토큰은 1회용 기록 없이 짧은 만료로만 제한(로그인 쿠키가 함께 있어야 쓸 수 있어서).
+>   - OAuth 시작 필터가 JWT 쿠키 필터보다 앞에 있어 resolver가 쿠키를 직접 검증합니다. 시작 단계 예외는 Spring 기본값이 500이라, 시작 필터에도 `OAuth2LoginFailureHandler`를 연결했습니다(`withObjectPostProcessor`). 그래서 모르는 제공자로 시작해도 이제 `/login?error=OAUTH_FAILED`.
+> - 연결할 때만 `prompt=select_account`로 제공자의 계정 선택 화면을 띄웁니다(브라우저에 다른 사람 계정이 로그인돼 있어도 모르고 연결하지 않게). 일반 로그인은 그대로.
+> - **콜백 규칙(`SocialAccountService.link`):** 회원 상태(ACCOUNT_UNAVAILABLE) → 이미 내 계정에 연결된 같은 계정이면 그대로 성공 → 남의 계정이면 SOCIAL_ACCOUNT_ALREADY_LINKED → 같은 제공자의 다른 계정이 있으면 PROVIDER_ALREADY_LINKED → 인증된 이메일이 다른 회원의 소셜 계정에 있으면 EMAIL_ALREADY_REGISTERED. 동시 요청은 DB UNIQUE가 막고 어댑터가 제약 이름(`uk_user_social_accounts_user_provider` 추가)으로 같은 코드로 바꿉니다. 로그인 세션 쿠키는 건드리지 않습니다.
+> - 해제는 찜콩 DB에서만(카카오 unlink · Google revoke는 호출하지 않음, 제공자 토큰을 저장하지 않으므로). 탈퇴 기능을 만들 때 다시 검토합니다.
+
+> **내 정보 · 프로필 수정 결정 (7단계)**
+> - **Flyway V3:** `users.region VARCHAR(20)`(활동 지역), `users.username_changed_at TIMESTAMPTZ`(마지막 아이디 변경 시각) 추가 (ERD 반영 필요).
+> - **아이디는 14일에 한 번.** 가입 후 첫 변경은 바로 가능(온보딩 오타 수정). 지금과 같은 아이디를 보내면 변경으로 치지 않습니다(프로필 편집은 아이디를 늘 함께 보냄). 다음 변경 가능 시각은 `GET /me`의 `usernameChangeableAt`(지금 가능하면 null). 예전 아이디 보호(다른 사람이 바로 가져가는 것 방지)는 하지 않았고, 필요해지면 아이디 이력 테이블로 추가합니다.
+> - **PATCH는 보낸 항목만 변경**, `null`은 지우기(아이디는 지울 수 없어 400). Jackson 3은 record · Optional로 '없음'과 'null'을 구분하지 못해, 요청 DTO는 setter가 불린 항목만 기록합니다. 한 항목이라도 틀리면 아무것도 저장하지 않습니다.
+> - 규칙은 domain(`User.changeUsername` · `rename` · `changeBio` · `changeRegion`): 앞뒤 공백 정리 → 비면 null → 이름 20 · 소개 150 · 지역 20자(코드 포인트). 사용 중 · 예약어 확인은 `UserProfileService`.
+> - **저장은 프로필 컬럼만 UPDATE**(`UserJpaRepository.updateProfile`). 엔티티 전체를 저장하면 같은 순간 다른 모듈이 바꾼 `follower_count` · `feed_count`를 옛 값으로 덮을 수 있어서입니다.
+> - 응답의 `id`는 `users.public_id`(UUID, 순번 노출 방지). `postCount` · `followerCount` · `followingCount`는 users의 집계 컬럼(피드 · 팔로우 기능 전까지 0), `isCreator`는 크리에이터 기능 전까지 false.
+> - `isUsernameAvailable`은 `UserAccountService`(auth 전용)에서 `UserProfileService`로 옮겼습니다(Query · Command 유스케이스를 함께 구현).
+
 ### user
 | 메서드 | 경로 | 입력 포트 · 메서드 | 비고 |
 | --- | --- | --- | --- |
-| GET | `/auth/check-username` | `UserQueryUseCase.isUsernameAvailable` | 경로는 auth지만 데이터는 user |
-| GET | `/me` | `UserQueryUseCase.getMe` | |
-| PUT | `/me` | `UserCommandUseCase.updateProfile` | |
+| GET | `/auth/username-availability` | `UserQueryUseCase.isUsernameAvailable` | 경로는 auth지만 데이터는 user. 대소문자 무시, 예약어는 사용 중 |
+| GET | `/me` | `UserQueryUseCase.getMe` | 프론트 UserDto 모양 + `usernameChangeableAt` |
+| PATCH | `/me` | `UserCommandUseCase.updateProfile` | 보낸 항목만 변경 (아이디 · 이름 · 소개 · 활동 지역) |
 | DELETE | `/me` | `UserCommandUseCase.requestWithdrawal` | WITHDRAWN_PENDING, 30일 후 익명화 |
 | GET | `/users/{username}` | `UserQueryUseCase.getProfile` | |
 | GET | `/users/search` | `UserQueryUseCase.search` | 차단 관계 제외 |

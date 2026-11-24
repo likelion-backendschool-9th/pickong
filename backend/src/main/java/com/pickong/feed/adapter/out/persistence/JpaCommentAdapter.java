@@ -1,7 +1,7 @@
 package com.pickong.feed.adapter.out.persistence;
 
 import com.pickong.common.error.BusinessException;
-import com.pickong.common.error.ErrorCode;
+import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.feed.adapter.out.persistence.entity.CommentJpaEntity;
 import com.pickong.feed.adapter.out.persistence.repository.CommentJpaRepository;
 import com.pickong.feed.application.port.out.CommentRepository;
@@ -50,7 +50,7 @@ public class JpaCommentAdapter implements CommentRepository {
     public Comment findById(Long commentId) {
         return commentJpaRepository.findById(commentId)
                 .map(CommentJpaEntity::toDomain)
-                .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(FeedErrorCode.COMMENT_NOT_FOUND));
     }
 
     @Override
@@ -58,7 +58,7 @@ public class JpaCommentAdapter implements CommentRepository {
     public void deleteById(Long commentId) {
         // 물리 삭제 대신 deletedAt 설정 (소프트 삭제) — 대댓글 고아 방지
         CommentJpaEntity entity = commentJpaRepository.findById(commentId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(FeedErrorCode.COMMENT_NOT_FOUND));
         entity.softDelete();
     }
 }
