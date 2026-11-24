@@ -2,7 +2,7 @@ package com.pickong.feed.adapter.in.web;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pickong.common.error.BusinessException;
-import com.pickong.common.error.ErrorCode;
+import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.common.error.GlobalExceptionHandler;
 import com.pickong.feed.application.dto.CommentPage;
 import com.pickong.feed.application.port.in.CommentUseCase;
@@ -136,7 +136,7 @@ class CommentControllerTest {
     void updateComment_존재하지않는id_404반환() throws Exception {
         // given
         given(commentUseCase.updateComment(anyLong(), anyLong(), any()))
-                .willThrow(new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
+                .willThrow(new BusinessException(FeedErrorCode.COMMENT_NOT_FOUND));
         Map<String, Object> body = Map.of("content", "수정된 댓글");
 
         // when & then
@@ -156,7 +156,7 @@ class CommentControllerTest {
     @Test
     void deleteComment_존재하지않는id_404반환() throws Exception {
         // given
-        willThrow(new BusinessException(ErrorCode.COMMENT_NOT_FOUND))
+        willThrow(new BusinessException(FeedErrorCode.COMMENT_NOT_FOUND))
                 .given(commentUseCase).deleteComment(anyLong(), anyLong());
 
         // when & then

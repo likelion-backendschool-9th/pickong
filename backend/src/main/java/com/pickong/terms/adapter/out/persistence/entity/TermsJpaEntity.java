@@ -1,5 +1,7 @@
 package com.pickong.terms.adapter.out.persistence.entity;
 
+import com.pickong.terms.domain.model.Terms;
+import com.pickong.terms.domain.vo.TermsType;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -42,4 +44,18 @@ public class TermsJpaEntity {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
+
+    /** DB 행을 domain 모델로 바꿉니다. 종류 문자열은 enum으로 바꿉니다. */
+    public Terms toDomain() {
+        return Terms.builder()
+                .id(id)
+                .type(TermsType.valueOf(type))
+                .version(version)
+                .title(title)
+                .contentUrl(contentUrl)
+                .required(isRequired)
+                .effectiveAt(effectiveAt)
+                .createdAt(createdAt)
+                .build();
+    }
 }

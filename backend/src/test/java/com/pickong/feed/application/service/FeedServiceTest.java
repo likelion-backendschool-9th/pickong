@@ -2,7 +2,7 @@ package com.pickong.feed.application.service;
 
 import com.pickong.common.domain.Visibility;
 import com.pickong.common.error.BusinessException;
-import com.pickong.common.error.ErrorCode;
+import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.feed.application.dto.CreateFeedCommand;
 import com.pickong.feed.application.dto.UpdateFeedCommand;
 import com.pickong.feed.application.port.out.FeedRepository;
@@ -108,7 +108,7 @@ class FeedServiceTest {
     void getFeed_존재하지않는id_예외발생() {
         // given: 없는 id 조회 시 BusinessException 던지도록 설정
         given(feedRepository.findById(999L))
-                .willThrow(new BusinessException(ErrorCode.FEED_NOT_FOUND));
+                .willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND));
 
         // when & then
         assertThatThrownBy(() -> feedService.getFeed(999L))
@@ -120,7 +120,7 @@ class FeedServiceTest {
     void updateFeed_존재하지않는id_예외발생() {
         // given: 없는 id 조회 시 BusinessException 던지도록 설정
         given(feedRepository.findById(999L))
-                .willThrow(new BusinessException(ErrorCode.FEED_NOT_FOUND));
+                .willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND));
 
         // when & then
         assertThatThrownBy(() -> feedService.updateFeed(999L,
@@ -131,7 +131,7 @@ class FeedServiceTest {
     @Test
     void deleteFeed_존재하지않는id_예외발생() {
         // given: 없는 id 삭제 시 BusinessException 던지도록 설정
-        willThrow(new BusinessException(ErrorCode.FEED_NOT_FOUND))
+        willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND))
                 .given(feedRepository).deleteById(999L);
 
         // when & then

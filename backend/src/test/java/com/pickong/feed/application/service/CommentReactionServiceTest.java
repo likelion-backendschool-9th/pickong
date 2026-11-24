@@ -1,7 +1,7 @@
 package com.pickong.feed.application.service;
 
 import com.pickong.common.error.BusinessException;
-import com.pickong.common.error.ErrorCode;
+import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.feed.application.port.out.CommentReactionRepository;
 import com.pickong.feed.application.port.out.CommentRepository;
 import com.pickong.feed.application.port.out.FeedRepository;
@@ -63,7 +63,7 @@ class CommentReactionServiceTest {
     @Test
     void likeComment_존재하지않는피드_예외발생() {
         given(feedRepository.findById(anyLong()))
-                .willThrow(new BusinessException(ErrorCode.FEED_NOT_FOUND));
+                .willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND));
 
         assertThatThrownBy(() -> commentReactionService.likeComment(999L, 1L, 2L))
                 .isInstanceOf(BusinessException.class)
@@ -74,7 +74,7 @@ class CommentReactionServiceTest {
     void likeComment_존재하지않는댓글_예외발생() {
         given(feedRepository.findById(10L)).willReturn(sampleFeed());
         given(commentRepository.findById(anyLong()))
-                .willThrow(new BusinessException(ErrorCode.COMMENT_NOT_FOUND));
+                .willThrow(new BusinessException(FeedErrorCode.COMMENT_NOT_FOUND));
 
         assertThatThrownBy(() -> commentReactionService.likeComment(10L, 999L, 2L))
                 .isInstanceOf(BusinessException.class)
@@ -121,7 +121,7 @@ class CommentReactionServiceTest {
     @Test
     void unlikeComment_존재하지않는피드_예외발생() {
         given(feedRepository.findById(anyLong()))
-                .willThrow(new BusinessException(ErrorCode.FEED_NOT_FOUND));
+                .willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND));
 
         assertThatThrownBy(() -> commentReactionService.unlikeComment(999L, 1L, 2L))
                 .isInstanceOf(BusinessException.class)

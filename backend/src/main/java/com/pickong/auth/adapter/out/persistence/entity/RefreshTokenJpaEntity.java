@@ -1,5 +1,6 @@
 package com.pickong.auth.adapter.out.persistence.entity;
 
+import com.pickong.auth.domain.model.RefreshToken;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -39,4 +40,30 @@ public class RefreshTokenJpaEntity {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
+
+    /** domain 모델을 저장할 행으로 바꿉니다. (새 토큰이면 id는 null → DB가 채움) */
+    public static RefreshTokenJpaEntity from(RefreshToken token) {
+        RefreshTokenJpaEntity entity = new RefreshTokenJpaEntity();
+        entity.id = token.getId();
+        entity.userId = token.getUserId();
+        entity.tokenHash = token.getTokenHash();
+        entity.family = token.getFamily();
+        entity.expiresAt = token.getExpiresAt();
+        entity.revokedAt = token.getRevokedAt();
+        entity.createdAt = token.getCreatedAt();
+        return entity;
+    }
+
+    /** DB 행을 domain 모델로 바꿉니다. */
+    public RefreshToken toDomain() {
+        return RefreshToken.builder()
+                .id(id)
+                .userId(userId)
+                .tokenHash(tokenHash)
+                .family(family)
+                .expiresAt(expiresAt)
+                .revokedAt(revokedAt)
+                .createdAt(createdAt)
+                .build();
+    }
 }

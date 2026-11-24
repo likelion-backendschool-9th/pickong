@@ -1,7 +1,7 @@
 package com.pickong.feed.application.service;
 
 import com.pickong.common.error.BusinessException;
-import com.pickong.common.error.ErrorCode;
+import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.feed.application.port.in.CommentReactionUseCase;
 import com.pickong.feed.application.port.out.CommentReactionRepository;
 import com.pickong.feed.application.port.out.CommentRepository;
@@ -36,12 +36,12 @@ public class CommentReactionService implements CommentReactionUseCase {
 
         // 댓글이 해당 피드에 속하는지 확인 — 잘못된 feedId 방지
         if (!comment.getFeedId().equals(feedId)) {
-            throw new BusinessException(ErrorCode.COMMENT_FEED_MISMATCH);
+            throw new BusinessException(FeedErrorCode.COMMENT_FEED_MISMATCH);
         }
 
         // 이미 좋아요했는지 확인 — 중복 좋아요 방지
         if (commentReactionRepository.existsCommentLike(commentId, userId)) {
-            throw new BusinessException(ErrorCode.ALREADY_COMMENT_LIKED);
+            throw new BusinessException(FeedErrorCode.ALREADY_COMMENT_LIKED);
         }
 
         commentReactionRepository.saveCommentLike(commentId, userId);
@@ -58,13 +58,13 @@ public class CommentReactionService implements CommentReactionUseCase {
 
         // 댓글이 해당 피드에 속하는지 확인
         if (!comment.getFeedId().equals(feedId)) {
-            throw new BusinessException(ErrorCode.COMMENT_FEED_MISMATCH);
+            throw new BusinessException(FeedErrorCode.COMMENT_FEED_MISMATCH);
         }
 
         // 좋아요 삭제 — 없으면 COMMENT_LIKE_NOT_FOUND 예외
         boolean deleted = commentReactionRepository.deleteCommentLike(commentId, userId);
         if (!deleted) {
-            throw new BusinessException(ErrorCode.COMMENT_LIKE_NOT_FOUND);
+            throw new BusinessException(FeedErrorCode.COMMENT_LIKE_NOT_FOUND);
         }
     }
 }

@@ -2,7 +2,7 @@ package com.pickong.feed.adapter.in.web;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pickong.common.error.BusinessException;
-import com.pickong.common.error.ErrorCode;
+import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.common.error.GlobalExceptionHandler;
 import com.pickong.feed.application.port.in.CommentReactionUseCase;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,7 +59,7 @@ class CommentReactionControllerTest {
 
     @Test
     void likeComment_이미좋아요_409반환() throws Exception {
-        willThrow(new BusinessException(ErrorCode.ALREADY_COMMENT_LIKED))
+        willThrow(new BusinessException(FeedErrorCode.ALREADY_COMMENT_LIKED))
                 .given(commentReactionUseCase).likeComment(anyLong(), anyLong(), anyLong());
         Map<String, Object> body = Map.of("userId", 2);
 
@@ -72,7 +72,7 @@ class CommentReactionControllerTest {
 
     @Test
     void likeComment_존재하지않는피드_404반환() throws Exception {
-        willThrow(new BusinessException(ErrorCode.FEED_NOT_FOUND))
+        willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND))
                 .given(commentReactionUseCase).likeComment(anyLong(), anyLong(), anyLong());
         Map<String, Object> body = Map.of("userId", 2);
 
@@ -92,7 +92,7 @@ class CommentReactionControllerTest {
 
     @Test
     void unlikeComment_좋아요없음_404반환() throws Exception {
-        willThrow(new BusinessException(ErrorCode.COMMENT_LIKE_NOT_FOUND))
+        willThrow(new BusinessException(FeedErrorCode.COMMENT_LIKE_NOT_FOUND))
                 .given(commentReactionUseCase).unlikeComment(anyLong(), anyLong(), anyLong());
 
         mockMvc.perform(delete("/feeds/10/comments/1/likes")

@@ -1,5 +1,7 @@
 package com.pickong.user.adapter.out.persistence.entity;
 
+import com.pickong.user.domain.model.User;
+import com.pickong.user.domain.vo.UserStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -57,6 +59,14 @@ public class UserJpaEntity {
     @Column(name = "profile_image_url")
     private String profileImageUrl;
 
+    /** 활동 지역 (V3) */
+    @Column(name = "region", length = 20)
+    private String region;
+
+    /** 마지막으로 아이디를 바꾼 시각 (V3). 14일에 한 번 제한에 씀 */
+    @Column(name = "username_changed_at")
+    private OffsetDateTime usernameChangedAt;
+
     // ───────────── 상태 ─────────────
     /**
      * 계정 상태.
@@ -97,4 +107,56 @@ public class UserJpaEntity {
 
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    /** domain 모델을 저장할 행으로 바꿉니다. (새 회원이면 id는 null → DB가 채움) */
+    public static UserJpaEntity from(User user) {
+        UserJpaEntity entity = new UserJpaEntity();
+        entity.id = user.getId();
+        entity.publicId = user.getPublicId();
+        entity.username = user.getUsername();
+        entity.email = user.getEmail();
+        entity.passwordHash = user.getPasswordHash();
+        entity.displayName = user.getDisplayName();
+        entity.bio = user.getBio();
+        entity.profileImageUrl = user.getProfileImageUrl();
+        entity.region = user.getRegion();
+        entity.usernameChangedAt = user.getUsernameChangedAt();
+        entity.status = user.getStatus().name();
+        entity.suspendedUntil = user.getSuspendedUntil();
+        entity.followerCount = user.getFollowerCount();
+        entity.followingCount = user.getFollowingCount();
+        entity.feedCount = user.getFeedCount();
+        entity.withdrawalRequestedAt = user.getWithdrawalRequestedAt();
+        entity.deletedAt = user.getDeletedAt();
+        entity.lastLoginAt = user.getLastLoginAt();
+        entity.createdAt = user.getCreatedAt();
+        entity.updatedAt = user.getUpdatedAt();
+        return entity;
+    }
+
+    /** DB 행을 domain 모델로 바꿉니다. 상태 문자열은 enum으로 바꿉니다. */
+    public User toDomain() {
+        return User.builder()
+                .id(id)
+                .publicId(publicId)
+                .username(username)
+                .email(email)
+                .passwordHash(passwordHash)
+                .displayName(displayName)
+                .bio(bio)
+                .profileImageUrl(profileImageUrl)
+                .region(region)
+                .usernameChangedAt(usernameChangedAt)
+                .status(UserStatus.valueOf(status))
+                .suspendedUntil(suspendedUntil)
+                .followerCount(followerCount)
+                .followingCount(followingCount)
+                .feedCount(feedCount)
+                .withdrawalRequestedAt(withdrawalRequestedAt)
+                .deletedAt(deletedAt)
+                .lastLoginAt(lastLoginAt)
+                .createdAt(createdAt)
+                .updatedAt(updatedAt)
+                .build();
+    }
 }
