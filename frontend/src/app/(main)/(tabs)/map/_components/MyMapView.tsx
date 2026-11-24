@@ -64,6 +64,19 @@ export function MyMapView({
    */
   const [bootCamera, setBootCamera] = useState<MapCamera | null>(null);
   const [bootReady, setBootReady] = useState(false);
+  /** 최초 GPS 실패 메시지. 있으면 지도 위에 재시도 UI를 띄웁니다. */
+  const [gpsBootError, setGpsBootError] = useState<string | null>(null);
+  const [gpsBootRetrying, setGpsBootRetrying] = useState(false);
+
+  const applyGpsPosition = (position: LatLng, focusKey: string) => {
+    const camera: MapCamera = { center: position, zoom: DEFAULT_MAP_ZOOM };
+    writeMapCamera(camera);
+    writeUserLocation(position);
+    setUserLocation(position);
+    setBootCamera(camera);
+    setMapFocus({ key: focusKey, position });
+    setGpsBootError(null);
+  };
 
   // 세션 카메라 복원 또는 최초 GPS → 카메라 확정 후에 MapView를 마운트합니다.
   useEffect(() => {
@@ -81,16 +94,17 @@ export function MyMapView({
       try {
         const position = await getCurrentPosition();
         if (cancelled) return;
-        const camera: MapCamera = { center: position, zoom: DEFAULT_MAP_ZOOM };
         // Strict Mode 재마운트에도 살아남도록 세션에 먼저 남깁니다.
+        const camera: MapCamera = { center: position, zoom: DEFAULT_MAP_ZOOM };
         writeMapCamera(camera);
         writeUserLocation(position);
         setUserLocation(position);
         setBootCamera(camera);
-      } catch {
+      } catch (err) {
         if (cancelled) return;
-        // 권한 거부·실패 → MapView 기본 지역. 카메라는 비워 둡니다.
+        // 권한 거부·실패 → MapView 기본 지역 + 재시도 안내.
         setBootCamera(null);
+        setGpsBootError(err instanceof Error ? err.message : "위치를 불러오지 못했어요.");
       } finally {
         if (!cancelled) {
           markMapGpsBootstrapped();
@@ -104,6 +118,20 @@ export function MyMapView({
       cancelled = true;
     };
   }, []);
+
+  /** 최초 GPS가 실패한 뒤, 같은 화면에서 위치를 다시 요청합니다. */
+  const retryGpsBoot = async () => {
+    if (gpsBootRetrying) return;
+    setGpsBootRetrying(true);
+    try {
+      const position = await getCurrentPosition();
+      applyGpsPosition(position, `gps-retry:${position.lat},${position.lng}:${Date.now()}`);
+    } catch (err) {
+      setGpsBootError(err instanceof Error ? err.message : "위치를 불러오지 못했어요.");
+    } finally {
+      setGpsBootRetrying(false);
+    }
+  };
 
   // 검색에서 장소를 고르면 그 장소로 이동해 선택 (렌더 중 상태 보정: 고른 장소가 바뀐 경우에만)
   const [focusedId, setFocusedId] = useState<string | null>(null);
@@ -215,10 +243,23 @@ export function MyMapView({
         userLocation={userLocation}
         caption={undefined}
       >
+        {gpsBootError && (
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-map-land/95 px-6 text-center">
+            <p className="text-[13px] text-ink-sub">{gpsBootError}</p>
+            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+              <Button type="button" size="sm" onClick={retryGpsBoot} disabled={gpsBootRetrying} aria-busy={gpsBootRetrying}>
+                다시 시도
+              </Button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => setGpsBootError(null)} disabled={gpsBootRetrying}>
+                기본 지역으로 보기
+              </Button>
+            </div>
+          </div>
+        )}
         <button
           type="button"
           onClick={goToMyLocation}
-          disabled={locating}
+          disabled={locating || !!gpsBootError}
           aria-label="내 위치로 이동"
           aria-busy={locating}
           className={cn(
