@@ -4,6 +4,9 @@ import com.pickong.auth.adapter.out.persistence.entity.UserSocialAccountJpaEntit
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface UserSocialAccountJpaRepository extends JpaRepository<UserSocialAccountJpaEntity, Long> {
 
@@ -17,4 +20,9 @@ public interface UserSocialAccountJpaRepository extends JpaRepository<UserSocial
 
     /** 이 회원의 연결 전부, 연결 순서(id)대로 */
     List<UserSocialAccountJpaEntity> findAllByUserIdOrderByIdAsc(Long userId);
+
+    /** 한 회원의 소셜 연결을 모두 지웁니다 (익명화: 같은 소셜 계정으로 새로 가입할 수 있게) */
+    @Modifying(clearAutomatically = true)
+    @Query("delete from UserSocialAccountJpaEntity a where a.userId = :userId")
+    int deleteAllByUserId(@Param("userId") Long userId);
 }

@@ -18,6 +18,10 @@ public final class AuthCookies {
     public static final String SIGNUP_TOKEN = "pickong_signup";
     public static final String SIGNUP_TOKEN_PATH = "/api/v1/auth";
 
+    /** 탈퇴 유예 중인 회원의 탈퇴 취소 토큰. 탈퇴 취소 API(/api/v1/auth/withdrawal)에만 필요 */
+    public static final String RESTORE_TOKEN = "pickong_restore";
+    public static final String RESTORE_TOKEN_PATH = "/api/v1/auth";
+
     /** OAuth 로그인 시작 ~ 콜백 사이의 state. OAuth 경로에만 필요 */
     public static final String OAUTH_STATE = "pickong_oauth";
     public static final String OAUTH_STATE_PATH = "/api/v1/auth/oauth2";

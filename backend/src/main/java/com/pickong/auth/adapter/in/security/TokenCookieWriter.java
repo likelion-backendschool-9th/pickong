@@ -2,6 +2,7 @@ package com.pickong.auth.adapter.in.security;
 
 import com.pickong.auth.adapter.out.external.jwt.JwtProperties;
 import com.pickong.auth.application.dto.IssuedTokens;
+import com.pickong.auth.application.port.out.RestoreTokenPort;
 import com.pickong.auth.application.port.out.SignupTokenPort;
 import com.pickong.auth.application.service.RefreshTokenProperties;
 import jakarta.servlet.http.HttpServletResponse;
@@ -68,6 +69,19 @@ public class TokenCookieWriter {
     /** 임시 가입 토큰 쿠키를 지웁니다. (기존 회원으로 로그인했을 때 · 가입 완료 · 가입 그만두기) */
     public void clearSignup(HttpServletResponse response) {
         add(response, cookie(AuthCookies.SIGNUP_TOKEN, "", AuthCookies.SIGNUP_TOKEN_PATH, Duration.ZERO));
+    }
+
+    /**
+     * 탈퇴 유예 중인 회원의 탈퇴 취소 토큰 쿠키(pickong_restore, 10분)를 씁니다.
+     * 가입 쿠키처럼 Path=/api/v1/auth라 인증 API에만 실리고, 프론트 JS에는 보이지 않습니다.
+     */
+    public void writeRestore(HttpServletResponse response, String restoreToken) {
+        add(response, cookie(AuthCookies.RESTORE_TOKEN, restoreToken, AuthCookies.RESTORE_TOKEN_PATH, RestoreTokenPort.TTL));
+    }
+
+    /** 탈퇴 취소 토큰 쿠키를 지웁니다. (취소 완료 · 그만두기 · 만료) */
+    public void clearRestore(HttpServletResponse response) {
+        add(response, cookie(AuthCookies.RESTORE_TOKEN, "", AuthCookies.RESTORE_TOKEN_PATH, Duration.ZERO));
     }
 
     /**

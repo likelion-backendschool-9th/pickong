@@ -16,7 +16,14 @@ public sealed interface SocialLoginResult {
     record NewMember(String signupToken) implements SocialLoginResult {
     }
 
-    /** 가입은 돼 있지만 정지 · 탈퇴 등으로 로그인할 수 없음 → 로그인 화면에 사유 안내 */
+    /**
+     * 탈퇴 유예 중(30일 안)인 회원 → 로그인 세션 대신 탈퇴 취소 토큰을 쿠키로 주고 탈퇴 취소 화면으로.
+     * 취소하면 그때 세션을 발급합니다(탈퇴 중인 계정에 로그인 세션을 만들지 않음).
+     */
+    record WithdrawalPending(String restoreToken) implements SocialLoginResult {
+    }
+
+    /** 가입은 돼 있지만 정지 · 탈퇴(익명화 대기 포함) 등으로 로그인할 수 없음 → 로그인 화면에 사유 안내 */
     record Unavailable() implements SocialLoginResult {
     }
 

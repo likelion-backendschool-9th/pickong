@@ -32,4 +32,7 @@ public interface SocialAccountPersistencePort {
 
     /** 연결 한 줄을 지웁니다. */
     void delete(Long socialAccountId);
+
+    /** 한 회원의 소셜 연결을 모두 지웁니다. */
+    void deleteAllByUserId(Long userId);
 }

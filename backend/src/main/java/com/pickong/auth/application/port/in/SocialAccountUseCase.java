@@ -41,4 +41,10 @@ public interface SocialAccountUseCase {
      * @throws com.pickong.common.error.BusinessException SOCIAL_ACCOUNT_NOT_LINKED · SIGNUP_METHOD_CANNOT_BE_UNLINKED
      */
     void unlink(Long userId, SocialProvider provider);
+
+    /**
+     * 한 회원의 소셜 연결을 모두 지웁니다. 익명화 트랜잭션 안에서 부릅니다(UserWithdrawnEvent 구독).
+     * 지우면 같은 소셜 계정으로 새 회원으로 가입할 수 있습니다. 이미 없으면 아무것도 하지 않습니다.
+     */
+    void unlinkAll(Long userId);
 }

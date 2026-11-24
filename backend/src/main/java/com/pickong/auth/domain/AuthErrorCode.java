@@ -29,7 +29,9 @@ public enum AuthErrorCode implements ErrorCode {
     /** 연결 해제하려는 제공자가 내 계정에 연결돼 있지 않음 */
     SOCIAL_ACCOUNT_NOT_LINKED(404, "연결되지 않은 로그인 수단이에요."),
     /** 가입할 때 쓴 로그인 수단은 해제할 수 없음 (가입 수단 = 가장 먼저 연결된 소셜 계정) */
-    SIGNUP_METHOD_CANNOT_BE_UNLINKED(409, "가입할 때 사용한 로그인 수단은 해제할 수 없어요.");
+    SIGNUP_METHOD_CANNOT_BE_UNLINKED(409, "가입할 때 사용한 로그인 수단은 해제할 수 없어요."),
+    /** 탈퇴 취소 쿠키가 없거나 만료 (10분) → 프론트는 로그인 화면으로 (다시 로그인하면 새로 발급) */
+    RESTORE_SESSION_EXPIRED(401, "시간이 지났어요. 다시 로그인해 주세요.");
 
     private final int status;
     private final String message;

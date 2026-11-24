@@ -3,9 +3,11 @@ package com.pickong.auth.application.service;
 import com.pickong.auth.application.dto.SocialLoginResult;
 import com.pickong.auth.application.dto.SocialProfile;
 import com.pickong.auth.application.port.in.LoginUseCase;
+import com.pickong.auth.application.port.out.RestoreTokenPort;
 import com.pickong.auth.application.port.out.SignupTokenPort;
 import com.pickong.auth.application.port.out.SocialAccountPersistencePort;
 import com.pickong.user.application.port.in.UserAccountUseCase;
+import com.pickong.user.application.port.in.UserWithdrawalUseCase;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,18 +22,23 @@ public class LoginService implements LoginUseCase {
     private final SocialAccountPersistencePort socialAccounts;
     private final UserAccountUseCase userAccount;
     private final SignupTokenPort signupTokens;
+    private final UserWithdrawalUseCase userWithdrawal;
+    private final RestoreTokenPort restoreTokens;
 
     public LoginService(SocialAccountPersistencePort socialAccounts, UserAccountUseCase userAccount,
-            SignupTokenPort signupTokens) {
+            SignupTokenPort signupTokens, UserWithdrawalUseCase userWithdrawal, RestoreTokenPort restoreTokens) {
         this.socialAccounts = socialAccounts;
         this.userAccount = userAccount;
         this.signupTokens = signupTokens;
+        this.userWithdrawal = userWithdrawal;
+        this.restoreTokens = restoreTokens;
     }
 
     /**
      * 순서대로 판단합니다.
      * <ol>
-     *   <li>이 소셜 계정이 연결된 회원이 있다 → 로그인 가능한 상태면 기존 회원, 아니면 이용 불가</li>
+     *   <li>이 소셜 계정이 연결된 회원이 있다 → 로그인 가능한 상태면 기존 회원,
+     *       탈퇴를 취소할 수 있는 회원(유예 30일 안)이면 탈퇴 취소 토큰, 그 밖(정지 · 30일 지남)은 이용 불가</li>
      *   <li>없다(신규) → 인증된 이메일이 이미 다른 계정에 쓰이고 있으면 가입을 막는다 (1인 1계정)</li>
      *   <li>그 외 → 임시 가입 토큰을 발급해 온보딩으로</li>
      * </ol>
@@ -42,8 +49,11 @@ public class LoginService implements LoginUseCase {
         var linked = socialAccounts.findByProvider(profile.provider(), profile.providerUserId());
         if (linked.isPresent()) {
             Long userId = linked.get().userId();
-            return userAccount.canLogin(userId)
-                    ? new SocialLoginResult.ExistingMember(userId)
+            if (userAccount.canLogin(userId)) {
+                return new SocialLoginResult.ExistingMember(userId);
+            }
+            return userWithdrawal.findCancellableWithdrawal(userId).isPresent()
+                    ? new SocialLoginResult.WithdrawalPending(restoreTokens.issue(userId))
                     : new SocialLoginResult.Unavailable();
         }
 

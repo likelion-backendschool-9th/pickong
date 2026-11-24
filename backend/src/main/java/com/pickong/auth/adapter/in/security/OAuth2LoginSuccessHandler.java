@@ -36,6 +36,9 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
     private final TokenCookieWriter cookieWriter;
     private final FrontendProperties frontend;
 
+    /** 탈퇴 유예 중인 회원을 보내는 탈퇴 취소 화면 (프론트) */
+    static final String ACCOUNT_RESTORE_PATH = "/account/restore";
+
     public OAuth2LoginSuccessHandler(OAuth2ProfileMapper profileMapper, LoginUseCase loginUseCase,
             SocialAccountUseCase socialAccountUseCase, TokenUseCase tokenUseCase, TokenCookieWriter cookieWriter,
             FrontendProperties frontend) {
@@ -90,7 +93,8 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
      * <ul>
      *   <li>기존 회원 → 세션 쿠키(Access · Refresh) 발급, 남아 있던 가입 쿠키 삭제 → /feed</li>
      *   <li>신규 회원 → 임시 가입 쿠키 발급, 남아 있던 다른 계정의 세션 쿠키 삭제 → /signup</li>
-     *   <li>정지 · 탈퇴 → /login?error=ACCOUNT_UNAVAILABLE</li>
+     *   <li>탈퇴 유예 중(30일 안) → 세션 · 가입 쿠키 삭제, 탈퇴 취소 쿠키 발급 → /account/restore</li>
+     *   <li>정지 · 탈퇴(30일 지남 포함) → /login?error=ACCOUNT_UNAVAILABLE</li>
      *   <li>이메일이 이미 다른 계정에 있음 → /login?error=EMAIL_ALREADY_REGISTERED&provider=그 계정의 제공자</li>
      * </ul>
      */
@@ -106,6 +110,13 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
                 cookieWriter.clear(response);
                 cookieWriter.writeSignup(response, member.signupToken());
                 yield "/signup";
+            }
+            case SocialLoginResult.WithdrawalPending pending -> {
+                // 다른 계정의 세션 · 가입 쿠키가 남아 있으면 섞이지 않게 지우고, 탈퇴 취소 토큰만 줍니다.
+                cookieWriter.clear(response);
+                cookieWriter.clearSignup(response);
+                cookieWriter.writeRestore(response, pending.restoreToken());
+                yield ACCOUNT_RESTORE_PATH;
             }
             case SocialLoginResult.Unavailable unavailable -> "/login?error=ACCOUNT_UNAVAILABLE";
             case SocialLoginResult.EmailAlreadyRegistered taken ->
