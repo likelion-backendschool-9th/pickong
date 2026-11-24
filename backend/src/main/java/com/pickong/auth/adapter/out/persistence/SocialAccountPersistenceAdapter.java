@@ -73,4 +73,9 @@ public class SocialAccountPersistenceAdapter implements SocialAccountPersistence
     public void delete(Long socialAccountId) {
         repository.deleteById(socialAccountId);
     }
+
+    @Override
+    public void deleteAllByUserId(Long userId) {
+        repository.deleteAllByUserId(userId);
+    }
 }

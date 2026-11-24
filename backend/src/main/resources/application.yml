@@ -58,6 +58,11 @@ pickong:
   frontend:
     # 프론트 기준 주소: 소셜 로그인 콜백 주소와 로그인 후 이동할 화면 주소에 씁니다.
     base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
+  user:
+    withdrawal:
+      # 탈퇴 신청 후 30일이 지난 회원을 매일 04:30(한국 시간)에 익명화합니다. (WithdrawalAnonymizationScheduler)
+      # 만료 토큰 정리(04:00)와 겹치지 않게 30분 뒤에 돌립니다.
+      anonymize-cron: "0 30 4 * * *"
   auth:
     jwt:
       # 기본값 없음: 없거나 32바이트보다 짧으면 앱이 시작하지 않습니다. (backend/.env.example 참고)

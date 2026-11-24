@@ -31,4 +31,10 @@ public interface RefreshTokenPersistencePort {
      * @return 지운 행 수
      */
     int deleteExpiredBefore(OffsetDateTime threshold);
+
+    /** 한 회원의 살아 있는 토큰을 모두 폐기합니다. */
+    void revokeAllByUserId(Long userId, OffsetDateTime now);
+
+    /** 한 회원의 토큰 행을 모두 지웁니다. */
+    void deleteAllByUserId(Long userId);
 }

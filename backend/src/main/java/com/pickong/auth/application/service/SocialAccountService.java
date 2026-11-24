@@ -126,4 +126,10 @@ public class SocialAccountService implements SocialAccountUseCase {
                 .filter(account -> account.provider() == provider)
                 .findFirst();
     }
+
+    @Override
+    @Transactional
+    public void unlinkAll(Long userId) {
+        socialAccounts.deleteAllByUserId(userId);
+    }
 }

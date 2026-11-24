@@ -54,6 +54,8 @@ public class User {
     public static final int REGION_MAX = 20;
     /** 아이디를 다시 바꿀 수 있기까지의 간격 */
     public static final Duration USERNAME_CHANGE_INTERVAL = Duration.ofDays(14);
+    /** 탈퇴 신청 뒤 익명화하기까지의 유예 기간. 이 안에 다시 로그인하면 탈퇴를 취소할 수 있습니다 */
+    public static final Duration WITHDRAWAL_GRACE_PERIOD = Duration.ofDays(30);
 
     /**
      * 온보딩을 마친 신규 회원을 만듭니다. (id는 저장할 때 DB가 채움)
@@ -134,6 +136,67 @@ public class User {
             throw new BusinessException(tooLong);
         }
         return trimmed;
+    }
+
+    /**
+     * 탈퇴를 신청합니다: WITHDRAWN_PENDING + 신청 시각. 30일 뒤 익명화되고, 그 전에는 취소할 수 있습니다.
+     * ACTIVE 회원만 신청할 수 있습니다(정지 · 이미 탈퇴 중이면 WITHDRAWAL_NOT_ALLOWED).
+     */
+    public User requestWithdrawal(OffsetDateTime now) {
+        if (status != UserStatus.ACTIVE) {
+            throw new BusinessException(UserErrorCode.WITHDRAWAL_NOT_ALLOWED);
+        }
+        return toBuilder().status(UserStatus.WITHDRAWN_PENDING).withdrawalRequestedAt(now).updatedAt(now).build();
+    }
+
+    /** 익명화될 시각(신청 + 30일). 탈퇴 중이 아니면 null */
+    public OffsetDateTime anonymizeAt() {
+        return status == UserStatus.WITHDRAWN_PENDING && withdrawalRequestedAt != null
+                ? withdrawalRequestedAt.plus(WITHDRAWAL_GRACE_PERIOD)
+                : null;
+    }
+
+    /** 탈퇴를 취소할 수 있는지: 탈퇴 중이고 30일이 아직 지나지 않음 (지났으면 익명화 전이라도 취소할 수 없음) */
+    public boolean canCancelWithdrawal(OffsetDateTime now) {
+        OffsetDateTime anonymizeAt = anonymizeAt();
+        return anonymizeAt != null && now.isBefore(anonymizeAt);
+    }
+
+    /** 탈퇴를 취소합니다: ACTIVE로 돌아오고 신청 시각을 지웁니다. 취소할 수 없으면 WITHDRAWAL_NOT_CANCELLABLE */
+    public User cancelWithdrawal(OffsetDateTime now) {
+        if (!canCancelWithdrawal(now)) {
+            throw new BusinessException(UserErrorCode.WITHDRAWAL_NOT_CANCELLABLE);
+        }
+        return toBuilder().status(UserStatus.ACTIVE).withdrawalRequestedAt(null).updatedAt(now).build();
+    }
+
+    /** 익명화할 때가 됐는지: 탈퇴 중이고 30일이 지남 */
+    public boolean isDueForAnonymization(OffsetDateTime now) {
+        OffsetDateTime anonymizeAt = anonymizeAt();
+        return anonymizeAt != null && !now.isBefore(anonymizeAt);
+    }
+
+    /**
+     * 익명화합니다: 이름 · 이메일 · 사진 · 소개 · 활동 지역을 지우고 아이디를 {@code deleted_{id}}로 바꿔 원래 아이디를 풀어 줍니다.
+     * 상태는 WITHDRAWN, 익명화 시각은 deleted_at. 행은 남깁니다(댓글 · 신고 등이 이 회원을 가리킴).
+     * {@code deleted_}로 시작하는 아이디는 예약어라({@link Username}) 다른 회원과 겹치지 않습니다.
+     */
+    public User anonymize(OffsetDateTime now) {
+        if (!isDueForAnonymization(now)) {
+            throw new IllegalStateException("익명화할 때가 아닌 회원입니다: " + id);
+        }
+        return toBuilder()
+                .username(Username.ANONYMIZED_PREFIX + id)
+                .email(null)
+                .passwordHash(null)
+                .displayName(null)
+                .bio(null)
+                .region(null)
+                .profileImageUrl(null)
+                .status(UserStatus.WITHDRAWN)
+                .deletedAt(now)
+                .updatedAt(now)
+                .build();
     }
 
     /**

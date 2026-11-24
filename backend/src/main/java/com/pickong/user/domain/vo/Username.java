@@ -22,6 +22,9 @@ public record Username(String value) {
 
     private static final Pattern FORMAT = Pattern.compile("^[a-z][a-z0-9._]{2,19}$");
 
+    /** 익명화한 회원의 아이디 앞부분 ({@code deleted_42}). 회원이 이 모양으로 가입 · 변경하면 익명화가 겹쳐 실패하므로 예약어로 막습니다 */
+    public static final String ANONYMIZED_PREFIX = "deleted_";
+
     /**
      * 운영자 · 공식 계정으로 착각할 수 있어 회원이 쓸 수 없는 닉네임. '사용 중'으로 처리합니다.
      * (나중에 공식 계정을 만들 수 있도록 비워 둠)
@@ -44,8 +47,8 @@ public record Username(String value) {
         return new Username(value);
     }
 
-    /** 예약어인지. 예약어는 형식은 맞지만 아무도 쓸 수 없습니다. */
+    /** 예약어인지. 예약어는 형식은 맞지만 아무도 쓸 수 없습니다. ({@code deleted_}로 시작하는 것 포함) */
     public boolean isReserved() {
-        return RESERVED.contains(value);
+        return RESERVED.contains(value) || value.startsWith(ANONYMIZED_PREFIX);
     }
 }

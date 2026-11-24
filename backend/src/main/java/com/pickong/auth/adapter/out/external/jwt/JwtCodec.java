@@ -112,7 +112,9 @@ public class JwtCodec {
         /** OAuth 로그인 시작 ~ 콜백 사이의 state (10분, 쿠키 pickong_oauth) */
         OAUTH_STATE("oauth_state"),
         /** 로그인한 회원의 계정 연결 시작 (5분, OAuth 시작 주소의 ?link=) */
-        LINK("link");
+        LINK("link"),
+        /** 탈퇴 유예 중인 회원의 탈퇴 취소 세션 (10분, 쿠키 pickong_restore). 로그인 세션은 취소한 뒤에 발급 */
+        RESTORE("withdrawal_restore");
 
         private final String value;
 

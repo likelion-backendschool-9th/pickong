@@ -34,4 +34,13 @@ public interface TokenUseCase {
      * @return 지운 행 수
      */
     int deleteExpiredTokens();
+
+    /** 한 회원의 살아 있는 세션(Refresh Token)을 모두 폐기합니다. 탈퇴 신청 직후 부릅니다(모든 기기에서 로그아웃). */
+    void revokeAllSessions(Long userId);
+
+    /**
+     * 한 회원의 토큰 행을 모두 지웁니다. 익명화 트랜잭션 안에서 부릅니다(UserWithdrawnEvent 구독).
+     * 이미 없으면 아무것도 하지 않아 여러 번 불려도 됩니다.
+     */
+    void deleteAllTokens(Long userId);
 }

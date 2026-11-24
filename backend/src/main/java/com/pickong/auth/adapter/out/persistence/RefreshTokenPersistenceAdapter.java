@@ -49,4 +49,16 @@ public class RefreshTokenPersistenceAdapter implements RefreshTokenPersistencePo
     public int deleteExpiredBefore(OffsetDateTime threshold) {
         return repository.deleteExpiredBefore(threshold);
     }
+
+    @Override
+    @Transactional
+    public void revokeAllByUserId(Long userId, OffsetDateTime now) {
+        repository.revokeAllByUserId(userId, now);
+    }
+
+    @Override
+    @Transactional
+    public void deleteAllByUserId(Long userId) {
+        repository.deleteAllByUserId(userId);
+    }
 }

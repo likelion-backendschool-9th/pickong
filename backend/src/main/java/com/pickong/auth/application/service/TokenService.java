@@ -124,4 +124,16 @@ public class TokenService implements TokenUseCase {
     public int deleteExpiredTokens() {
         return refreshTokens.deleteExpiredBefore(now().minus(properties.cleanupRetention()));
     }
+
+    @Override
+    @Transactional
+    public void revokeAllSessions(Long userId) {
+        refreshTokens.revokeAllByUserId(userId, now());
+    }
+
+    @Override
+    @Transactional
+    public void deleteAllTokens(Long userId) {
+        refreshTokens.deleteAllByUserId(userId);
+    }
 }

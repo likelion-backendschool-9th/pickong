@@ -144,6 +144,19 @@ Gradle을 따로 설치하지 않아도 `./gradlew`가 필요한 버전(9.8.2)�
 - 철회는 `user_terms_agreements.revoked_at`만 채우고 기록을 지우지 않습니다. 이미 같은 상태면 아무것도 바꾸지 않습니다.
 - 철회하지 않은 동의는 부분 유니크 인덱스(V8)로 버전마다 하나만 남아, 동의 요청이 동시에 와도 중복되지 않습니다.
 
+### 회원 탈퇴 (30일 유예 후 익명화)
+
+| API | 결과 |
+| --- | --- |
+| `POST /api/v1/me/withdrawal` `{reason, detail}` | 204, 모든 기기 세션 폐기 · 쿠키 삭제 · 400 `INVALID_WITHDRAWAL_REASON` · 409 `WITHDRAWAL_NOT_ALLOWED` |
+| `GET /api/v1/auth/withdrawal` (탈퇴 취소 쿠키) | 200 `{username, requestedAt, anonymizeAt}` · 401 `RESTORE_SESSION_EXPIRED` · 409 `WITHDRAWAL_NOT_CANCELLABLE` |
+| `POST /api/v1/auth/withdrawal/cancel` (탈퇴 취소 쿠키) | 200 `{username}` + 세션 쿠키, 탈퇴 취소 쿠키 삭제 · 오류는 위와 같음 |
+| `DELETE /api/v1/auth/withdrawal` | 204, 탈퇴 취소 쿠키만 삭제 (탈퇴는 그대로) |
+
+- 탈퇴 중인 회원이 소셜 로그인하면 로그인 세션 대신 탈퇴 취소 쿠키(`pickong_restore`, 10분)를 받고 `/account/restore`로 갑니다. 30일이 지났으면 `/login?error=ACCOUNT_UNAVAILABLE`.
+- 매일 04:30(한국 시간)에 신청 후 30일이 지난 회원을 익명화합니다(`pickong.user.withdrawal.anonymize-cron`). 개인정보를 지우고 아이디를 `deleted_{id}`로 바꾸며, 소셜 연결 · 토큰도 같은 트랜잭션에서 지웁니다. 실패한 회원은 다음 날 다시 처리됩니다.
+- 탈퇴 사유는 `withdrawal_reasons`(V11)에 회원 id 없이 날짜만 붙여 저장합니다.
+
 ### 개발자 콘솔에서 직접 설정할 것
 
 **카카오** (developers.kakao.com > 내 애플리케이션)
