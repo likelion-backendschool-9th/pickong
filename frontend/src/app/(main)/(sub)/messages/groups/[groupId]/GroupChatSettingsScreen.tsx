@@ -184,7 +184,7 @@ function ConfirmBody({
     <div className="pb-[calc(12px+env(safe-area-inset-bottom))]">
       <p className="text-[14px] leading-relaxed text-ink-sub">{message}</p>
       {!!error && <Notice tone="danger" className="mt-3">{errorMessage(error)}</Notice>}
-      <div className="mt-5 flex gap-2">
+      <div className="mt-5 grid grid-cols-2 gap-2">
         <Button variant="outline" block onClick={onCancel}>
           취소
         </Button>

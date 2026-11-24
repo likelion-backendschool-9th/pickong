@@ -136,7 +136,7 @@ export function LoginMethodsScreen() {
                 {errorMessage(unlink.error)}
               </Notice>
             )}
-            <div className="mt-5 flex gap-2">
+            <div className="mt-5 grid grid-cols-2 gap-2">
               <Button variant="outline" block onClick={() => setTarget(null)}>
                 취소
               </Button>

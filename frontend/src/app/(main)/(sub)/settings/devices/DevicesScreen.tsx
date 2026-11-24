@@ -81,7 +81,7 @@ export function DevicesScreen() {
               <b className="text-ink">{target.name}</b>에서 로그아웃되고, 이 기기로는 더 이상 푸시 알림을 보내지 않아요.
             </p>
             {remove.isError && <Notice tone="danger" className="mt-3">{errorMessage(remove.error)}</Notice>}
-            <div className="mt-5 flex gap-2">
+            <div className="mt-5 grid grid-cols-2 gap-2">
               <Button variant="outline" block onClick={() => setTarget(null)}>
                 취소
               </Button>
