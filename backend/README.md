@@ -132,11 +132,12 @@ Gradle을 따로 설치하지 않아도 `./gradlew`가 필요한 버전(9.8.2)�
 | API | 결과 |
 | --- | --- |
 | `GET /api/v1/terms/{type}` (`service` · `privacy` · `marketing`, 대소문자 무관) | 200 `{type, title, required, version, effectiveDate, sections: [{heading, body}]}` 지금 시행 중인 버전 · 404 `TERMS_NOT_FOUND` |
-| `GET /api/v1/me/agreements` | 200 `[{type, title, required, version, agreed, agreedAt}]` SERVICE · PRIVACY · MARKETING 순서. 동의했으면 동의한 버전 |
-| `PATCH /api/v1/me/agreements` `{type, agreed}` | 200 바뀐 목록 · 400 `REQUIRED_TERMS_CANNOT_BE_REVOKED`(필수 약관) · `UNKNOWN_TERMS` · `INVALID_INPUT`(agreed 없음) |
+| `GET /api/v1/me/agreements` | 200 `[{type, title, required, version, agreed, agreedAt}]` SERVICE · PRIVACY · MARKETING 순서. 동의했으면 동의한 버전과 그 버전의 제목 |
+| `PATCH /api/v1/me/agreements` `{type, agreed}` | 200 바뀐 목록 · 400 `REQUIRED_TERMS_CANNOT_BE_REVOKED`(필수 약관) · `UNKNOWN_TERMS` · `INVALID_INPUT`(agreed가 없거나 true · false가 아님) |
 
-- 약관 본문은 `terms_sections`(V8)에 버전마다 저장합니다. 문구를 바꿀 때는 `terms`에 새 버전 행과 조항을 넣는 새 마이그레이션을 추가하고, 기존 행은 고치지 않습니다(회원이 동의한 버전의 내용을 남기기 위해).
+- 약관 본문은 `terms_sections`(V8)에 버전마다 저장합니다. 문구를 바꿀 때는 `terms`에 새 버전 행과 조항을 넣는 새 마이그레이션을 추가하고, 기존 행은 고치지 않습니다(회원이 동의한 버전의 내용을 남기기 위해). 버전 행과 조항은 꼭 같은 마이그레이션에 넣습니다.
 - 철회는 `user_terms_agreements.revoked_at`만 채우고 기록을 지우지 않습니다. 이미 같은 상태면 아무것도 바꾸지 않습니다.
+- 철회하지 않은 동의는 부분 유니크 인덱스(V8)로 버전마다 하나만 남아, 동의 요청이 동시에 와도 중복되지 않습니다.
 
 ### 개발자 콘솔에서 직접 설정할 것
 
