@@ -68,7 +68,8 @@ public class TermsService implements TermsUseCase {
 
     /**
      * 시행 중인 약관마다, 그 종류의 철회하지 않은 동의 중 가장 최근 것을 붙입니다.
-     * 예전 버전에 동의했고 새 버전이 나왔다면 '동의함 · 동의한 버전(예전)'으로 보여 줍니다. (새 버전 재동의 흐름은 아직 없음)
+     * 예전 버전에 동의했고 새 버전이 나왔다면 '동의함 · 동의한 버전(예전) · 그 버전의 제목'으로 보여 줍니다. (새 버전 재동의 흐름은 아직 없음)
+     * 제목도 동의한 버전에서 가져와야 '1.0 · 1.1의 제목'처럼 실제로 없던 조합이 나오지 않습니다.
      */
     @Override
     @Transactional(readOnly = true)
@@ -84,7 +85,7 @@ public class TermsService implements TermsUseCase {
                     AgreedTerms agreed = latest.get(terms.getType());
                     return agreed == null
                             ? new AgreementStatus(terms.getType(), terms.getTitle(), terms.isRequired(), terms.getVersion(), false, null)
-                            : new AgreementStatus(terms.getType(), terms.getTitle(), terms.isRequired(), agreed.version(), true, agreed.agreedAt());
+                            : new AgreementStatus(terms.getType(), agreed.title(), terms.isRequired(), agreed.version(), true, agreed.agreedAt());
                 })
                 .toList();
     }
@@ -92,6 +93,7 @@ public class TermsService implements TermsUseCase {
     /**
      * 순서: 종류 확인(모르면 400) → 필수 약관이면 거절 → 동의: 이미 동의 중이 아니면 시행 중인 버전으로 새 기록
      * / 철회: 그 종류의 동의 기록에 철회 시각 → 바뀐 상태 전체를 돌려줌.
+     * 동의 요청 두 개가 동시에 와서 둘 다 '동의 중 아님'을 확인해도, 저장은 DB 부분 유니크 인덱스로 한 번만 되므로 기록은 하나입니다.
      * 필수 약관은 동의 · 철회 모두 막습니다. 가입할 때 반드시 동의했고, 해지는 탈퇴로만 하기 때문입니다.
      */
     @Override
@@ -108,7 +110,7 @@ public class TermsService implements TermsUseCase {
             boolean alreadyAgreed = termsPersistencePort.findActiveAgreements(userId).stream()
                     .anyMatch(agreement -> agreement.type() == termsType);
             if (!alreadyAgreed) {
-                termsPersistencePort.saveAgreements(userId, List.of(terms.getId()), now);
+                termsPersistencePort.agreeIfAbsent(userId, terms.getId(), now);
             }
         } else {
             termsPersistencePort.revokeAgreements(userId, termsType, now);

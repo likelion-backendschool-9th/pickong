@@ -62,9 +62,14 @@ public class TermsPersistenceAdapter implements TermsPersistencePort {
     }
 
     @Override
+    public void agreeIfAbsent(Long userId, Long termsId, OffsetDateTime agreedAt) {
+        agreementRepository.insertIfAbsent(userId, termsId, agreedAt);
+    }
+
+    @Override
     public List<AgreedTerms> findActiveAgreements(Long userId) {
         return agreementRepository.findActive(userId).stream()
-                .map(row -> new AgreedTerms(TermsType.valueOf(row.getType()), row.getVersion(), row.getAgreedAt()))
+                .map(row -> new AgreedTerms(TermsType.valueOf(row.getType()), row.getVersion(), row.getTitle(), row.getAgreedAt()))
                 .toList();
     }
 

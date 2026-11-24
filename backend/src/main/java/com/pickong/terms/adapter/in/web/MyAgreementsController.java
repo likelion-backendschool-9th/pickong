@@ -35,17 +35,18 @@ public class MyAgreementsController {
     /**
      * PATCH /api/v1/me/agreements — 선택 약관 동의 · 철회. 바뀐 동의 상태 전체를 돌려줍니다.
      * <ul>
-     *   <li>400 INVALID_INPUT — agreed가 없음</li>
+     *   <li>400 INVALID_INPUT — agreed가 없거나 true · false가 아님 (숫자 0 · 1, 문자열 "true"도 거절)</li>
      *   <li>400 UNKNOWN_TERMS — 모르는 종류</li>
      *   <li>400 REQUIRED_TERMS_CANNOT_BE_REVOKED — 필수 약관(해지는 탈퇴로만)</li>
      * </ul>
      */
     @PatchMapping
     public List<AgreementResponse> update(@CurrentUser LoginUser user, @RequestBody UpdateAgreementRequest request) {
-        if (request.agreed() == null) {
+        Boolean agreed = request.agreedValue();
+        if (agreed == null) { // 빠졌거나 boolean이 아님 (0 · 1 · "true"도 거절)
             throw new BusinessException(CommonErrorCode.INVALID_INPUT);
         }
-        return toResponses(termsUseCase.updateAgreement(user.userId(), request.type(), request.agreed()));
+        return toResponses(termsUseCase.updateAgreement(user.userId(), request.type(), agreed));
     }
 
     private static List<AgreementResponse> toResponses(List<AgreementStatus> statuses) {

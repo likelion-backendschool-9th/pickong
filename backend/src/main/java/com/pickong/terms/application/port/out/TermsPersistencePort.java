@@ -21,6 +21,12 @@ public interface TermsPersistencePort {
      */
     void saveAgreements(Long userId, List<Long> termsIds, OffsetDateTime agreedAt);
 
+    /**
+     * 이 약관 버전에 철회하지 않은 동의가 없을 때만 동의 기록을 하나 남깁니다.
+     * 동시에 여러 번 불려도 기록은 하나입니다. (DB 부분 유니크 인덱스가 보장, 이미 있으면 아무것도 하지 않음)
+     */
+    void agreeIfAbsent(Long userId, Long termsId, OffsetDateTime agreedAt);
+
     /** 철회하지 않은 동의 기록 전체 (버전과 관계없이). 최근 동의가 먼저 옵니다 */
     List<AgreedTerms> findActiveAgreements(Long userId);
 

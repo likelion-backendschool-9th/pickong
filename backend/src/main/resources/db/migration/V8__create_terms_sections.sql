@@ -36,3 +36,10 @@ JOIN (VALUES
      '설정 > 약관 및 동의 관리에서 언제든지 수신 동의를 철회할 수 있습니다.')
 ) AS s (type, position, heading, body) ON s.type = t.type
 WHERE t.version = '1.0';
+
+-- 한 회원이 같은 약관 버전에 '철회하지 않은 동의'를 두 개 갖지 않도록 DB가 막습니다. (동의 요청이 동시에 와도 기록은 하나)
+-- 철회한 기록(revoked_at 있음)은 이력이라 여러 개 남을 수 있으므로, 철회하지 않은 행만 대상으로 하는 부분 유니크 인덱스입니다.
+-- 저장은 INSERT … ON CONFLICT DO NOTHING으로 합니다. 유니크 예외를 잡는 방식은 PostgreSQL 트랜잭션이 중단돼 뒤이은 조회가 실패합니다.
+CREATE UNIQUE INDEX uk_user_terms_agreements_active
+    ON user_terms_agreements (user_id, terms_id)
+    WHERE revoked_at IS NULL;
