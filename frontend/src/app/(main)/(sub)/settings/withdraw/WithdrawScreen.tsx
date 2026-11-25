@@ -42,12 +42,17 @@ export function WithdrawScreen() {
   const [reason, setReason] = useState("");
   const [detail, setDetail] = useState("");
   const [confirmed, setConfirmed] = useState(false);
-  /** 확인 체크 없이 탈퇴하기를 누른 횟수. 바뀔 때마다 체크 칸을 다시 흔듭니다(0이면 안내하지 않음) */
+  /** 확인 체크 없이 탈퇴하기를 누른 횟수. 바뀔 때마다 체크 칸을 다시 흔듭니다(애니메이션 재생용, 0이면 아직 누른 적 없음) */
   const [nudge, setNudge] = useState(0);
+  /**
+   * 체크를 알려 주는 중인지. 체크하면 접고, 체크를 다시 풀어도 바로 띄우지 않고 탈퇴하기를 다시 눌렀을 때만 떨림과 함께 띄웁니다.
+   * (nudge > 0만으로 정하면 체크를 풀 때 떨림 없이 갑자기 빨간색이 돼서 따로 둡니다. #119 리뷰 ③)
+   */
+  const [hinting, setHinting] = useState(false);
   const confirmRef = useRef<HTMLButtonElement>(null);
 
   const action = withdrawAction(reason, detail, confirmed);
-  const showConfirmHint = nudge > 0 && !confirmed;
+  const showConfirmHint = hinting && !confirmed;
 
   // 체크 없이 눌렀으면 체크 칸이 보이게 스크롤하고 키보드 · 화면 낭독기가 바로 체크할 수 있게 포커스를 옮깁니다.
   useEffect(() => {
@@ -59,6 +64,7 @@ export function WithdrawScreen() {
   const submit = () => {
     if (action === "NEEDS_CONFIRM") {
       setNudge((n) => n + 1);
+      setHinting(true);
       return;
     }
     withdraw.mutate(
@@ -126,7 +132,10 @@ export function WithdrawScreen() {
             aria-checked={confirmed}
             aria-invalid={showConfirmHint || undefined}
             aria-describedby={showConfirmHint ? "withdraw-confirm-hint" : undefined}
-            onClick={() => setConfirmed((v) => !v)}
+            onClick={() => {
+              setConfirmed((v) => !v);
+              setHinting(false); // 체크하면 안내를 접습니다. key(nudge)는 그대로라 다시 그려지지 않아 포커스가 남습니다
+            }}
             className={cn(
               "-mx-3 flex w-[calc(100%+24px)] items-start gap-2.5 rounded-card px-3 py-2.5 text-left transition-colors",
               showConfirmHint && "bg-danger-soft",
