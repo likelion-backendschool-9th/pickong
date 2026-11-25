@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useAddComment, useComments, type PostComment } from "@/entities/post";
 import { errorMessage } from "@/shared/api/errors";
 import { routes } from "@/shared/config/routes";
@@ -15,9 +15,42 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
   const add = useAddComment(postId);
   const [text, setText] = useState("");
   const [replyTo, setReplyTo] = useState<PostComment | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // 시트가 열리면 슬라이드 업 애니메이션(220ms) 뒤 포커스
+  useEffect(() => {
+    if (!open) return;
+    const id = setTimeout(() => inputRef.current?.focus(), 220);
+    return () => clearTimeout(id);
+  }, [open]);
+
+  // 답글 대상이 세팅되면 포커스
+  useEffect(() => {
+    if (replyTo) requestAnimationFrame(() => inputRef.current?.focus());
+  }, [replyTo]);
 
   const roots = comments?.filter((c) => !c.parentId) ?? [];
   const repliesOf = (id: string) => comments?.filter((c) => c.parentId === id) ?? [];
+
+  /** 답글 달기 클릭: @username 삽입 + 답글 대상 세팅 */
+  const handleReply = (comment: PostComment) => {
+    setText(`@${comment.author.username} `);
+    setReplyTo(comment);
+  };
+
+  const handleChange = (val: string) => {
+    setText(val);
+    // @username이 지워지면 답글 대상 해제
+    if (replyTo && !val.startsWith(`@${replyTo.author.username}`)) {
+      setReplyTo(null);
+    }
+  };
+
+  /** 취소: 답글 대상 해제 + 입력창 초기화 */
+  const handleCancel = () => {
+    setReplyTo(null);
+    setText("");
+  };
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,13 +72,14 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
           {replyTo && (
             <div className="flex items-center justify-between text-[12px] text-ink-sub">
               <span>{replyTo.author.username}님에게 답글 남기는 중</span>
-              <button type="button" onClick={() => setReplyTo(null)} className="font-bold">취소</button>
+              <button type="button" onClick={handleCancel} className="font-bold">취소</button>
             </div>
           )}
           <div className="flex items-center gap-2">
             <input
+              ref={inputRef}
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => handleChange(e.target.value)}
               placeholder={replyTo ? "답글 달기" : "댓글 달기"}
               aria-label="댓글 입력"
               className="h-11 flex-1 rounded-full bg-soft px-4 text-[14px] outline-none placeholder:text-ink-faint focus:ring-2 focus:ring-primary-deep/30"
@@ -74,12 +108,12 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
         <ul className="space-y-5">
           {roots.map((c) => (
             <li key={c.id}>
-              <CommentItem comment={c} onReply={() => setReplyTo(c)} />
+              <CommentItem comment={c} onReply={() => handleReply(c)} />
               {repliesOf(c.id).length > 0 && (
                 <ul className="mt-3 space-y-3 pl-11">
                   {repliesOf(c.id).map((r) => (
                     <li key={r.id}>
-                      <CommentItem comment={r} onReply={() => setReplyTo(r)} small />
+                      <CommentItem comment={r} onReply={() => handleReply(r)} small />
                     </li>
                   ))}
                 </ul>
@@ -90,6 +124,25 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
       )}
     </BottomSheet>
   );
+}
+
+/**
+ * 댓글 본문에서 @username 패턴을 찾아 프로필 링크로 변환.
+ * 예) "@민수 반가워요!" → <Link href="/users/민수">@민수</Link> 반가워요!
+ */
+function renderContent(content: string): ReactNode {
+  const parts = content.split(/(@\S+)/);
+  return parts.map((part, i) => {
+    if (/^@\S+$/.test(part)) {
+      const username = part.slice(1);
+      return (
+        <Link key={i} href={routes.user(username)} className="font-semibold text-primary-deep">
+          {part}
+        </Link>
+      );
+    }
+    return part;
+  });
 }
 
 function CommentItem({ comment, onReply, small }: { comment: PostComment; onReply: () => void; small?: boolean }) {
@@ -103,7 +156,7 @@ function CommentItem({ comment, onReply, small }: { comment: PostComment; onRepl
           <span className="font-bold">{comment.author.username}</span>
           <span className="ml-1.5 text-[11px] text-ink-faint">{formatRelative(comment.createdAt)}</span>
         </div>
-        <p className="mt-0.5 text-[14px] leading-relaxed whitespace-pre-line">{comment.content}</p>
+        <p className="mt-0.5 text-[14px] leading-relaxed whitespace-pre-line">{renderContent(comment.content)}</p>
         <button type="button" onClick={onReply} className="mt-1 text-[12px] font-medium text-ink-sub">
           답글 달기
         </button>
