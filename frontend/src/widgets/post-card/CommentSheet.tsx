@@ -73,36 +73,32 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
             </div>
           )}
           <div className="flex items-center gap-2">
-            {/* bg-soft·rounded-full은 wrapper에. input의 불투명 배경이 overlay를 가리지 않도록 input은 bg-transparent */}
-            <div className="relative flex-1 h-11 rounded-full bg-soft focus-within:ring-2 focus-within:ring-primary-deep/30">
-              <div
-                aria-hidden
-                className="pointer-events-none absolute inset-0 flex items-center overflow-hidden whitespace-pre rounded-full px-4 text-[14px] select-none"
-              >
-                {replyTo && text.startsWith(`@${replyTo.author.nickname}`) ? (
-                  <>
-                    <span className="font-medium text-primary-deep">{`@${replyTo.author.nickname}`}</span>
-                    <span className="text-ink">{text.slice(`@${replyTo.author.nickname}`.length)}</span>
-                  </>
-                ) : (
-                  <span className="text-ink">{text}</span>
-                )}
-              </div>
+            {/*
+             * @닉네임은 별도 span으로 분리해 색상 적용. input은 멘션 뒤 텍스트만 표시.
+             * text 상태는 항상 전체 문자열(@닉네임 포함)로 유지하고, onChange에서 재조합합니다.
+             */}
+            <div className="flex h-11 flex-1 items-center overflow-hidden rounded-full bg-soft px-4 focus-within:ring-2 focus-within:ring-primary-deep/30">
+              {replyTo && text.startsWith(`@${replyTo.author.nickname}`) && (
+                <span className="shrink-0 text-[14px] font-medium text-primary-deep">
+                  {`@${replyTo.author.nickname}`}
+                </span>
+              )}
               <input
                 ref={inputRef}
-                value={text}
+                value={
+                  replyTo && text.startsWith(`@${replyTo.author.nickname}`)
+                    ? text.slice(`@${replyTo.author.nickname}`.length)
+                    : text
+                }
                 onChange={(e) => {
-                  const val = e.target.value;
+                  const suffix = e.target.value;
+                  const mention = replyTo ? `@${replyTo.author.nickname}` : null;
+                  const val = mention && text.startsWith(mention) ? mention + suffix : suffix;
                   setText(val);
-
-                  // @닉네임이 지워지면 답글 대상 해제
-                  if (replyTo && !val.startsWith(`@${replyTo.author.nickname}`)) {
-                    setReplyTo(null);
-                  }
 
                   // "@닉네임 " 형태로 직접 입력하면 해당 댓글 작성자를 답글 대상으로 자동 감지
                   // (공백이 붙는 순간 확정 — 닉네임 완성 기준)
-                  const mentionMatch = val.match(/^@(\S+)\s/);
+                  const mentionMatch = suffix.match(/^@(\S+)\s/);
                   if (mentionMatch && !replyTo) {
                     const nickname = mentionMatch[1];
                     const matched = comments?.find((c) => c.author.nickname === nickname);
@@ -112,9 +108,18 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
                     }
                   }
                 }}
+                onKeyDown={(e) => {
+                  // input이 비었을 때 backspace → 멘션 span 제거
+                  const mention = replyTo ? `@${replyTo.author.nickname}` : null;
+                  const suffix = mention && text.startsWith(mention) ? text.slice(mention.length) : text;
+                  if (e.key === "Backspace" && replyTo && suffix === "") {
+                    setReplyTo(null);
+                    setText("");
+                  }
+                }}
                 placeholder={replyTo ? "답글 달기" : "댓글 달기"}
                 aria-label="댓글 입력"
-                className="h-full w-full rounded-full bg-transparent px-4 text-[14px] text-transparent caret-ink outline-none placeholder:text-ink-faint"
+                className="min-w-0 flex-1 bg-transparent text-[14px] text-ink outline-none placeholder:text-ink-faint"
                 maxLength={300}
               />
             </div>
