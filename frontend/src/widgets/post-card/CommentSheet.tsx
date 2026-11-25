@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAddComment, useComments, type PostComment } from "@/entities/post";
 import { errorMessage } from "@/shared/api/errors";
 import { routes } from "@/shared/config/routes";
@@ -15,6 +15,19 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
   const add = useAddComment(postId);
   const [text, setText] = useState("");
   const [replyTo, setReplyTo] = useState<PostComment | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // 시트가 열리면 input 포커스 (시트 슬라이드 업 애니메이션 220ms 뒤)
+  useEffect(() => {
+    if (!open) return;
+    const id = setTimeout(() => inputRef.current?.focus(), 220);
+    return () => clearTimeout(id);
+  }, [open]);
+
+  // 답글 달기 클릭 시 input 포커스
+  useEffect(() => {
+    if (replyTo) inputRef.current?.focus();
+  }, [replyTo]);
 
   const roots = comments?.filter((c) => !c.parentId) ?? [];
   const repliesOf = (id: string) => comments?.filter((c) => c.parentId === id) ?? [];
@@ -44,6 +57,7 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
           )}
           <div className="flex items-center gap-2">
             <input
+              ref={inputRef}
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder={replyTo ? "답글 달기" : "댓글 달기"}
