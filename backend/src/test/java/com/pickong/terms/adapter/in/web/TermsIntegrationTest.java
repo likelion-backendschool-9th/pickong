@@ -55,14 +55,14 @@ class TermsIntegrationTest {
     private long me;
     private Cookie access;
 
-    /** 가입한 회원 한 명: 필수 약관 두 개(1.0)에만 동의한 상태 */
+    /** 1.0 때 가입한 회원 한 명: 필수 약관 두 개(1.0)에만 동의한 상태. 1.1은 재동의가 필요 없어 1.0 동의가 그대로 유효 */
     @BeforeEach
     void setUp() {
         clean();
         me = jdbc.queryForObject("INSERT INTO users (username) VALUES ('seoyeon') RETURNING id", Long.class);
         jdbc.update("""
                 INSERT INTO user_terms_agreements (user_id, terms_id, agreed_at)
-                SELECT ?, id, TIMESTAMPTZ '2026-11-20 10:00:00+09' FROM terms WHERE type IN ('SERVICE', 'PRIVACY')
+                SELECT ?, id, TIMESTAMPTZ '2026-11-20 10:00:00+09' FROM terms WHERE type IN ('SERVICE', 'PRIVACY') AND version = '1.0'
                 """, me);
         access = new Cookie(AuthCookies.ACCESS_TOKEN, tokenUseCase.issue(me).accessToken());
     }
@@ -96,18 +96,19 @@ class TermsIntegrationTest {
     // ── 약관 전문 ───────────────────────────────────────────
 
     @Test
-    @DisplayName("GET /terms/service: 로그인 없이 200, 프론트 Terms 모양, V8 조항이 순서대로, 시행일은 한국 날짜")
+    @DisplayName("GET /terms/service: 로그인 없이 200, 지금 시행 중인 1.1(V12) 조항이 순서대로, 시행일은 한국 날짜")
     void termsWithoutLogin() throws Exception {
         mvc.perform(get("/api/v1/terms/service").servletPath("/api/v1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.type").value("SERVICE"))
                 .andExpect(jsonPath("$.title").value("서비스 이용약관"))
                 .andExpect(jsonPath("$.required").value(true))
-                .andExpect(jsonPath("$.version").value("1.0"))
-                .andExpect(jsonPath("$.effectiveDate").value("2026-11-01"))
-                .andExpect(jsonPath("$.sections.length()").value(4))
+                .andExpect(jsonPath("$.version").value("1.1"))
+                .andExpect(jsonPath("$.effectiveDate").value("2026-11-25"))
+                .andExpect(jsonPath("$.sections.length()").value(5))
                 .andExpect(jsonPath("$.sections[0].heading").value("제1조 (목적)"))
-                .andExpect(jsonPath("$.sections[3].heading").value("제4조 (탈퇴)"));
+                .andExpect(jsonPath("$.sections[3].heading").value("제4조 (탈퇴)"))
+                .andExpect(jsonPath("$.sections[4].heading").value("제5조 (다시 가입)"));
     }
 
     @Test
@@ -144,6 +145,16 @@ class TermsIntegrationTest {
                 .andExpect(jsonPath("$[2].required").value(false))
                 .andExpect(jsonPath("$[2].agreed").value(false))
                 .andExpect(jsonPath("$[2].agreedAt").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("1.1(V12)은 재동의가 필요 없어서 1.0에 동의한 회원도 동의 받을 약관이 없고 막히지 않는다")
+    void v11DoesNotBlockExistingMembers() throws Exception {
+        mvc.perform(get("/api/v1/me/agreements/pending").servletPath("/api/v1").cookie(access))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+        mvc.perform(get("/api/v1/me/social-accounts").servletPath("/api/v1").cookie(access))
+                .andExpect(status().isOk());
     }
 
     @Test
