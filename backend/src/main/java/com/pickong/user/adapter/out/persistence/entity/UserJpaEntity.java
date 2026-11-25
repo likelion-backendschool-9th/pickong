@@ -36,7 +36,7 @@ public class UserJpaEntity {
     @Column(name = "public_id", nullable = false, unique = true, updatable = false)
     private UUID publicId;
 
-    /** 닉네임 = 사용자 ID. 영문 소문자로 저장, 대소문자 무시 UNIQUE (DB에서 lower() 함수 인덱스로 처리). */
+    /** 아이디. 영문 소문자로 저장, 대소문자 무시 UNIQUE (DB에서 lower() 함수 인덱스로 처리). */
     @Column(name = "username", nullable = false, unique = true, length = 20)
     private String username;
 
@@ -49,7 +49,7 @@ public class UserJpaEntity {
     private String passwordHash;
 
     // ───────────── 프로필 ─────────────
-    /** 이름. 중복 가능, 정하지 않으면 NULL (화면에는 닉네임이 대신 보임). */
+    /** 이름. 중복 가능, 정하지 않으면 NULL (프로필 소개 위에만 보이고, 다른 화면에는 아이디만 보임). */
     @Column(name = "display_name", length = 30)
     private String displayName;
 

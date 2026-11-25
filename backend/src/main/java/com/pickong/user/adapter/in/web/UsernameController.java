@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 닉네임(= 사용자 ID) 중복 확인. 경로는 /auth 아래지만 users.username의 규칙과 UNIQUE를 user 모듈이 가지므로
+ * 아이디 중복 확인. 경로는 /auth 아래지만 users.username의 규칙과 UNIQUE를 user 모듈이 가지므로
  * 컨트롤러도 user 모듈에 둡니다. (blueprint 2.2)
  * 온보딩 중에는 아직 로그인 전이라 공개 경로(/auth/**)에 있습니다.
  */

@@ -9,7 +9,7 @@ public interface UserQueryUseCase {
     MyProfile getMe(Long userId);
 
     /**
-     * 이 닉네임을 새로 쓸 수 있는지. 대소문자를 무시하고 비교하며, 예약어는 '사용 중'으로 봅니다.
+     * 이 아이디를 새로 쓸 수 있는지. 대소문자를 무시하고 비교하며, 예약어는 '사용 중'으로 봅니다.
      *
      * @throws com.pickong.common.error.BusinessException 400 INVALID_USERNAME — 형식이 맞지 않을 때
      */

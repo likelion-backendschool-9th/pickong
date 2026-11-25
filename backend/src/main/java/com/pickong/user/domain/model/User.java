@@ -22,7 +22,7 @@ import lombok.Getter;
 public class User {
     private Long id;
     private UUID publicId;
-    /** 닉네임 = 사용자 ID (영문, 중복 불가) */
+    /** 아이디 (영문, 중복 불가) */
     private String username;
     /** 가입한 소셜 계정의 인증된 이메일 (없으면 null) */
     private String email;
@@ -60,7 +60,7 @@ public class User {
     /**
      * 온보딩을 마친 신규 회원을 만듭니다. (id는 저장할 때 DB가 채움)
      * <ul>
-     *   <li>이름: 앞뒤 공백을 지우고, 비어 있으면 null(화면에는 닉네임이 대신 보임), 20자 초과는 INVALID_NAME</li>
+     *   <li>이름: 앞뒤 공백을 지우고, 비어 있으면 null(프로필 소개 위에만 보임), 20자 초과는 INVALID_NAME</li>
      *   <li>공개 ID(public_id)와 생성 시각은 여기서 정합니다. (JPA가 null을 그대로 INSERT해서 DB 기본값이 쓰이지 않기 때문)</li>
      *   <li>상태는 ACTIVE, 카운터는 0</li>
      * </ul>
