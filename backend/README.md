@@ -11,6 +11,83 @@ docker compose up -d db   # 저장소 루트에서. 로컬 PostgreSQL(PostGIS) �
 ./gradlew build           # 컴파일 + 테스트 + jar 생성 (build/libs/)
 ```
 
+### Docker로 프론트 · 백엔드 · DB 실행 (mock 없이)
+
+프론트의 모든 API 요청이 mock 대신 실제 백엔드로 갑니다. Docker Desktop만 있으면 되고, 명령은 모두 **저장소 루트**에서 실행합니다.
+
+**1. `backend/.env` 준비 (처음 한 번)**
+
+아래 '처음 실행할 때: `backend/.env`'를 따라 만듭니다. `JWT_SECRET`이 없으면 백엔드가 시작하지 않습니다.
+
+**2. 이미 켜 둔 것 끄기**
+
+```bash
+docker compose down
+```
+
+DB 데이터는 남습니다. 터미널에서 `npm run dev`나 `./gradlew bootRun`을 실행 중이면 그것도 끕니다. (3000 · 8080 포트가 겹칩니다)
+
+**3. 실행**
+
+```bash
+docker compose -f compose.yml -f compose.override.yml -f compose.backend.yml up -d --build
+```
+
+- `compose.backend.yml`이 mock을 빼고 프론트를 백엔드에 연결합니다. 이 파일 없이 `docker compose up`을 실행하면 프론트는 mock에 연결됩니다.
+- 백엔드가 `healthy`가 된 뒤 프론트가 켜집니다. 처음에는 Gradle과 의존성을 내려받아 몇 분 걸립니다. 시작할 때 Flyway 마이그레이션이 자동으로 적용됩니다.
+- `frontend/.env.local`의 `API_BASE_URL`을 바꿔도 Docker로 켠 프론트에는 적용되지 않습니다.
+
+**4. 확인**
+
+| 주소 | 정상일 때 |
+| --- | --- |
+| http://localhost:3000 | 화면이 열림 |
+| http://localhost:3000/api/v1/actuator/health | `"status":"UP"` (프론트를 거쳐 백엔드가 응답) |
+| http://localhost:8080/api/v1/swagger-ui.html | API 문서 |
+
+**자주 쓰는 명령**
+
+| 할 일 | 명령 |
+| --- | --- |
+| 백엔드 로그 | `docker compose logs -f backend` |
+| 프론트 로그 | `docker compose logs -f frontend` |
+| 모두 끄기 | `docker compose down` |
+| mock으로 돌아가기 | `docker compose down` 뒤 `docker compose up -d` |
+
+`docker compose down -v`는 DB 데이터까지 지웁니다.
+
+**수정한 내용 반영**
+
+| 수정한 것 | 명령 |
+| --- | --- |
+| 프론트 코드 | 자동 반영 |
+| 백엔드 코드, `build.gradle` | `docker compose restart backend` |
+| `backend/.env`, compose 파일의 백엔드 설정 | `docker compose up -d backend` (`restart`는 바뀐 값을 읽지 않습니다) |
+| `backend/Dockerfile` | `docker compose up -d --build backend` |
+| 실행용(`runner`) 이미지 | 아래 '실행용 이미지 확인'을 다시 실행 |
+
+**실행용 이미지 확인**
+
+위 방법은 개발용(`development`)이라 소스를 마운트해 `bootRun`으로 실행합니다. 배포에 쓰는 실행용(`runner`)은 jar만 담고 있어, 코드를 바꾸면 이미지를 다시 빌드해야 합니다. DB를 켠 상태에서 8081 포트로 확인합니다.
+
+```bash
+docker compose up -d db
+docker compose -f compose.yml build backend
+docker run --rm --network pickong_default -p 127.0.0.1:8081:8080 \
+  --env-file backend/.env -e DB_URL=jdbc:postgresql://db:5432/pickong pickong-backend
+```
+
+http://localhost:8081/api/v1/actuator/health 가 `"status":"UP"`이면 정상입니다. `.env`는 이미지에 들어가지 않으므로 환경변수로 넣습니다. 네트워크와 이미지 이름은 저장소 폴더 이름이 `pickong`일 때 기준입니다.
+
+이미지 빌드는 테스트를 실행하지 않습니다. 테스트는 PR 전에 `./gradlew build`로 확인합니다.
+
+**참고**
+
+- 로그인하지 않으면 대부분의 API가 401을 응답합니다. 로그인하려면 `backend/.env`에 카카오나 Google 키가 있어야 합니다.
+- 아직 백엔드에 없는 API를 쓰는 화면은 동작하지 않습니다. 이런 화면은 mock으로 확인합니다.
+- 백엔드가 `unhealthy`이거나 종료되면 `docker compose logs backend`에서 원인을 확인합니다.
+- `Detected resolved migration not applied to database: 9` 오류로 백엔드가 시작하지 않으면 이슈 #113을 확인합니다.
+
 ### DB 접속 정보
 
 `application.yml`은 환경변수를 읽고, 없으면 로컬 db 서비스 값을 씁니다. 운영에서는 반드시 환경변수로 넣습니다.

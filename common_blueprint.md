@@ -41,7 +41,7 @@ pickong/
 ├── frontend_blueprint.md        프론트엔드 설계
 ├── backend_blueprint.md         백엔드 설계
 ├── .gitignore · .editorconfig   공통 설정
-├── compose.yml                  로컬 실행용 컨테이너 (compose.override.yml · compose.prod.yml)
+├── compose.yml                  로컬 실행용 컨테이너 (compose.override.yml · compose.backend.yml · compose.prod.yml)
 ├── frontend/                    Next.js (App Router) · TypeScript · Tailwind
 └── backend/                     Spring Boot 4.1 · Java 21 · Gradle
 ```
