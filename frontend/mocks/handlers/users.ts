@@ -24,8 +24,8 @@ export const userRoutes: Route[] = [
   {
     /**
      * 프로필 수정. 백엔드(PATCH /me)와 같은 규칙입니다.
-     * - 보낸 항목만 바꿉니다. null · 빈 값이면 지웁니다(닉네임은 지울 수 없음).
-     * - 닉네임: 형식 → 지금과 같으면 그대로(14일 제한도 시작하지 않음) → 사용 중 · 예약어 → 14일 제한 순서로 확인
+     * - 보낸 항목만 바꿉니다. null · 빈 값이면 지웁니다(아이디는 지울 수 없음).
+     * - 아이디: 형식 → 지금과 같으면 그대로(14일 제한도 시작하지 않음) → 사용 중 · 예약어 → 14일 제한 순서로 확인
      * - 항목을 모두 확인한 뒤 한 번에 반영합니다. 하나라도 틀리면 아무것도 바뀌지 않습니다.
      */
     method: "PATCH",
@@ -45,11 +45,11 @@ export const userRoutes: Route[] = [
       if (has("username")) {
         const value = typeof body.username === "string" ? body.username.trim().toLowerCase() : null;
         if (value === null || !USERNAME_PATTERN.test(value)) {
-          throw new HttpError(400, "INVALID_USERNAME", "닉네임은 영문으로 시작하는 3~20자로, 영문 소문자 · 숫자 · 밑줄(_) · 마침표(.)만 쓸 수 있어요.");
+          throw new HttpError(400, "INVALID_USERNAME", "아이디는 영문으로 시작하는 3~20자로, 영문 소문자 · 숫자 · 밑줄(_) · 마침표(.)만 쓸 수 있어요.");
         }
         if (value !== me.username.toLowerCase()) {
-          if (isUsernameTaken(value, me.id)) throw new HttpError(409, "USERNAME_TAKEN", "이미 사용 중인 닉네임이에요.");
-          if (usernameChangeableAt(me)) throw new HttpError(409, "USERNAME_CHANGE_TOO_SOON", "닉네임은 14일에 한 번만 바꿀 수 있어요.");
+          if (isUsernameTaken(value, me.id)) throw new HttpError(409, "USERNAME_TAKEN", "이미 사용 중인 아이디예요.");
+          if (usernameChangeableAt(me)) throw new HttpError(409, "USERNAME_CHANGE_TOO_SOON", "아이디는 14일에 한 번만 바꿀 수 있어요.");
           username = value;
           usernameChanged = true;
         }
@@ -66,7 +66,7 @@ export const userRoutes: Route[] = [
       if (name !== undefined) me.name = name;
       if (bio !== undefined) me.bio = bio;
       if (region !== undefined) me.region = region;
-      // 화면에 보여 줄 이름 = 이름 ?? 닉네임(username). fixture처럼 name이 undefined면 기존 nickname을 이름으로 봅니다.
+      // 표시 이름(관리자 화면용) = 이름 ?? 아이디(username). fixture처럼 name이 undefined면 기존 nickname을 이름으로 봅니다.
       me.nickname = (me.name === undefined ? me.nickname : me.name) ?? me.username;
       return userDto(me);
     },

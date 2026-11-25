@@ -27,7 +27,7 @@ function attachmentDto(m: MessageRow) {
   const author = findUser(post.authorId)!;
   return {
     type: "POST" as const,
-    post: { id: post.id, imageUrl: post.photos[0]?.url ?? null, authorNickname: author.nickname, content: post.content },
+    post: { id: post.id, imageUrl: post.photos[0]?.url ?? null, authorUsername: author.username, content: post.content },
   };
 }
 

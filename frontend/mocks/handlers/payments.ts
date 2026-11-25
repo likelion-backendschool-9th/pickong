@@ -37,7 +37,7 @@ export function purchaseDto(p: PurchaseRow) {
   return {
     id: p.id,
     collection: c
-      ? { id: c.id, title: c.title, coverImageUrl: collectionDto(c).coverImageUrl, ownerNickname: findUser(c.ownerId)?.nickname ?? "" }
+      ? { id: c.id, title: c.title, coverImageUrl: collectionDto(c).coverImageUrl, ownerNickname: findUser(c.ownerId)?.nickname ?? "", ownerUsername: findUser(c.ownerId)?.username ?? "" }
       : null,
     buyer: (() => {
       const u = findUser(p.userId);
@@ -67,7 +67,7 @@ export const paymentRoutes: Route[] = [
       const orderId = `order-${Date.now()}`;
       const order = { collectionId: c.id, amount: c.price, orderName: c.title };
       orders.set(orderId, order);
-      return { orderId, ...order, sellerNickname: findUser(c.ownerId)?.nickname ?? "", cardCompanies: CARD_COMPANIES };
+      return { orderId, ...order, sellerUsername: findUser(c.ownerId)?.username ?? "", cardCompanies: CARD_COMPANIES };
     },
   },
   {

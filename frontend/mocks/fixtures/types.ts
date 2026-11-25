@@ -19,9 +19,9 @@ export type PlaceCategory =
 
 export interface UserRow {
   id: string;
-  /** 닉네임 = 사용자 ID */
+  /** 아이디 */
   username: string;
-  /** 화면에 보여 줄 이름 = 이름 ?? username. 이름을 바꾸면 users.ts가 다시 계산합니다. */
+  /** 표시 이름 = 이름 ?? username (관리자 화면용). 이름을 바꾸면 users.ts가 다시 계산합니다. 회원 화면은 username만 보여 줍니다. */
   nickname: string;
   /** 사용자가 정한 이름(중복 가능). undefined(기존 fixture)면 nickname을 이름으로 봅니다. null이면 이름 없음 */
   name?: string | null;
@@ -33,7 +33,7 @@ export interface UserRow {
   followingCount: number;
   /** 유료 컬렉션을 판매할 수 있는 크리에이터 */
   isCreator?: boolean;
-  /** 마지막으로 닉네임(username)을 바꾼 시각(ISO). 없으면 아직 바꾼 적 없음 → 바로 바꿀 수 있음 */
+  /** 마지막으로 아이디(username)를 바꾼 시각(ISO). 없으면 아직 바꾼 적 없음 → 바로 바꿀 수 있음 */
   usernameChangedAt?: string;
 }
 
