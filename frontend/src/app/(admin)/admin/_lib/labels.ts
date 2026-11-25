@@ -1,4 +1,5 @@
-import type { Report, ReportAction, ReportTarget, Sanction, SanctionType } from "../_api/adminApi";
+import type { Report, ReportAction, ReportTarget } from "../_api/adminApi";
+import type { Sanction, SanctionType } from "./models";
 
 export const REPORT_TARGET: Record<ReportTarget, string> = { POST: "게시물", COMMENT: "댓글", USER: "사용자", COLLECTION: "컬렉션" };
 
@@ -25,16 +26,16 @@ export const reportVisibilityLabel = (visibility: Report["target"]["visibility"]
 export const REPORT_ACTION: Record<ReportAction, string> = { DISMISS: "기각", HIDE_CONTENT: "콘텐츠 숨김", SANCTION_USER: "작성자 제재" };
 
 export const SANCTION_TYPES: { value: SanctionType; label: string; desc: string }[] = [
-  { value: "WARNING", label: "경고", desc: "알림만 보내고 이용은 그대로" },
-  { value: "SUSPEND_7", label: "7일 정지", desc: "7일 동안 글 · 댓글 · 메시지를 쓸 수 없어요" },
-  { value: "SUSPEND_30", label: "30일 정지", desc: "30일 동안 글 · 댓글 · 메시지를 쓸 수 없어요" },
+  { value: "WARNING", label: "경고", desc: "경고 이력을 남기고 이용은 그대로 유지해요" },
+  { value: "SUSPEND_7", label: "7일 정지", desc: "168시간 동안 로그인과 회원 기능을 제한해요" },
+  { value: "SUSPEND_30", label: "30일 정지", desc: "720시간 동안 로그인과 회원 기능을 제한해요" },
   { value: "BAN", label: "영구 정지", desc: "로그인할 수 없어요" },
 ];
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
 /** 제재 요약: "7일 정지 · 11.27까지", "경고", "영구 정지" */
-export function sanctionSummary(s: Sanction): string {
+export function sanctionSummary(s: Pick<Sanction, "type" | "until">): string {
   const label = SANCTION_TYPES.find((t) => t.value === s.type)?.label ?? s.type;
   if (!s.until) return label;
   const d = new Date(s.until);

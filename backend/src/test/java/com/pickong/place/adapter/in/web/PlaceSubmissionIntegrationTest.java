@@ -29,6 +29,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -63,6 +64,14 @@ class PlaceSubmissionIntegrationTest {
     @Autowired
     JdbcTemplate jdbc;
 
+    private long adminId;
+
+    @BeforeEach
+    void activeAdminFixture() {
+        adminId = jdbc.queryForObject("INSERT INTO admins(username,password_hash,role,status) VALUES (?,'test-only','OPERATOR','ACTIVE') RETURNING id",
+                Long.class, "place-security-" + UUID.randomUUID());
+    }
+
     @Autowired
     TokenUseCase tokenUseCase;
 
@@ -72,6 +81,7 @@ class PlaceSubmissionIntegrationTest {
     /** 이 클래스는 커밋합니다. 남은 제보가 있으면 다른 테스트의 회원 삭제가 외래 키에 막힙니다. */
     @AfterEach
     void deleteCommittedRows() {
+        jdbc.update("DELETE FROM admins WHERE id=?", adminId);
         jdbc.update("DELETE FROM place_submissions");
         jdbc.update("DELETE FROM places");
     }
@@ -310,8 +320,8 @@ class PlaceSubmissionIntegrationTest {
         return builder.servletPath("/api/v1");
     }
 
-    private static UsernamePasswordAuthenticationToken admin() {
+    private UsernamePasswordAuthenticationToken admin() {
         return UsernamePasswordAuthenticationToken.authenticated(
-                new AdminPrincipal(7L), null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+                new AdminPrincipal(adminId), null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
     }
 }

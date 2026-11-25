@@ -19,5 +19,7 @@ public interface FeedUseCase {
 
     Feed getFeed(Long feedId);
 
+    Feed getFeed(Long feedId, Long viewerId, boolean admin);
+
     void deleteFeed(Long feedId, Long userId);
 }

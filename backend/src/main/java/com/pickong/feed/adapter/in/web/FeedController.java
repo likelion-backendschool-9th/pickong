@@ -22,6 +22,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import com.pickong.common.error.BusinessException;
 import com.pickong.common.security.CurrentUser;
 import com.pickong.common.security.LoginUser;
+import com.pickong.common.security.AdminPrincipal;
+import org.springframework.security.core.Authentication;
 import com.pickong.feed.adapter.in.web.request.CreateFeedRequest;
 import com.pickong.feed.adapter.in.web.request.UpdateFeedRequest;
 import com.pickong.feed.adapter.in.web.response.FeedPageResponse;
@@ -44,8 +46,12 @@ public class FeedController {
 
     // 단건 상세조회
     @GetMapping("/{feedId}")
-    public FeedResponse getFeed(@PathVariable @Positive Long feedId) {
-        return FeedResponse.from(feedUseCase.getFeed(feedId));
+    public FeedResponse getFeed(@PathVariable @Positive Long feedId,
+            @CurrentUser(required = false) LoginUser viewer, Authentication authentication) {
+        boolean admin = authentication != null && authentication.isAuthenticated()
+                && authentication.getPrincipal() instanceof AdminPrincipal principal && principal.adminId() != null && principal.adminId() > 0
+                && authentication.getAuthorities().stream().anyMatch(role -> role.getAuthority().equals("ROLE_ADMIN"));
+        return FeedResponse.from(feedUseCase.getFeed(feedId, viewer == null ? null : viewer.userId(), admin));
     }
 
     // 피드 목록 조회. tab=recommended(추천) | tab=following(팔로잉). limit은 1~50 사이만 허용

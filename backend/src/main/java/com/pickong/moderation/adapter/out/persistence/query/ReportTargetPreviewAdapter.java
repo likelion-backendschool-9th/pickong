@@ -226,6 +226,11 @@ public class ReportTargetPreviewAdapter implements ReportTargetPreviewPort {
         };
     }
 
+    /** 사용자 목록의 신고 집계도 기존 스냅샷 해석을 재사용합니다. */
+    static Long snapshotReportedUserId(String raw) {
+        return readSnapshot(raw).reportedUserId();
+    }
+
     private static Snapshot readSnapshot(String raw) {
         if (raw == null || raw.isBlank()) {
             return Snapshot.EMPTY;
@@ -273,10 +278,13 @@ public class ReportTargetPreviewAdapter implements ReportTargetPreviewPort {
     }
 
     private static Long readUserId(JsonNode node) {
-        if (node == null || node.isNull()) {
+        if (node == null || node.isNull() || (!node.isString() && !node.isIntegralNumber())) return null;
+        try {
+            long id = Long.parseLong(node.isString() ? node.asString() : node.toString());
+            return id > 0 ? id : null;
+        } catch (RuntimeException exception) {
             return null;
         }
-        return node.asLong();
     }
 
     /** 이미지 주소. 비어 있으면 없는 값입니다. */

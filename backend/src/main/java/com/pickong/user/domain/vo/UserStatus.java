@@ -6,6 +6,7 @@ package com.pickong.user.domain.vo;
 public enum UserStatus {
     ACTIVE,
     SUSPENDED,
+    BANNED,
     WITHDRAWN_PENDING,
     WITHDRAWN
 }

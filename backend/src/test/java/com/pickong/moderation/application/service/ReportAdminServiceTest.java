@@ -2,9 +2,14 @@ package com.pickong.moderation.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.argThat;
 
 import com.pickong.common.error.BusinessException;
 import com.pickong.moderation.application.dto.ReportDismissal;
+import com.pickong.moderation.application.port.in.SanctionUseCase;
+import com.pickong.feed.application.port.in.FeedModerationUseCase;
+import com.pickong.admin.application.port.in.AdminActionLogUseCase;
 import com.pickong.moderation.application.dto.ReportTargetPreview;
 import com.pickong.moderation.application.dto.ReportTargetVisibility;
 import com.pickong.moderation.application.dto.ReportView;
@@ -26,14 +31,18 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/** 신고 처리 서비스. 저장소는 가짜라 숨김 · 제재가 완료로 저장되지 않는지만 확인합니다. */
+/** 신고 원문 보존과 선택 행 처리, 공통 포트 호출을 확인합니다. */
 class ReportAdminServiceTest {
 
     private static final OffsetDateTime NOW = OffsetDateTime.parse("2026-11-24T05:00:00Z");
 
     private final FakeReports reports = new FakeReports();
+    private final SanctionUseCase sanctions = mock(SanctionUseCase.class);
+    private final FeedModerationUseCase contents = mock(FeedModerationUseCase.class);
+    private final AdminActionLogUseCase logs = mock(AdminActionLogUseCase.class);
     private final ReportAdminService service = new ReportAdminService(
-            reports, request -> Map.of(), request -> Map.of(),
+            reports, request -> Map.of(4L, new ReportTargetPreview("본문", null, null, 8L, null, null, null, ReportTargetVisibility.LIVE)), request -> Map.of(),
+            sanctions, contents, logs,
             Clock.fixed(Instant.parse("2026-11-24T05:00:00Z"), ZoneOffset.UTC));
 
     @BeforeEach
@@ -52,15 +61,18 @@ class ReportAdminServiceTest {
     }
 
     @Test
-    @DisplayName("숨김과 제재는 저장하지 않고 501이며 신고는 대기로 남는다")
-    void unsupportedActionsDoNotResolve() {
-        assertCode(() -> service.resolve(4L, 7L, "HIDE_CONTENT", "스팸", null),
-                ModerationErrorCode.REPORT_ACTION_NOT_SUPPORTED);
-        assertCode(() -> service.resolve(4L, 7L, "SANCTION_USER", "반복", "BAN"),
-                ModerationErrorCode.REPORT_ACTION_NOT_SUPPORTED);
-
+    @DisplayName("숨김과 제재는 공통 포트에 원인 신고를 전달하고 선택 신고만 처리한다")
+    void commonActionsResolveSelectedReport() {
+        service.resolve(4L, 7L, "HIDE_CONTENT", "스팸", null);
+        verify(contents).setHidden(9L, true, "스팸", 7L, 4L);
+        assertThat(reports.current.getStatus()).isEqualTo(ReportStatus.RESOLVED);
+        reports.current = pending();
+        service.resolve(4L, 7L, "SANCTION_USER", "반복", "BAN");
+        verify(sanctions).sanction(argThat(command -> command.userId() == 8 && command.adminId() == 7
+                && command.sourceReportId() == 4 && command.type().name().equals("BAN")));
         assertThat(reports.dismissCalls).isZero();
-        assertThat(reports.current.getStatus()).isEqualTo(ReportStatus.PENDING);
+        assertThat(reports.current.getStatus()).isEqualTo(ReportStatus.RESOLVED);
+        verifyNoInteractions(logs); // 업무 포트가 이미 작업 기록을 담당합니다.
     }
 
     @Test
@@ -97,6 +109,7 @@ class ReportAdminServiceTest {
                         10L, new ReportTargetPreview(
                                 "욕설", "https://example.com/old.jpg", null, 8L, null, null, null, ReportTargetVisibility.LIVE)),
                 request -> Map.of(),
+                sanctions, contents, logs,
                 Clock.fixed(Instant.parse("2026-11-24T05:00:00Z"), ZoneOffset.UTC));
 
         List<ReportView> views = perReport.list("PENDING");
@@ -148,6 +161,16 @@ class ReportAdminServiceTest {
         private int dismissCalls;
         private String lastMemo;
         private long lastAdminId;
+
+        @Override
+        public Optional<Report> findByIdForUpdate(long id) { return findById(id); }
+
+        @Override
+        public boolean resolveIfPending(Report resolved) {
+            if (current == null || current.getStatus() != ReportStatus.PENDING) return false;
+            current = resolved;
+            return true;
+        }
 
         @Override
         public Optional<Report> findById(long id) {

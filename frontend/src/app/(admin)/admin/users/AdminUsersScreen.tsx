@@ -11,29 +11,38 @@ import { Avatar, Badge, EmptyState, ErrorState, Skeleton } from "@/shared/ui/dis
 import { SearchInput } from "@/shared/ui/form";
 import { TopBar } from "@/shared/ui/layout";
 import { useToast } from "@/shared/ui/Toast";
-import { useAdminUsers, useLiftSanction, useSanctionUser, type AdminUser, type SanctionType } from "../_api/adminApi";
+import { useAdminUsers, useLiftSanction, useSanctionUser } from "../_api/adminApi";
+import type { AdminUser, AdminUserFilter, Sanction, SanctionType } from "../_lib/models";
+import { useAdminSearch } from "../_lib/useAdminSearch";
 import { ReasonSheet } from "../_components/ReasonSheet";
 import { SANCTION_TYPES, sanctionSummary } from "../_lib/labels";
+import { canSanction } from "./_lib/sanctionPolicy";
 
-const STATUS = { ACTIVE: { label: "정상", tone: "lime" }, SUSPENDED: { label: "정지", tone: "warning" }, BANNED: { label: "영구 정지", tone: "danger" } } as const;
-type Filter = "ALL" | "REPORTED" | "SANCTIONED";
+const STATUS = {
+  ACTIVE: { label: "정상", tone: "lime" }, SUSPENDED: { label: "정지", tone: "warning" }, BANNED: { label: "영구 정지", tone: "danger" },
+  WITHDRAWN_PENDING: { label: "탈퇴 진행 중", tone: "neutral" }, WITHDRAWN: { label: "탈퇴 완료", tone: "neutral" },
+} as const;
 
 export function AdminUsersScreen() {
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<Filter>("ALL");
+  const { params, setParam } = useAdminSearch();
+  const query = params.get("q") ?? "";
+  const rawFilter = params.get("filter");
+  const filter: AdminUserFilter = rawFilter === "REPORTED" || rawFilter === "SANCTIONED" ? rawFilter : "ALL";
   const q = useDebounced(query.trim());
-  const { data, isPending, isError, error, refetch } = useAdminUsers(q, filter);
+  const { data, isPending, isError, error, refetch, isPlaceholderData } = useAdminUsers(q, filter);
   const sanction = useSanctionUser();
   const lift = useLiftSanction();
   const toast = useToast();
   const [target, setTarget] = useState<AdminUser | null>(null);
   const [type, setType] = useState<SanctionType>("WARNING");
+  const [revokeTarget, setRevokeTarget] = useState<{ user: AdminUser; sanction: Sanction } | null>(null);
+  const busy = sanction.isPending || lift.isPending || isPlaceholderData || q !== query.trim();
 
   return (
     <div className="pb-10">
       <TopBar title="사용자 제재" backHref={routes.admin()} />
       <div className="space-y-3 px-5 pt-1 pb-2">
-        <SearchInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder="이름 · 아이디 검색" aria-label="사용자 검색" />
+        <SearchInput value={query} onChange={(e) => setParam("q", e.target.value)} placeholder="이름 · 아이디 검색" aria-label="사용자 검색" />
         <div className="flex gap-2">
           {(
             [
@@ -42,11 +51,12 @@ export function AdminUsersScreen() {
               ["SANCTIONED", "제재 중"],
             ] as const
           ).map(([v, label]) => (
-            <Chip key={v} selected={filter === v} onClick={() => setFilter(v)}>
+            <Chip key={v} selected={filter === v} onClick={() => setParam("filter", v, "ALL")}>
               {label}
             </Chip>
           ))}
         </div>
+        <p className="text-[12px] text-ink-sub">신고 받음은 전체 신고 이력, 제재 중은 경고를 포함한 유효한 제재 기준이에요.</p>
       </div>
       {isPending ? (
         <Skeleton className="m-5 h-48" />
@@ -65,33 +75,26 @@ export function AdminUsersScreen() {
                     <span className="flex items-center gap-1.5">
                       <span className="truncate text-[14px] font-bold">{u.nickname}</span>
                       <Badge tone={STATUS[u.status].tone}>{STATUS[u.status].label}</Badge>
-                      {u.isCreator && <Badge tone="neutral">크리에이터</Badge>}
+                      {u.isCreator === true && <Badge tone="neutral">크리에이터</Badge>}
                     </span>
                     <span className="block truncate text-[12px] text-ink-sub">
                       @{u.username} · 게시물 {u.postCount} · 신고 {u.reportCount}
+                      {u.isCreator === null && " · 크리에이터 여부 확인 불가"}
                     </span>
                   </span>
                 </Link>
-                {u.sanction ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    loading={lift.isPending && lift.variables === u.id}
-                    onClick={() => lift.mutate(u.id, { onSuccess: () => toast({ message: `${u.nickname}님의 제재를 풀었어요` }) })}
-                  >
-                    해제
-                  </Button>
-                ) : (
-                  <Button size="sm" variant="danger" onClick={() => setTarget(u)}>
-                    제재
-                  </Button>
-                )}
+                <Button size="sm" variant="danger" disabled={busy || !canSanction(u.status, "WARNING")}
+                  onClick={() => { sanction.reset(); setType("WARNING"); setTarget(u); }}>
+                  제재
+                </Button>
               </div>
-              {u.sanction && (
-                <p className="mt-2 ml-[52px] rounded-lg bg-warning-soft px-3 py-2 text-[12px] text-warning">
-                  {sanctionSummary(u.sanction)} · {u.sanction.reason}
-                </p>
-              )}
+              {u.sanctions.map((active) => (
+                <div key={active.id} className="mt-2 ml-[52px] flex items-center gap-2 rounded-lg bg-warning-soft px-3 py-2">
+                  <p className="min-w-0 flex-1 break-words text-[12px] text-warning">{sanctionSummary(active)} · {active.reason}</p>
+                  <Button size="sm" variant="outline" disabled={busy} aria-label={`${u.nickname} ${sanctionSummary(active)} 해제`}
+                    onClick={() => { lift.reset(); setRevokeTarget({ user: u, sanction: active }); }}>해제</Button>
+                </div>
+              ))}
             </li>
           ))}
         </ul>
@@ -100,7 +103,8 @@ export function AdminUsersScreen() {
       <ReasonSheet
         open={!!target}
         title={`${target?.nickname ?? ""}님 제재`}
-        placeholder="제재 사유 (사용자에게 안내돼요)"
+        placeholder="제재 사유 (필수)"
+        description="제재 사유를 이력에 저장해요. 경고는 이용을 제한하지 않아요."
         confirmLabel="제재 적용"
         danger
         loading={sanction.isPending}
@@ -124,7 +128,7 @@ export function AdminUsersScreen() {
       >
         <div className="mb-3 space-y-1" role="radiogroup" aria-label="제재 종류">
           {SANCTION_TYPES.map((t) => (
-            <button key={t.value} type="button" role="radio" aria-checked={type === t.value} onClick={() => setType(t.value)} className="flex w-full items-center gap-3 py-2 text-left">
+            <button key={t.value} type="button" role="radio" disabled={!target || !canSanction(target.status, t.value, target.sanctions.find((s) => s.type !== "WARNING")?.type ?? null)} aria-checked={type === t.value} onClick={() => setType(t.value)} className="flex w-full items-center gap-3 py-2 text-left disabled:opacity-40">
               <RadioMark checked={type === t.value} />
               <span>
                 <span className="block text-[14px] font-bold">{t.label}</span>
@@ -134,6 +138,21 @@ export function AdminUsersScreen() {
           ))}
         </div>
       </ReasonSheet>
+      <ReasonSheet
+        open={!!revokeTarget}
+        title={`${revokeTarget?.user.nickname ?? ""}님 제재 해제`}
+        description={revokeTarget ? `${sanctionSummary(revokeTarget.sanction)} 이력만 해제해요. 다른 유효한 제재는 유지돼요.` : ""}
+        placeholder="해제 사유 (선택)"
+        required={false}
+        confirmLabel="해제"
+        loading={lift.isPending}
+        error={lift.isError ? lift.error : null}
+        onClose={() => { setRevokeTarget(null); lift.reset(); }}
+        onConfirm={(reason) => revokeTarget && lift.mutate(
+          { userId: revokeTarget.user.id, sanctionId: revokeTarget.sanction.id, reason },
+          { onSuccess: () => { toast({ message: "선택한 제재를 해제했어요" }); setRevokeTarget(null); } },
+        )}
+      />
     </div>
   );
 }

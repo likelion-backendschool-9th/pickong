@@ -24,7 +24,15 @@ public class FeedService implements FeedUseCase {
     @Override
     @Transactional(readOnly = true)
     public Feed getFeed(Long feedId) {
-        return feedRepository.findById(feedId);
+        return getFeed(feedId, null, false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Feed getFeed(Long feedId, Long viewerId, boolean admin) {
+        Feed feed = feedRepository.findById(feedId);
+        feed.ensureReadable(viewerId, admin);
+        return feed;
     }
 
     @Override
@@ -55,7 +63,7 @@ public class FeedService implements FeedUseCase {
     @Override
     @Transactional
     public Feed updateFeed(Long feedId, Long userId, UpdateFeedCommand command) {
-        Feed feed = feedRepository.findById(feedId);
+        Feed feed = feedRepository.findByIdForUpdate(feedId);
         // 본인 피드만 수정 가능
         if (!feed.getUserId().equals(userId)) {
             throw new BusinessException(FeedErrorCode.FEED_NOT_OWNER);
@@ -67,7 +75,7 @@ public class FeedService implements FeedUseCase {
     @Override
     @Transactional
     public void deleteFeed(Long feedId, Long userId) {
-        Feed feed = feedRepository.findById(feedId);
+        Feed feed = feedRepository.findByIdForUpdate(feedId);
         // 본인 피드만 삭제 가능
         if (!feed.getUserId().equals(userId)) {
             throw new BusinessException(FeedErrorCode.FEED_NOT_OWNER);

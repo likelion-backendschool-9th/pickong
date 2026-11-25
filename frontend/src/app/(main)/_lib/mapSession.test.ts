@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   hasBootstrappedMapGps,
   markMapGpsBootstrapped,
@@ -8,9 +8,21 @@ import {
   writeUserLocation,
 } from "./mapSession";
 
-afterEach(() => {
-  sessionStorage.clear();
+beforeEach(() => {
+  // Node 환경에도 브라우저와 같은 테스트 전용 저장소를 제공하며, 테스트마다 새로 만듭니다.
+  const values = new Map<string, string>();
+  const storage: Storage = {
+    get length() { return values.size; },
+    clear: () => values.clear(),
+    getItem: (key) => values.get(key) ?? null,
+    key: (index) => Array.from(values.keys())[index] ?? null,
+    removeItem: (key) => { values.delete(key); },
+    setItem: (key, value) => { values.set(key, value); },
+  };
+  vi.stubGlobal("sessionStorage", storage);
 });
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe("mapSession", () => {
   it("GPS 부트스트랩 플래그를 세션에 기록한다", () => {

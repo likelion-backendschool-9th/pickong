@@ -18,12 +18,15 @@ import jakarta.servlet.http.Cookie;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -79,6 +82,21 @@ class SecurityIntegrationTest {
 
     @Autowired
     TokenIssuerPort tokenIssuer;
+
+    @Autowired
+    JdbcTemplate jdbc;
+
+    @BeforeEach
+    void activeMember() {
+        jdbc.update("INSERT INTO users(id,username) VALUES (42,'security_test')");
+        jdbc.update("INSERT INTO user_terms_agreements(user_id,terms_id,agreed_at) SELECT 42,id,now() FROM terms WHERE is_required=true");
+    }
+
+    @AfterEach
+    void cleanOwnMember() {
+        jdbc.update("DELETE FROM user_terms_agreements WHERE user_id=42");
+        jdbc.update("DELETE FROM users WHERE id=42");
+    }
 
     /** DispatcherServlet이 /api/v1에 매핑되어 있어 실제 요청처럼 servletPath를 지정합니다. */
     private static MockHttpServletRequestBuilder api(MockHttpServletRequestBuilder builder) {

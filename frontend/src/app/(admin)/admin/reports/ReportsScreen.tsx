@@ -11,7 +11,8 @@ import { Chip, Tabs } from "@/shared/ui/controls";
 import { Badge, EmptyState, ErrorState, Skeleton, Thumb } from "@/shared/ui/display";
 import { TopBar } from "@/shared/ui/layout";
 import { useToast } from "@/shared/ui/Toast";
-import { useReports, useResolveReport, type Report, type ReportAction, type SanctionType } from "../_api/adminApi";
+import { useReports, useResolveReport, type Report, type ReportAction } from "../_api/adminApi";
+import type { SanctionType } from "../_lib/models";
 import { ReasonSheet } from "../_components/ReasonSheet";
 import { REPORT_ACTION, REPORT_TARGET, SANCTION_TYPES, reportReasonLabel, reportVisibilityLabel } from "../_lib/labels";
 import { ReportChangeNote } from "./_components/ReportChangeNote";
@@ -76,13 +77,13 @@ export function ReportsScreen() {
 
               {r.status === "PENDING" ? (
                 <div className="mt-3 grid grid-cols-3 gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setTarget({ report: r, action: "DISMISS" })}>
+                  <Button size="sm" variant="outline" disabled={resolve.isPending} onClick={() => { resolve.reset(); setTarget({ report: r, action: "DISMISS" }); }}>
                     기각
                   </Button>
-                  <Button size="sm" variant="secondary" disabled={r.targetType === "USER"} onClick={() => setTarget({ report: r, action: "HIDE_CONTENT" })}>
+                  <Button size="sm" variant="secondary" disabled={resolve.isPending || r.targetType === "USER" || r.targetType === "COLLECTION" || r.target.visibility === "DELETED" || r.target.visibility === "UNAVAILABLE"} onClick={() => { resolve.reset(); setTarget({ report: r, action: "HIDE_CONTENT" }); }}>
                     숨김
                   </Button>
-                  <Button size="sm" variant="danger" onClick={() => setTarget({ report: r, action: "SANCTION_USER" })}>
+                  <Button size="sm" variant="danger" disabled={resolve.isPending || r.targetType === "COLLECTION"} onClick={() => { resolve.reset(); setSanctionType("WARNING"); setTarget({ report: r, action: "SANCTION_USER" }); }}>
                     제재
                   </Button>
                 </div>
@@ -106,10 +107,10 @@ export function ReportsScreen() {
           target?.action === "DISMISS"
             ? "문제가 없다고 판단해 이 신고만 닫아요."
             : target?.action === "HIDE_CONTENT"
-              ? "콘텐츠를 다른 사람에게 보이지 않게 숨겨요. 콘텐츠 관리에서 다시 보이게 할 수 있어요."
+              ? "콘텐츠를 일반 사용자에게 숨겨요. 작성자와 관리자는 조회할 수 있어요."
               : `${target?.report.reportedUser?.nickname ?? "작성자"}님에게 제재를 적용해요.`
         }
-        placeholder={target?.action === "DISMISS" ? "처리 메모 (선택)" : "처리 사유 (사용자에게 안내돼요)"}
+        placeholder={target?.action === "DISMISS" ? "처리 메모 (선택)" : "처리 사유 (필수)"}
         required={target?.action !== "DISMISS"}
         confirmLabel={target ? REPORT_ACTION[target.action] : ""}
         danger={target?.action === "SANCTION_USER"}

@@ -190,6 +190,12 @@ class ReportServiceTest {
         private final List<Report> saved = new ArrayList<>();
 
         @Override
+        public Optional<Report> findByIdForUpdate(long id) { return findById(id); }
+
+        @Override
+        public boolean resolveIfPending(Report resolved) { throw new UnsupportedOperationException(); }
+
+        @Override
         public Optional<Report> findById(long id) {
             return saved.stream().filter(report -> report.getId() == id).findFirst();
         }

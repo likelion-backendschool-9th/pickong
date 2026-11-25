@@ -29,10 +29,10 @@ public class CommentReactionService implements CommentReactionUseCase {
     @Transactional
     public void likeComment(Long feedId, Long commentId, Long userId) {
         // 피드 존재 확인 — 없으면 FEED_NOT_FOUND 예외
-        feedRepository.findById(feedId);
+        feedRepository.findByIdForUpdate(feedId).ensureAcceptsInteraction();
 
         // 댓글 존재 확인 — 없으면 COMMENT_NOT_FOUND 예외
-        Comment comment = commentRepository.findById(commentId);
+        Comment comment = commentRepository.findByIdForUpdate(commentId);
 
         // 댓글이 해당 피드에 속하는지 확인 — 잘못된 feedId 방지
         if (!comment.getFeedId().equals(feedId)) {
@@ -62,7 +62,7 @@ public class CommentReactionService implements CommentReactionUseCase {
     @Transactional
     public void unlikeComment(Long feedId, Long commentId, Long userId) {
         // 피드 존재 확인
-        feedRepository.findById(feedId);
+        feedRepository.findByIdForUpdate(feedId);
 
         // 댓글 존재 확인
         Comment comment = commentRepository.findById(commentId);

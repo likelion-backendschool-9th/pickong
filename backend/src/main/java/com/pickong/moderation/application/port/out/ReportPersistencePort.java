@@ -13,6 +13,11 @@ public interface ReportPersistencePort {
 
     Optional<Report> findById(long id);
 
+    Optional<Report> findByIdForUpdate(long id);
+
+    /** 잠근 대기 행의 처리 필드만 조건부 갱신합니다. */
+    boolean resolveIfPending(Report resolved);
+
     /** 같은 신고자 · 대상의 대기 신고가 있는지. 사유는 보지 않습니다. */
     boolean existsPending(long reporterId, ReportTargetType targetType, long targetId);
 

@@ -79,7 +79,7 @@ class FeedServiceTest {
     void updateFeed_성공() {
         // given
         UpdateFeedCommand command = new UpdateFeedCommand("수정된 내용", Visibility.PRIVATE, List.of(), List.of());
-        given(feedRepository.findById(1L)).willReturn(sampleFeed());
+        given(feedRepository.findByIdForUpdate(1L)).willReturn(sampleFeed());
         given(feedRepository.save(any(Feed.class))).willReturn(
                 Feed.builder().id(1L).userId(1L).content("수정된 내용").visibility(Visibility.PRIVATE).build());
 
@@ -94,7 +94,7 @@ class FeedServiceTest {
     @Test
     void updateFeed_타인피드_수정시_예외발생() {
         // given: 피드 작성자는 userId=1, 요청자는 userId=99
-        given(feedRepository.findById(1L)).willReturn(sampleFeed());
+        given(feedRepository.findByIdForUpdate(1L)).willReturn(sampleFeed());
 
         // when & then
         assertThatThrownBy(() -> feedService.updateFeed(1L, 99L,
@@ -106,7 +106,7 @@ class FeedServiceTest {
     @Test
     void deleteFeed_성공() {
         // given: 피드가 존재하고 본인 피드
-        given(feedRepository.findById(1L)).willReturn(sampleFeed());
+        given(feedRepository.findByIdForUpdate(1L)).willReturn(sampleFeed());
         willDoNothing().given(feedRepository).deleteById(1L);
 
         // when
@@ -119,7 +119,7 @@ class FeedServiceTest {
     @Test
     void deleteFeed_타인피드_삭제시_예외발생() {
         // given: 피드 작성자는 userId=1, 요청자는 userId=99
-        given(feedRepository.findById(1L)).willReturn(sampleFeed());
+        given(feedRepository.findByIdForUpdate(1L)).willReturn(sampleFeed());
 
         // when & then
         assertThatThrownBy(() -> feedService.deleteFeed(1L, 99L))
@@ -142,7 +142,7 @@ class FeedServiceTest {
     @Test
     void updateFeed_존재하지않는id_예외발생() {
         // given: 없는 id 조회 시 BusinessException 던지도록 설정
-        given(feedRepository.findById(999L))
+        given(feedRepository.findByIdForUpdate(999L))
                 .willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND));
 
         // when & then
@@ -154,7 +154,7 @@ class FeedServiceTest {
     @Test
     void deleteFeed_존재하지않는id_예외발생() {
         // given: 없는 id 조회 시 BusinessException 던지도록 설정
-        given(feedRepository.findById(999L))
+        given(feedRepository.findByIdForUpdate(999L))
                 .willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND));
 
         // when & then

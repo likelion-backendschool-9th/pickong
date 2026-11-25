@@ -26,6 +26,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -71,13 +72,24 @@ class ReportAdminIntegrationTest {
     @Autowired
     PlatformTransactionManager transactionManager;
 
+    @BeforeEach
+    void actualAdminForAuthenticatedPrincipal() {
+        for (long id : List.of(7L, 8L)) {
+            jdbc.update("INSERT INTO admins(id,username,password_hash,role,status) VALUES (?,?,'test-only','OPERATOR','ACTIVE') ON CONFLICT(id) DO NOTHING",
+                    id, "report-it-admin-" + id);
+            assertThat(jdbc.queryForObject("SELECT username FROM admins WHERE id=?", String.class, id)).isEqualTo("report-it-admin-" + id);
+        }
+    }
+
     @AfterEach
     void deleteRows() {
+        jdbc.update("DELETE FROM admin_action_logs WHERE admin_id IN (7,8)");
         jdbc.update("DELETE FROM reports");
         jdbc.update("DELETE FROM comments WHERE content LIKE 'report-it-%'");
         jdbc.update("DELETE FROM feeds WHERE content LIKE 'report-it-%'");
         jdbc.execute("DROP INDEX IF EXISTS uq_reports_test_one_resolved");
         jdbc.execute("ALTER TABLE reports DROP CONSTRAINT IF EXISTS ck_reports_test_reject_memo");
+        jdbc.update("DELETE FROM admins WHERE id IN (7,8) AND username IN ('report-it-admin-7','report-it-admin-8')");
     }
 
     @Test
@@ -166,6 +178,7 @@ class ReportAdminIntegrationTest {
         long author = insertUser("작성자", null);
         long feed = insertFeed(author, "report-it-거절");
         long id = insertPending(reporter, "FEED", feed, "SPAM", "", null, NEWER);
+        long collection = insertPending(reporter, "COLLECTION", 987654L, "SPAM", "", null, NEWER);
 
         mvc.perform(api(post("/api/v1/admin/reports/999999/resolve"))
                         .with(authentication(admin()))
@@ -185,13 +198,13 @@ class ReportAdminIntegrationTest {
         mvc.perform(resolve(id, "{\"action\":\"HIDE_CONTENT\",\"memo\":\"  \"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("RESOLUTION_MEMO_REQUIRED"));
-        mvc.perform(resolve(id, "{\"action\":\"HIDE_CONTENT\",\"memo\":\"광고\"}"))
+        mvc.perform(resolve(collection, "{\"action\":\"HIDE_CONTENT\",\"memo\":\"광고\"}"))
                 .andExpect(status().isNotImplemented())
                 .andExpect(jsonPath("$.code").value("REPORT_ACTION_NOT_SUPPORTED"));
         mvc.perform(resolve(id, "{\"action\":\"SANCTION_USER\",\"memo\":\"반복\",\"sanctionType\":\"WEEK\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_SANCTION_TYPE"));
-        mvc.perform(resolve(id, "{\"action\":\"SANCTION_USER\",\"memo\":\"반복\",\"sanctionType\":\"BAN\"}"))
+        mvc.perform(resolve(collection, "{\"action\":\"SANCTION_USER\",\"memo\":\"반복\",\"sanctionType\":\"BAN\"}"))
                 .andExpect(status().isNotImplemented());
         mvc.perform(resolve(id, "{\"action\":\"DISMISS\",\"sanctionType\":\"BAN\"}"))
                 .andExpect(status().isBadRequest())
@@ -472,7 +485,7 @@ class ReportAdminIntegrationTest {
                 () -> reports.resolve(id, 7L, "DISMISS", "왼쪽", null),
                 () -> reports.resolve(id, 8L, "DISMISS", "오른쪽", null));
 
-        assertThat(successCount(outcomes)).isEqualTo(1);
+        assertThat(successCount(outcomes)).withFailMessage("Concurrent outcomes: %s", outcomes).isEqualTo(1);
         assertThat(conflictCount(outcomes)).isEqualTo(1);
         String memo = jdbc.queryForObject("SELECT resolution_memo FROM reports WHERE id = ?", String.class, id);
         assertThat(memo).isIn("왼쪽", "오른쪽");
@@ -493,7 +506,7 @@ class ReportAdminIntegrationTest {
                 () -> reports.resolve(left, 7L, "DISMISS", "왼쪽", null),
                 () -> reports.resolve(right, 8L, "DISMISS", "오른쪽", null));
 
-        assertThat(successCount(outcomes)).isEqualTo(2);
+        assertThat(successCount(outcomes)).withFailMessage("Concurrent outcomes: %s", outcomes).isEqualTo(2);
         assertThat(conflictCount(outcomes)).isZero();
         assertResolved(left, 7L, "왼쪽");
         assertResolved(right, 8L, "오른쪽");
@@ -513,7 +526,7 @@ class ReportAdminIntegrationTest {
                 () -> reports.resolve(left, 7L, "DISMISS", "왼쪽", null),
                 () -> reports.resolve(right, 8L, "DISMISS", "오른쪽", null));
 
-        assertThat(successCount(outcomes)).isEqualTo(2);
+        assertThat(successCount(outcomes)).withFailMessage("Concurrent outcomes: %s", outcomes).isEqualTo(2);
         assertThat(conflictCount(outcomes)).isZero();
         assertResolved(left, 7L, "왼쪽");
         assertResolved(right, 8L, "오른쪽");

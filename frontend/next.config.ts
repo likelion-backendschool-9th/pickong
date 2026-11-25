@@ -21,6 +21,9 @@ const BACKEND_PATHS = [
   "/api/v1/me/agreements",
   "/api/v1/me/agreements/:path*",
   "/api/v1/me/withdrawal",
+  "/api/v1/admin/users/:path*",
+  "/api/v1/admin/feeds/:path*",
+  "/api/v1/admin/reports/:path*",
   // 장소 제보 화면은 관리자 로그인이 없어 mock에 둡니다. 백엔드로 보내면 목록이 비거나 로그인으로 이동합니다.
 ];
 

@@ -51,8 +51,8 @@ class CommentReactionServiceTest {
 
     @Test
     void likeComment_성공() {
-        given(feedRepository.findById(10L)).willReturn(sampleFeed());
-        given(commentRepository.findById(1L)).willReturn(sampleComment());
+        given(feedRepository.findByIdForUpdate(10L)).willReturn(sampleFeed());
+        given(commentRepository.findByIdForUpdate(1L)).willReturn(sampleComment());
         given(commentReactionRepository.existsCommentLike(1L, 2L)).willReturn(false);
 
         commentReactionService.likeComment(10L, 1L, 2L);
@@ -62,7 +62,7 @@ class CommentReactionServiceTest {
 
     @Test
     void likeComment_존재하지않는피드_예외발생() {
-        given(feedRepository.findById(anyLong()))
+        given(feedRepository.findByIdForUpdate(anyLong()))
                 .willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND));
 
         assertThatThrownBy(() -> commentReactionService.likeComment(999L, 1L, 2L))
@@ -72,8 +72,8 @@ class CommentReactionServiceTest {
 
     @Test
     void likeComment_존재하지않는댓글_예외발생() {
-        given(feedRepository.findById(10L)).willReturn(sampleFeed());
-        given(commentRepository.findById(anyLong()))
+        given(feedRepository.findByIdForUpdate(10L)).willReturn(sampleFeed());
+        given(commentRepository.findByIdForUpdate(anyLong()))
                 .willThrow(new BusinessException(FeedErrorCode.COMMENT_NOT_FOUND));
 
         assertThatThrownBy(() -> commentReactionService.likeComment(10L, 999L, 2L))
@@ -86,8 +86,8 @@ class CommentReactionServiceTest {
         // 댓글의 feedId(99L)가 경로의 feedId(10L)와 다른 케이스
         Comment wrongFeedComment = Comment.builder()
                 .id(1L).feedId(99L).userId(1L).content("다른 피드 댓글").likeCount(0).build();
-        given(feedRepository.findById(10L)).willReturn(sampleFeed());
-        given(commentRepository.findById(1L)).willReturn(wrongFeedComment);
+        given(feedRepository.findByIdForUpdate(10L)).willReturn(sampleFeed());
+        given(commentRepository.findByIdForUpdate(1L)).willReturn(wrongFeedComment);
 
         assertThatThrownBy(() -> commentReactionService.likeComment(10L, 1L, 2L))
                 .isInstanceOf(BusinessException.class)
@@ -96,8 +96,8 @@ class CommentReactionServiceTest {
 
     @Test
     void likeComment_이미좋아요_예외발생() {
-        given(feedRepository.findById(10L)).willReturn(sampleFeed());
-        given(commentRepository.findById(1L)).willReturn(sampleComment());
+        given(feedRepository.findByIdForUpdate(10L)).willReturn(sampleFeed());
+        given(commentRepository.findByIdForUpdate(1L)).willReturn(sampleComment());
         given(commentReactionRepository.existsCommentLike(1L, 2L)).willReturn(true);
 
         assertThatThrownBy(() -> commentReactionService.likeComment(10L, 1L, 2L))
@@ -109,7 +109,7 @@ class CommentReactionServiceTest {
 
     @Test
     void unlikeComment_성공() {
-        given(feedRepository.findById(10L)).willReturn(sampleFeed());
+        given(feedRepository.findByIdForUpdate(10L)).willReturn(sampleFeed());
         given(commentRepository.findById(1L)).willReturn(sampleComment());
         given(commentReactionRepository.deleteCommentLike(1L, 2L)).willReturn(true);
 
@@ -120,7 +120,7 @@ class CommentReactionServiceTest {
 
     @Test
     void unlikeComment_존재하지않는피드_예외발생() {
-        given(feedRepository.findById(anyLong()))
+        given(feedRepository.findByIdForUpdate(anyLong()))
                 .willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND));
 
         assertThatThrownBy(() -> commentReactionService.unlikeComment(999L, 1L, 2L))
@@ -130,7 +130,7 @@ class CommentReactionServiceTest {
 
     @Test
     void unlikeComment_좋아요없음_예외발생() {
-        given(feedRepository.findById(10L)).willReturn(sampleFeed());
+        given(feedRepository.findByIdForUpdate(10L)).willReturn(sampleFeed());
         given(commentRepository.findById(1L)).willReturn(sampleComment());
         given(commentReactionRepository.deleteCommentLike(1L, 2L)).willReturn(false);
 

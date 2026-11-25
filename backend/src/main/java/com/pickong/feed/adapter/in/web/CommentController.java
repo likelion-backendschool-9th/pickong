@@ -2,6 +2,8 @@ package com.pickong.feed.adapter.in.web;
 
 import com.pickong.common.security.CurrentUser;
 import com.pickong.common.security.LoginUser;
+import com.pickong.common.security.AdminPrincipal;
+import org.springframework.security.core.Authentication;
 import com.pickong.feed.adapter.in.web.request.CreateCommentRequest;
 import com.pickong.feed.adapter.in.web.request.UpdateCommentRequest;
 import com.pickong.feed.adapter.in.web.response.CommentPageResponse;
@@ -33,8 +35,9 @@ public class CommentController {
     public CommentPageResponse getComments(
             @PathVariable @Positive Long feedId,
             @RequestParam(required = false) Long cursor,
-            @RequestParam @Min(value = 1, message = "limit은 1 이상이어야 합니다") @Max(value = 50, message = "limit은 50 이하이어야 합니다") int limit) {
-        CommentPage page = commentUseCase.getComments(feedId, cursor, limit);
+            @RequestParam @Min(value = 1, message = "limit은 1 이상이어야 합니다") @Max(value = 50, message = "limit은 50 이하이어야 합니다") int limit,
+            @CurrentUser(required = false) LoginUser viewer, Authentication authentication) {
+        CommentPage page = commentUseCase.getComments(feedId, cursor, limit, viewer == null ? null : viewer.userId(), isAdmin(authentication));
         return CommentPageResponse.of(
                 page.getComments().stream().map(CommentResponse::from).toList(),
                 page.getNextCursor(),
@@ -48,8 +51,9 @@ public class CommentController {
             @PathVariable @Positive Long feedId,
             @PathVariable @Positive Long commentId,
             @RequestParam(required = false) Long cursor,
-            @RequestParam @Min(value = 1, message = "limit은 1 이상이어야 합니다") @Max(value = 50, message = "limit은 50 이하이어야 합니다") int limit) {
-        CommentPage page = commentUseCase.getReplies(feedId, commentId, cursor, limit);
+            @RequestParam @Min(value = 1, message = "limit은 1 이상이어야 합니다") @Max(value = 50, message = "limit은 50 이하이어야 합니다") int limit,
+            @CurrentUser(required = false) LoginUser viewer, Authentication authentication) {
+        CommentPage page = commentUseCase.getReplies(feedId, commentId, cursor, limit, viewer == null ? null : viewer.userId(), isAdmin(authentication));
         return CommentPageResponse.of(
                 page.getComments().stream().map(CommentResponse::from).toList(),
                 page.getNextCursor(),
@@ -85,5 +89,11 @@ public class CommentController {
             @PathVariable @Positive Long commentId,
             @CurrentUser LoginUser user) {
         commentUseCase.deleteComment(feedId, commentId, user.userId());
+    }
+
+    private static boolean isAdmin(Authentication authentication) {
+        return authentication != null && authentication.isAuthenticated()
+                && authentication.getPrincipal() instanceof AdminPrincipal principal && principal.adminId() != null && principal.adminId() > 0
+                && authentication.getAuthorities().stream().anyMatch(role -> role.getAuthority().equals("ROLE_ADMIN"));
     }
 }

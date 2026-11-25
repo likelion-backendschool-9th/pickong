@@ -73,7 +73,7 @@ class CommentControllerTest {
 
     @Test
     void getComments_목록조회_200반환() throws Exception {
-        given(commentUseCase.getComments(anyLong(), isNull(), anyInt()))
+        given(commentUseCase.getComments(anyLong(), isNull(), anyInt(), anyLong(), org.mockito.ArgumentMatchers.anyBoolean()))
                 .willReturn(new CommentPage(List.of(sampleComment()), null, false));
 
         mockMvc.perform(get("/feeds/10/comments").param("limit", "10"))
@@ -84,7 +84,7 @@ class CommentControllerTest {
 
     @Test
     void getReplies_대댓글목록_200반환() throws Exception {
-        given(commentUseCase.getReplies(anyLong(), anyLong(), isNull(), anyInt()))
+        given(commentUseCase.getReplies(anyLong(), anyLong(), isNull(), anyInt(), anyLong(), org.mockito.ArgumentMatchers.anyBoolean()))
                 .willReturn(new CommentPage(List.of(sampleComment()), null, false));
 
         mockMvc.perform(get("/feeds/10/comments/1/replies").param("limit", "10"))

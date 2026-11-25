@@ -1,7 +1,8 @@
 import { buildReportTarget, resolveMockVisibility, type ReportSnapshotSource, type ReportVisibility } from "../../src/app/(admin)/admin/reports/_lib/reportTargetPreview.ts";
 import { excerpt } from "../../src/app/(admin)/admin/reports/_lib/reportContentComparison.ts";
+import { normalizeReason, reasonError } from "../../src/app/(admin)/admin/_lib/reason.ts";
 import { collectionDto, db, findUser, postDto } from "../db.ts";
-import { HttpError, notFound, type Route } from "../router.ts";
+import { HttpError, RawResponse, notFound, type Route } from "../router.ts";
 import { accountDto, creatorState, reviewApplication } from "./creator.ts";
 import { purchaseDto } from "./payments.ts";
 
@@ -153,8 +154,10 @@ const reports: ReportRow[] = [
 /** 숨김 처리한 콘텐츠 ("POST:post-5" 형태). mock은 표시만 하고 피드에서 빼지는 않습니다. */
 const hidden = new Set<string>();
 
-const sanctions: Record<string, { type: SanctionType; reason: string; startedAt: string; until: string | null }> = {
-  "u-walker": { type: "WARNING", reason: "스팸성 게시물 반복", startedAt: ago(10), until: null },
+interface MockSanction { id: string; type: SanctionType; reason: string; startedAt: string; until: string | null; endedAt: string | null }
+let nextSanctionId = 1;
+const sanctions: Record<string, MockSanction[]> = {
+  "u-walker": [{ id: "1", type: "WARNING", reason: "스팸성 게시물 반복", startedAt: ago(10), until: null, endedAt: null }],
 };
 
 const SANCTION_DAYS: Record<SanctionType, number | null> = { WARNING: null, SUSPEND_7: 7, SUSPEND_30: 30, BAN: null };
@@ -167,7 +170,8 @@ const userSummary = (id: string) => {
 function targetPreview(r: ReportRow) {
   const source = visibleTarget(r);
   const hasCurrent = Object.hasOwn(r, "currentBody");
-  const visibility = resolveMockVisibility(r.visibility, source.visibility, hasCurrent);
+  const currentVisibility = resolveMockVisibility(r.visibility, source.visibility, hasCurrent);
+  const visibility = currentVisibility === "LIVE" && hidden.has(`${r.targetType}:${r.targetId}`) ? "HIDDEN" : currentVisibility;
   const body = hasCurrent ? (r.currentBody ?? null) : source.body;
   return buildReportTarget({
     targetType: r.targetType,
@@ -248,12 +252,13 @@ const reportDto = (r: ReportRow) => ({
   resolution: r.resolution,
 });
 
-function sanctionOf(userId: string) {
-  const s = sanctions[userId];
-  if (!s) return null;
-  if (s.until && new Date(s.until).getTime() < Date.now()) return null;
-  return s;
+function activeSanctions(userId: string) {
+  return (sanctions[userId] ?? []).filter((s) => !s.endedAt && (!s.until || new Date(s.until).getTime() > Date.now()))
+    .sort((a, b) => Number(a.type === "WARNING") - Number(b.type === "WARNING") || b.startedAt.localeCompare(a.startedAt) || Number(b.id) - Number(a.id));
 }
+
+const sanctionOf = (userId: string) => activeSanctions(userId)[0] ?? null;
+const sanctionDto = (s: MockSanction) => ({ id: s.id, type: s.type, reason: s.reason, startedAt: s.startedAt, until: s.until });
 
 const adminUserDto = (id: string) => {
   const u = findUser(id)!;
@@ -264,16 +269,25 @@ const adminUserDto = (id: string) => {
     reportCount: reports.filter((r) => r.reportedUserId === id).length,
     postCount: db.posts.filter((p) => p.authorId === id).length,
     status: !s || s.type === "WARNING" ? "ACTIVE" : s.type === "BAN" ? "BANNED" : "SUSPENDED",
-    sanction: s,
+    sanction: s ? sanctionDto(s) : null,
+    sanctions: activeSanctions(id).map(sanctionDto),
   };
 };
 
 function sanction(userId: string, type: SanctionType, reason: string) {
   if (!findUser(userId)) notFound("사용자");
   if (!Object.hasOwn(SANCTION_DAYS, type)) throw new HttpError(400, "INVALID_INPUT", "제재 종류를 확인해 주세요.");
-  if (!reason.trim()) throw new HttpError(400, "INVALID_INPUT", "제재 사유를 입력해 주세요.");
+  const validation = reasonError(reason, true);
+  if (validation) throw new HttpError(400, "INVALID_INPUT", validation);
+  const restriction = activeSanctions(userId).find((s) => s.type !== "WARNING");
+  if (type !== "WARNING" && restriction) {
+    if (type !== "BAN" || restriction.type === "BAN") throw new HttpError(409, "ACTIVE_SANCTION_EXISTS", "유효한 이용 제한 제재가 있어요.");
+    restriction.endedAt = new Date().toISOString();
+  }
   const days = SANCTION_DAYS[type];
-  sanctions[userId] = { type, reason: reason.trim(), startedAt: new Date().toISOString(), until: days ? ago(-days) : null };
+  const saved: MockSanction = { id: String(++nextSanctionId), type, reason: normalizeReason(reason), startedAt: new Date().toISOString(), until: days ? ago(-days) : null, endedAt: null };
+  (sanctions[userId] ??= []).push(saved);
+  return sanctionDto(saved);
 }
 
 function contentList(type: string, q: string) {
@@ -350,12 +364,16 @@ export const adminRoutes: Route[] = [
       const r = reports.find((x) => x.id === params.id) ?? notFound("신고");
       if (r.status === "RESOLVED") throw new HttpError(409, "ALREADY_RESOLVED", "이미 처리한 신고예요.");
       const action = String(body?.action ?? "") as ReportAction;
-      const memo = String(body?.memo ?? "").trim();
+      const memo = normalizeReason(String(body?.memo ?? ""));
+      const validation = reasonError(memo, action !== "DISMISS");
+      if (validation) throw new HttpError(400, "INVALID_INPUT", validation);
+      if (r.targetType === "COLLECTION" && action !== "DISMISS") throw new HttpError(501, "NOT_IMPLEMENTED", "컬렉션 관리는 준비 중이에요.");
       if (action === "HIDE_CONTENT") {
         if (r.targetType === "USER") throw new HttpError(400, "INVALID_INPUT", "사용자 신고는 제재로 처리해 주세요.");
+        if (["DELETED", "UNAVAILABLE"].includes(targetPreview(r).visibility)) notFound("콘텐츠");
         hidden.add(`${r.targetType}:${r.targetId}`);
       } else if (action === "SANCTION_USER") {
-        sanction(r.reportedUserId, (body?.sanctionType ?? "WARNING") as SanctionType, memo || "신고 처리");
+        sanction(r.reportedUserId, String(body?.sanctionType ?? "") as SanctionType, memo);
       } else if (action !== "DISMISS") {
         throw new HttpError(400, "INVALID_INPUT", "처리 방법을 골라 주세요.");
       }
@@ -383,33 +401,39 @@ export const adminRoutes: Route[] = [
     method: "POST",
     path: "/api/v1/admin/users/:id/sanctions",
     handler: ({ params, body }) => {
-      sanction(params.id, String(body?.type ?? "") as SanctionType, String(body?.reason ?? ""));
-      return adminUserDto(params.id);
+      const result = sanction(params.id, String(body?.type ?? "") as SanctionType, String(body?.reason ?? ""));
+      return new RawResponse(201, { "Content-Type": "application/json" }, JSON.stringify(result));
     },
   },
   {
     method: "DELETE",
-    path: "/api/v1/admin/users/:id/sanctions",
-    handler: ({ params }) => {
+    path: "/api/v1/admin/users/:id/sanctions/:sanctionId",
+    handler: ({ params, body }) => {
       if (!findUser(params.id)) notFound("사용자");
-      delete sanctions[params.id];
-      return adminUserDto(params.id);
+      const selected = (sanctions[params.id] ?? []).find((s) => s.id === params.sanctionId) ?? notFound("제재");
+      if (!activeSanctions(params.id).some((s) => s.id === selected.id)) throw new HttpError(409, "SANCTION_ALREADY_ENDED", "이미 종료된 제재예요.");
+      const validation = reasonError(String(body?.reason ?? ""), false);
+      if (validation) throw new HttpError(400, "INVALID_INPUT", validation);
+      selected.endedAt = new Date().toISOString();
+      return undefined;
     },
   },
 
   // ── 콘텐츠 관리 ────────────────────────────────────
   {
     method: "GET",
-    path: "/api/v1/admin/contents",
-    handler: ({ query }) => contentList(query.get("type") ?? "POST", query.get("q") ?? ""),
+    path: "/api/v1/admin/feeds",
+    handler: ({ query }) => contentList("POST", query.get("q") ?? ""),
   },
   {
     method: "PATCH",
-    path: "/api/v1/admin/contents/:type/:id",
+    path: "/api/v1/admin/feeds/:id",
     handler: ({ params, body }) => {
-      const type = params.type.toUpperCase();
-      if (type !== "POST" && type !== "COLLECTION") throw new HttpError(400, "INVALID_INPUT", "콘텐츠 종류를 확인해 주세요.");
-      const exists = type === "POST" ? db.posts.some((p) => p.id === params.id) : db.collections.some((c) => c.id === params.id);
+      const type = "POST";
+      if (typeof body?.hidden !== "boolean") throw new HttpError(400, "INVALID_INPUT", "숨김 여부를 확인해 주세요.");
+      const validation = reasonError(String(body?.reason ?? ""), body.hidden);
+      if (validation) throw new HttpError(400, "INVALID_INPUT", validation);
+      const exists = db.posts.some((p) => p.id === params.id);
       if (!exists) notFound("콘텐츠");
       const key = `${type}:${params.id}`;
       if (body?.hidden) hidden.add(key);
