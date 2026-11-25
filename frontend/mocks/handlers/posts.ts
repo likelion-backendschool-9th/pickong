@@ -23,14 +23,17 @@ const feedPosts = (tab: string, region?: string | null) => {
     )
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
-  if (!region || region === "전국") return posts;
+  if (!region) return posts;
 
-  // 게시물에 연결된 장소 중 하나라도 region으로 시작하면 포함
+  // 쉼표 구분 다중 지역. 게시물 장소가 선택된 지역 중 하나라도 startsWith이면 포함
+  const regions = region.split(",").filter(Boolean);
+  if (regions.length === 0) return posts;
+
   return posts.filter((p) =>
     p.photos.some((ph) => {
       if (!ph.placeId) return false;
       const place = findPlace(ph.placeId);
-      return place?.region?.startsWith(region);
+      return place && regions.some((r) => place.region?.startsWith(r));
     }),
   );
 };

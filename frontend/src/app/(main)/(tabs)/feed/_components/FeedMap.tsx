@@ -17,7 +17,7 @@ const TAB_LABEL: Record<FeedTab, string> = { following: "팔로잉", recommended
  * 내가 저장한 장소를 관리하는 ‘내 지도’와는 다른 데이터입니다.
  */
 export function FeedMap({ tab, region }: { tab: FeedTab; region?: string }) {
-  const regionParam = region === "전국" ? undefined : region;
+  const regionParam = region || undefined;
   const { data: places, isPending: placesPending } = useFeedPlaces(tab, regionParam);
   const { data: posts, isPending: postsPending } = useFeed(tab, regionParam);
   const [bounds, setBounds] = useState<LatLngBounds | null>(null);

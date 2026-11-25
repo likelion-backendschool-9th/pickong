@@ -25,7 +25,8 @@ export function FeedScreen() {
   const router = useRouter();
   const pathname = usePathname();
   const mode = params.get("view") === "map" ? "map" : "list";
-  const region = params.get("region") ?? "전국";
+  /** 쉼표 구분 지역 목록. "" = 전체 */
+  const region = params.get("region") ?? "";
 
   const setMode = (m: "list" | "map") => {
     const sp = new URLSearchParams(params.toString());
@@ -35,7 +36,7 @@ export function FeedScreen() {
 
   const setRegion = (r: string) => {
     const sp = new URLSearchParams(params.toString());
-    if (r === "전국") sp.delete("region"); else sp.set("region", r);
+    if (!r) sp.delete("region"); else sp.set("region", r);
     router.replace(`${pathname}?${sp.toString()}`.replace(/\?$/, ""), { scroll: false });
   };
 
@@ -65,12 +66,15 @@ export function FeedScreen() {
               { value: "recommended", label: "추천" },
             ]}
             value={tab}
-            onChange={(t) => { setTab(t); if (t === "following") setRegion("전국"); }}
+            onChange={(t) => { setTab(t); if (t === "following") setRegion(""); }}
           />
-          <div className="ml-auto flex items-center gap-2">
-            {tab === "recommended" && (
+          {/* 추천 탭 바로 옆에 위치 */}
+          {tab === "recommended" && (
+            <div className="ml-2">
               <RegionDropdown value={region} onChange={setRegion} />
-            )}
+            </div>
+          )}
+          <div className="ml-auto">
             <button
               type="button"
               onClick={() => setMode(mode === "map" ? "list" : "map")}
@@ -85,16 +89,16 @@ export function FeedScreen() {
       </header>
 
       {mode === "map" ? (
-        <FeedMap tab={tab} region={tab === "recommended" ? region : undefined} />
+        <FeedMap tab={tab} region={tab === "recommended" && region ? region : undefined} />
       ) : (
-        <FeedList tab={tab} region={tab === "recommended" ? region : undefined} />
+        <FeedList tab={tab} region={tab === "recommended" && region ? region : undefined} />
       )}
     </div>
   );
 }
 
 function FeedList({ tab, region }: { tab: FeedTab; region?: string }) {
-  const regionParam = region === "전국" ? undefined : region;
+  const regionParam = region || undefined;
   const { data: posts, isPending, isError, error, refetch } = useFeed(tab, regionParam);
   const [refreshSignal, setRefreshSignal] = useState(0);
 
