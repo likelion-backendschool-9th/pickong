@@ -11,9 +11,10 @@ const postOr404 = (id: string) => {
  * 피드에 보이는 게시물 (최신순). 목록과 지도가 같은 기준을 씁니다.
  * - following: 나와 내가 팔로우하는 사람의 게시물 (볼 수 있는 것만)
  * - recommended: 다른 사람의 전체 공개 게시물
+ * - region: 게시물에 연결된 장소 중 하나라도 해당 지역이면 포함 (없거나 "전국"이면 전체)
  */
-const feedPosts = (tab: string) =>
-  db.posts
+const feedPosts = (tab: string, region?: string | null) => {
+  const posts = db.posts
     .filter((p) => canView(p.authorId, p.visibility))
     .filter((p) =>
       tab === "recommended"
@@ -22,12 +23,27 @@ const feedPosts = (tab: string) =>
     )
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
+  if (!region) return posts;
+
+  // 쉼표 구분 다중 지역. 게시물 장소가 선택된 지역 중 하나라도 startsWith이면 포함
+  const regions = region.split(",").filter(Boolean);
+  if (regions.length === 0) return posts;
+
+  return posts.filter((p) =>
+    p.photos.some((ph) => {
+      if (!ph.placeId) return false;
+      const place = findPlace(ph.placeId);
+      return place && regions.some((r) => place.region?.startsWith(r));
+    }),
+  );
+};
+
 export const postRoutes: Route[] = [
   {
     method: "GET",
     path: "/api/v1/feed",
     delay: 300,
-    handler: ({ query }) => feedPosts(query.get("tab") ?? "following").map(postDto),
+    handler: ({ query }) => feedPosts(query.get("tab") ?? "following", query.get("region")).map(postDto),
   },
   {
     /** 피드 지도: 피드 탭(팔로잉 · 추천)과 같은 기준의 게시물에 연결된 장소 (내 지도와 별개). postIds는 최신순 */
@@ -36,7 +52,7 @@ export const postRoutes: Route[] = [
     delay: 300,
     handler: ({ query }) => {
       const byPlace = new Map<string, string[]>();
-      for (const post of feedPosts(query.get("tab") ?? "following")) {
+      for (const post of feedPosts(query.get("tab") ?? "following", query.get("region"))) {
         for (const ph of post.photos) {
           if (!ph.placeId) continue;
           const list = byPlace.get(ph.placeId) ?? [];
