@@ -78,11 +78,11 @@ class TermsReconsentIntegrationTest {
         jdbc.update("DELETE FROM terms WHERE version = ?", TEST_VERSION);
     }
 
-    /** 어제 시행된 새 버전 한 행을 넣습니다 */
+    /** 방금(1분 전) 시행된 새 버전 한 행을 넣습니다. V12의 1.1(2026-11-25 시행)보다 늦어야 지금 시행 중인 버전이 됩니다 */
     private void newVersion(String type, boolean required, boolean requiresReconsent) {
         jdbc.update("""
                 INSERT INTO terms (type, version, title, content_url, is_required, effective_at, requires_reconsent)
-                VALUES (?, ?, ?, ?, ?, now() - interval '1 day', ?)
+                VALUES (?, ?, ?, ?, ?, now() - interval '1 minute', ?)
                 """, type, TEST_VERSION, type + " 새 버전", "/terms/" + type.toLowerCase(), required, requiresReconsent);
     }
 

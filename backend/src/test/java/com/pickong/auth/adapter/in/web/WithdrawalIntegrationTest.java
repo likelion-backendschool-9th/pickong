@@ -260,7 +260,7 @@ class WithdrawalIntegrationTest {
     void withdrawalAllowedWhileReconsentPending() throws Exception {
         jdbc.update("""
                 INSERT INTO terms (type, version, title, content_url, is_required, effective_at, requires_reconsent)
-                VALUES ('PRIVACY', '9.9-withdrawal-test', '개인정보 새 버전', '/terms/privacy', TRUE, now() - interval '1 day', TRUE)
+                VALUES ('PRIVACY', '9.9-withdrawal-test', '개인정보 새 버전', '/terms/privacy', TRUE, now() - interval '1 minute', TRUE)
                 """);
 
         mvc.perform(get("/api/v1/me/social-accounts").servletPath("/api/v1").cookie(access))
