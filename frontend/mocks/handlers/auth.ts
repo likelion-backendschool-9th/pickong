@@ -26,6 +26,7 @@ const COOKIE = {
   refresh: { name: "pickong_rt", path: "/api/v1/auth" },
   signup: { name: "pickong_signup", path: "/api/v1/auth" },
   oauthState: { name: "pickong_oauth_state", path: "/api/v1/auth/oauth2" },
+  restore: { name: "pickong_restore", path: "/api/v1/auth" },
 } as const;
 type CookieKey = keyof typeof COOKIE;
 
@@ -35,6 +36,10 @@ const REFRESH_TTL_SEC = 14 * 24 * 60 * 60;
 const SIGNUP_TTL_SEC = 30 * 60;
 const OAUTH_STATE_TTL_SEC = 10 * 60;
 const LINK_TTL_SEC = 5 * 60;
+const RESTORE_TTL_SEC = 10 * 60;
+/** 탈퇴 유예 기간. 이 안에 다시 로그인하면 탈퇴를 취소할 수 있습니다 (백엔드 User.WITHDRAWAL_GRACE_PERIOD와 같음) */
+const WITHDRAWAL_GRACE_MS = 30 * 24 * 60 * 60 * 1000;
+const WITHDRAWAL_REASONS = ["RARELY_USED", "MISSING_FEATURE", "PRIVACY", "OTHER_SERVICE", "ETC"];
 
 const setCookie = (key: CookieKey, value: string, maxAgeSec: number) =>
   `${COOKIE[key].name}=${encodeURIComponent(value)}; Path=${COOKIE[key].path}; Max-Age=${maxAgeSec}; HttpOnly; SameSite=Lax`;
@@ -70,6 +75,20 @@ const pendingSignups = new Map<
 >();
 const oauthStates = new Map<string, { provider: Provider; mode: "login" | "link"; userId: string | null; expiresAt: number }>();
 const linkTokens = new Map<string, { userId: string; provider: Provider; expiresAt: number }>();
+/** 탈퇴 신청한 회원 → 신청 시각. 익명화는 흉내 내지 않습니다(30일이 지나면 로그인이 '이용할 수 없는 계정'이 됨) */
+const withdrawals = new Map<string, number>();
+const restoreTokens = new Map<string, { userId: string; expiresAt: number }>();
+
+/** 탈퇴 취소 쿠키의 회원. 없거나 만료면 401 RESTORE_SESSION_EXPIRED, 30일이 지났으면 409 (백엔드와 같은 오류 코드) */
+function restoringUserId(ctx: Ctx): string {
+  const row = restoreTokens.get(readCookie(ctx, "restore") ?? "");
+  if (!row || row.expiresAt < now()) throw new HttpError(401, "RESTORE_SESSION_EXPIRED", "시간이 지났어요. 다시 로그인해 주세요.");
+  const requestedAt = withdrawals.get(row.userId);
+  if (requestedAt === undefined || now() >= requestedAt + WITHDRAWAL_GRACE_MS) {
+    throw new HttpError(409, "WITHDRAWAL_NOT_CANCELLABLE", "탈퇴를 취소할 수 있는 기간이 지났어요.");
+  }
+  return row.userId;
+}
 
 /** 새 Access · Refresh Token을 발급하고 쿠키로 내려줍니다. family를 넘기면 같은 로그인 세션의 다음 토큰입니다. */
 function issueSession(userId: string, family: string = randomUUID()): string[] {
@@ -239,6 +258,14 @@ export const authRoutes: Route[] = [
       }
 
       if (linked) {
+        const requestedAt = withdrawals.get(linked.userId);
+        if (requestedAt !== undefined) {
+          // 탈퇴 유예 중: 로그인 세션 대신 탈퇴 취소 쿠키만 주고 탈퇴 취소 화면으로. 30일이 지났으면 이용할 수 없는 계정
+          if (now() >= requestedAt + WITHDRAWAL_GRACE_MS) return fail("login", "ACCOUNT_UNAVAILABLE");
+          const restoreId = token();
+          restoreTokens.set(restoreId, { userId: linked.userId, expiresAt: now() + RESTORE_TTL_SEC * 1000 });
+          return redirect("/account/restore", [...cookies, clearCookie("signup"), ...clearSessionCookies(), setCookie("restore", restoreId, RESTORE_TTL_SEC)]);
+        }
         return redirect("/feed", [...cookies, clearCookie("signup"), ...issueSession(linked.userId)]);
       }
       const signupId = token();
@@ -361,6 +388,60 @@ export const authRoutes: Route[] = [
       if (row) revokeFamily(row.family);
       accessTokens.delete(readCookie(ctx, "access") ?? "");
       return withCookies(undefined, clearSessionCookies());
+    },
+  },
+
+  // ── 회원 탈퇴 (신청은 로그인 필요, 취소는 탈퇴 취소 쿠키) ─────────────
+  {
+    /** 탈퇴 신청: 사유 확인 → 탈퇴 중으로 → 모든 기기의 세션을 끊고 쿠키를 지웁니다. (백엔드와 같은 오류 코드) */
+    method: "POST",
+    path: "/api/v1/me/withdrawal",
+    delay: 600,
+    handler: (ctx) => {
+      const userId = requireUser(ctx);
+      const reason = String(ctx.body?.reason ?? "").toUpperCase();
+      const detail = String(ctx.body?.detail ?? "").trim();
+      if (!WITHDRAWAL_REASONS.includes(reason) || (reason === "ETC" && !detail) || [...detail].length > 300) {
+        throw new HttpError(400, "INVALID_WITHDRAWAL_REASON", "탈퇴 사유를 확인해 주세요.");
+      }
+      if (withdrawals.has(userId)) throw new HttpError(409, "WITHDRAWAL_NOT_ALLOWED", "지금은 탈퇴를 신청할 수 없는 계정이에요.");
+      withdrawals.set(userId, now());
+      for (const [key, row] of refreshTokens) if (row.userId === userId) refreshTokens.delete(key);
+      for (const [key, row] of accessTokens) if (row.userId === userId) accessTokens.delete(key);
+      return withCookies(undefined, clearSessionCookies());
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/v1/auth/withdrawal",
+    handler: (ctx) => {
+      const userId = restoringUserId(ctx);
+      const requestedAt = withdrawals.get(userId)!;
+      return {
+        username: db.users.find((u) => u.id === userId)?.username ?? "",
+        requestedAt: new Date(requestedAt).toISOString(),
+        anonymizeAt: new Date(requestedAt + WITHDRAWAL_GRACE_MS).toISOString(),
+      };
+    },
+  },
+  {
+    /** 탈퇴 취소: 다시 ACTIVE로, 로그인 세션 발급, 탈퇴 취소 쿠키 삭제 */
+    method: "POST",
+    path: "/api/v1/auth/withdrawal/cancel",
+    handler: (ctx) => {
+      const userId = restoringUserId(ctx);
+      withdrawals.delete(userId);
+      restoreTokens.delete(readCookie(ctx, "restore") ?? "");
+      return withCookies({ username: db.users.find((u) => u.id === userId)?.username ?? "" }, [...issueSession(userId), clearCookie("restore")]);
+    },
+  },
+  {
+    /** 탈퇴 유지: 탈퇴 취소 쿠키만 지웁니다. */
+    method: "DELETE",
+    path: "/api/v1/auth/withdrawal",
+    handler: (ctx) => {
+      restoreTokens.delete(readCookie(ctx, "restore") ?? "");
+      return withCookies(undefined, [clearCookie("restore")]);
     },
   },
 

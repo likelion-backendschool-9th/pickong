@@ -644,7 +644,7 @@ feature A가 feature B를 import하지 않습니다. **조합은 위 계층에�
 
 | 공개 | 로그인 필요 (`proxy.ts`에서 `/login`으로) |
 | --- | --- |
-| `/`, `/login`, `/signup`, `/terms/[type]` | `/feed`, `/map`, `/import`, `/plans/**`, `/terms/consent` |
+| `/`, `/login`, `/signup`, `/terms/[type]`, `/account/restore`(탈퇴 취소 쿠키) | `/feed`, `/map`, `/import`, `/plans/**`, `/terms/consent` |
 | `/posts/[postId]` (공개 범위 준수) | `/posts/new`, `/collections`, `/collections/new` |
 | `/places/[placeId]` | `/places/custom/new`, `/notifications`, `/settings/**` |
 | `/collections/[collectionId]` (공개 컬렉션) | |
@@ -995,9 +995,10 @@ entities/plan/model/            # React import 금지. 입력 → 출력만 있�
 | `/notifications` | 알림 | 로그인 | Server | 3차 |
 | `/settings`, `/settings/profile` | 설정 · 프로필 편집 (닉네임 = ID 변경 · 이름 · 소개 · 활동 지역) | 로그인 | 폼(Client) | 1차 |
 | `/settings/login-methods` | 로그인 수단 관리: 카카오 · Google 연결 · 해제 | 로그인 | Client | 껍데기 |
-| `/settings/agreements`, `/notifications`, `/devices`, `/withdraw` | 약관 및 동의 관리 · 푸시 알림 설정 · 디바이스 관리 · 회원 탈퇴 | 로그인 | Client | 껍데기 |
+| `/settings/agreements`, `/notifications`, `/devices`, `/withdraw` | 약관 및 동의 관리 · 푸시 알림 설정 · 디바이스 관리 · 회원 탈퇴(`POST /me/withdrawal`, 30일 유예 안내) | 로그인 | Client | 껍데기 |
 | `/terms/[type]` | 약관 전문 (`service` · `privacy` · `marketing`) | 공개 | Client | 껍데기 |
 | `/terms/consent` | 바뀐 약관 재동의 (`?next=` 동의한 뒤 돌아갈 찜콩 안 경로, 없으면 피드). 로그인 직후 서버가 보내거나, 403 `TERMS_RECONSENT_REQUIRED`를 받으면 QueryClient가 보냄. 고정 경로라 `[type]`보다 먼저 맞음 | 로그인 | Client | 1차 |
+| `/account/restore` | 탈퇴 취소. 탈퇴 유예 중(30일 안)인 회원이 로그인하면 서버가 탈퇴 취소 쿠키(10분)와 함께 보냄. 취소하면 세션을 받고 피드로, 유지하면 시작 화면으로. 쿠키가 만료되면 `/login?error=RESTORE_SESSION_EXPIRED` | 탈퇴 취소 쿠키 | Client | 1차 |
 | `/tags`, `/tags/[name]` | 내 태그 검색(`?q=`) · 태그별 장소 | 로그인 | Client | 껍데기 (보류 기능, mock만) |
 | `/places/[placeId]/photos`, `/places/[placeId]/tags` | 저장한 장소의 개인 사진 추가 · 삭제 / 개인 태그 편집 | 로그인 | Client | 껍데기 |
 | `/places/mine`, `/places/[placeId]/edit` | 직접 등록한 장소 목록 · 수정 · 삭제 | 로그인 | 폼(Client) | 껍데기 |
