@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { useAddComment, useComments, type PostComment } from "@/entities/post";
+import { useAddComment, useComments, useDeleteComment, useUpdateComment, type PostComment } from "@/entities/post";
+import { useMe } from "@/entities/user";
 import { errorMessage } from "@/shared/api/errors";
 import { routes } from "@/shared/config/routes";
 import { formatRelative } from "@/shared/lib/date";
@@ -12,6 +13,7 @@ import { Avatar, Skeleton } from "@/shared/ui/display";
 /** 댓글 시트: 댓글 · 답글 보기와 작성 */
 export function CommentSheet({ postId, open, onClose }: { postId: string; open: boolean; onClose: () => void }) {
   const { data: comments, isPending } = useComments(postId, open);
+  const { data: me } = useMe();
   const add = useAddComment(postId);
   const [text, setText] = useState("");
   const [replyTo, setReplyTo] = useState<PostComment | null>(null);
@@ -108,12 +110,23 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
         <ul className="space-y-5">
           {roots.map((c) => (
             <li key={c.id}>
-              <CommentItem comment={c} onReply={() => handleReply(c)} />
+              <CommentItem
+                postId={postId}
+                comment={c}
+                isMine={me?.username === c.author.username}
+                onReply={() => handleReply(c)}
+              />
               {repliesOf(c.id).length > 0 && (
                 <ul className="mt-3 space-y-3 pl-11">
                   {repliesOf(c.id).map((r) => (
                     <li key={r.id}>
-                      <CommentItem comment={r} onReply={() => handleReply(r)} small />
+                      <CommentItem
+                        postId={postId}
+                        comment={r}
+                        isMine={me?.username === r.author.username}
+                        onReply={() => handleReply(r)}
+                        small
+                      />
                     </li>
                   ))}
                 </ul>
@@ -145,21 +158,101 @@ function renderContent(content: string): ReactNode {
   });
 }
 
-function CommentItem({ comment, onReply, small }: { comment: PostComment; onReply: () => void; small?: boolean }) {
+function CommentItem({
+  postId,
+  comment,
+  isMine,
+  onReply,
+  small,
+}: {
+  postId: string;
+  comment: PostComment;
+  isMine: boolean;
+  onReply: () => void;
+  small?: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState(comment.content);
+  const editRef = useRef<HTMLTextAreaElement>(null);
+  const update = useUpdateComment(postId);
+  const remove = useDeleteComment(postId);
+
+  // 수정 모드 시작 시 textarea에 포커스
+  useEffect(() => {
+    if (editing) requestAnimationFrame(() => editRef.current?.focus());
+  }, [editing]);
+
+  const handleEditSave = () => {
+    if (!editText.trim() || editText.trim() === comment.content) {
+      setEditing(false);
+      return;
+    }
+    update.mutate(
+      { commentId: comment.id, content: editText.trim() },
+      { onSuccess: () => setEditing(false) },
+    );
+  };
+
+  const handleDelete = () => {
+    remove.mutate(comment.id);
+  };
+
   return (
     <div className="flex gap-3">
       <Link href={routes.user(comment.author.username)}>
         <Avatar src={comment.author.profileImageUrl} name={comment.author.username} size={small ? 28 : 32} />
       </Link>
       <div className="min-w-0 flex-1">
-        <div className="text-[13px]">
-          <span className="font-bold">{comment.author.username}</span>
-          <span className="ml-1.5 text-[11px] text-ink-faint">{formatRelative(comment.createdAt)}</span>
+        <div className="flex items-center justify-between">
+          <div className="text-[13px]">
+            <span className="font-bold">{comment.author.username}</span>
+            <span className="ml-1.5 text-[11px] text-ink-faint">{formatRelative(comment.createdAt)}</span>
+          </div>
+          {/* 본인 댓글에만 수정/삭제 표시 */}
+          {isMine && !editing && (
+            <div className="flex gap-2 text-[12px] text-ink-faint">
+              <button type="button" onClick={() => { setEditText(comment.content); setEditing(true); }}>
+                수정
+              </button>
+              <button type="button" onClick={handleDelete} disabled={remove.isPending} className="text-danger">
+                삭제
+              </button>
+            </div>
+          )}
         </div>
-        <p className="mt-0.5 text-[14px] leading-relaxed whitespace-pre-line">{renderContent(comment.content)}</p>
-        <button type="button" onClick={onReply} className="mt-1 text-[12px] font-medium text-ink-sub">
-          답글 달기
-        </button>
+
+        {editing ? (
+          <div className="mt-1 space-y-1">
+            <textarea
+              ref={editRef}
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              rows={2}
+              maxLength={300}
+              className="w-full resize-none rounded-lg bg-soft px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-primary-deep/30"
+            />
+            <div className="flex gap-2 justify-end text-[12px]">
+              <button type="button" onClick={() => setEditing(false)} className="text-ink-sub">취소</button>
+              <button
+                type="button"
+                onClick={handleEditSave}
+                disabled={update.isPending}
+                className="font-bold text-primary-deep disabled:text-ink-faint"
+              >
+                저장
+              </button>
+            </div>
+            {update.isError && <p className="text-[12px] text-danger">{errorMessage(update.error)}</p>}
+          </div>
+        ) : (
+          <p className="mt-0.5 text-[14px] leading-relaxed whitespace-pre-line">{renderContent(comment.content)}</p>
+        )}
+
+        {!editing && (
+          <button type="button" onClick={onReply} className="mt-1 text-[12px] font-medium text-ink-sub">
+            답글 달기
+          </button>
+        )}
       </div>
     </div>
   );

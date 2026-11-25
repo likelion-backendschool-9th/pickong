@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import type { Post } from "../model";
+import type { Post, PostComment } from "../model";
 import { postApi, type FeedTab } from "./postApi";
 
 export const postKeys = {
@@ -53,6 +53,32 @@ export function useAddComment(postId: string) {
     onSuccess: (comment) => {
       qc.setQueryData(postKeys.comments(postId), (prev: unknown[] | undefined) => [...(prev ?? []), comment]);
       patchPostInCache(qc, postId, (p) => ({ ...p, commentCount: p.commentCount + 1 }));
+    },
+  });
+}
+
+export function useUpdateComment(postId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ commentId, content }: { commentId: string; content: string }) =>
+      postApi.updateComment(postId, commentId, content),
+    onSuccess: (updated) => {
+      qc.setQueryData(postKeys.comments(postId), (prev: PostComment[] | undefined) =>
+        prev?.map((c) => (c.id === updated.id ? updated : c)) ?? [],
+      );
+    },
+  });
+}
+
+export function useDeleteComment(postId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (commentId: string) => postApi.deleteComment(postId, commentId),
+    onSuccess: (_, commentId) => {
+      qc.setQueryData(postKeys.comments(postId), (prev: PostComment[] | undefined) =>
+        prev?.filter((c) => c.id !== commentId && c.parentId !== commentId) ?? [],
+      );
+      patchPostInCache(qc, postId, (p) => ({ ...p, commentCount: Math.max(0, p.commentCount - 1) }));
     },
   });
 }
