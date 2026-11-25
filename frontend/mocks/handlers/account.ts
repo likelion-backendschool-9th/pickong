@@ -151,16 +151,7 @@ export const accountRoutes: Route[] = [
       return agreementList();
     },
   },
-  {
-    /** 탈퇴: 사유 확인. 소셜 로그인 전용이라 비밀번호는 받지 않습니다. */
-    method: "POST",
-    path: "/api/v1/me/withdrawal",
-    delay: 600,
-    handler: ({ body }) => {
-      if (!String(body?.reason ?? "")) throw new HttpError(400, "INVALID_INPUT", "탈퇴 사유를 선택해 주세요.");
-      return undefined;
-    },
-  },
+  // 탈퇴 신청(POST /api/v1/me/withdrawal)은 세션을 끊어야 해서 auth.ts에 있습니다.
 
   // ── 푸시 알림 설정 ──────────────────────────────────
   { method: "GET", path: "/api/v1/me/notification-settings", handler: () => notificationSettings },
