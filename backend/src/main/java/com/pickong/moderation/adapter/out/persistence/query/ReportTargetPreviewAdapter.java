@@ -5,6 +5,7 @@ import com.pickong.moderation.application.dto.ReportTargetKey;
 import com.pickong.moderation.application.dto.ReportTargetPreview;
 import com.pickong.moderation.application.dto.ReportTargetVisibility;
 import com.pickong.moderation.application.port.out.ReportTargetPreviewPort;
+import com.pickong.moderation.domain.ReportContentComparison;
 import com.pickong.moderation.domain.model.Report;
 import com.pickong.moderation.domain.vo.ReportTargetType;
 import java.sql.Timestamp;
@@ -23,6 +24,7 @@ import tools.jackson.databind.json.JsonMapper;
  * 신고 대상 미리보기. feed · user 테이블은 읽기만 하고, 컬렉션 테이블은 아직 없어 조회하지 않습니다.
  * 현재 콘텐츠는 대상마다 한 번만 읽고, 미리보기는 신고 id로 나눠 서로의 스냅샷을 덮지 않습니다.
  * 저장된 스냅샷은 현재 글이 있어도 그대로 두고, 현재 글을 스냅샷에 복사하지 않습니다.
+ * 게시물 · 댓글은 textScope가 FULL일 때만 전체 본문을 비교하고, 그 외 스냅샷은 첫 줄만 비교합니다.
  * 숨김 콘텐츠는 현재 글을 보여주고 링크는 비웁니다. 삭제된 행은 현재 글 없이 DELETED입니다.
  * 행이 없거나 컬렉션처럼 조회할 수 없으면 UNAVAILABLE이며 삭제로 단정하지 않습니다.
  */
@@ -67,15 +69,15 @@ public class ReportTargetPreviewAdapter implements ReportTargetPreviewPort {
         ReportContent snapshotContent = stored ? new ReportContent(snapshot.text(), snapshot.imageUrl()) : null;
         ReportTargetVisibility visibility = live == null ? ReportTargetVisibility.UNAVAILABLE : live.visibility();
         boolean readable = visibility == ReportTargetVisibility.LIVE || visibility == ReportTargetVisibility.HIDDEN;
-        ReportContent currentContent = readable ? new ReportContent(live.excerpt(), null) : null;
-        String evidence = excerpt(snapshot.text());
+        ReportContent currentContent = readable ? new ReportContent(live.body(), null) : null;
+        String evidence = ReportContentComparison.excerpt(snapshot.text());
         String text = evidence != null ? evidence : fallbackText(report.getTargetType(), visibility, live);
         String imageUrl = snapshotContent == null ? null : snapshotContent.imageUrl();
         String link = visibility == ReportTargetVisibility.LIVE ? live.link() : null;
         Long reportedUserId = live != null ? Long.valueOf(live.reportedUserId()) : snapshot.reportedUserId();
         return new ReportTargetPreview(
                 text, imageUrl, link, reportedUserId, snapshotContent, currentContent,
-                readable ? modified(evidence, live) : null, visibility);
+                readable ? modified(report.getTargetType(), snapshot, live) : null, visibility);
     }
 
     private static String fallbackText(ReportTargetType type, ReportTargetVisibility visibility, LiveTarget live) {
@@ -86,12 +88,27 @@ public class ReportTargetPreviewAdapter implements ReportTargetPreviewPort {
         };
     }
 
-    /** 스냅샷 첫 줄과 현재 첫 줄이 둘 다 있을 때만 수정 여부를 판단합니다. */
-    private static Boolean modified(String snapshotLine, LiveTarget live) {
-        if (snapshotLine == null || live == null || live.excerpt() == null) {
+    /**
+     * 삭제 · 조회 불가 · 파싱할 수 없는 스냅샷은 null입니다.
+     * 게시물 · 댓글의 FULL 스냅샷만 전체 본문이고, 회원과 기존 스냅샷은 첫 줄입니다.
+     */
+    private static Boolean modified(ReportTargetType type, Snapshot snapshot, LiveTarget live) {
+        if (live == null || snapshot.scope() == SnapshotScope.INVALID) {
             return null;
         }
-        return !snapshotLine.equals(live.excerpt());
+        if (live.visibility() != ReportTargetVisibility.LIVE && live.visibility() != ReportTargetVisibility.HIDDEN) {
+            return null;
+        }
+        if (type == ReportTargetType.USER) {
+            return ReportContentComparison.compareFirstLine(snapshot.text(), live.body());
+        }
+        if (type != ReportTargetType.FEED && type != ReportTargetType.COMMENT) {
+            return null;
+        }
+        if (snapshot.scope() == SnapshotScope.FULL) {
+            return ReportContentComparison.compareFull(snapshot.text(), live.body());
+        }
+        return ReportContentComparison.compareFirstLine(snapshot.text(), live.body());
     }
 
     private Map<Long, LiveTarget> liveFeeds(Set<Long> ids) {
@@ -155,7 +172,8 @@ public class ReportTargetPreviewAdapter implements ReportTargetPreviewPort {
         Map<Long, LiveTarget> found = new HashMap<>();
         jdbc.query(sql, rs -> {
             if (rs.getTimestamp("deleted_at") != null) {
-                found.put(rs.getLong("id"), new LiveTarget(null, null, null, rs.getLong("id"), ReportTargetVisibility.DELETED));
+                found.put(rs.getLong("id"), new LiveTarget(
+                        null, null, null, rs.getLong("id"), ReportTargetVisibility.DELETED));
                 return;
             }
             String username = rs.getString("username");
@@ -180,25 +198,14 @@ public class ReportTargetPreviewAdapter implements ReportTargetPreviewPort {
         if (deletedAt != null) {
             return new LiveTarget(null, null, null, userId, ReportTargetVisibility.DELETED);
         }
-        String line = excerpt(raw);
+        String line = ReportContentComparison.excerpt(raw);
         boolean hidden = hiddenAt != null;
         return new LiveTarget(
                 line == null ? blankLabel : line,
-                line,
+                raw,
                 hidden ? null : link,
                 userId,
                 hidden ? ReportTargetVisibility.HIDDEN : ReportTargetVisibility.LIVE);
-    }
-
-    /** 비교와 카드 제목에 쓰는 첫 줄. 내용이 없으면 null입니다. */
-    private static String excerpt(String content) {
-        if (content == null || content.isBlank()) {
-            return null;
-        }
-        int newline = content.indexOf('\n');
-        String line = newline < 0 ? content : content.substring(0, newline);
-        String trimmed = line.strip();
-        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private static String deletedText(ReportTargetType type) {
@@ -225,21 +232,55 @@ public class ReportTargetPreviewAdapter implements ReportTargetPreviewPort {
         }
         String trimmed = raw.strip();
         if (!trimmed.startsWith("{")) {
-            return new Snapshot(trimmed, null, null);
+            return Snapshot.legacy(trimmed, null, null);
         }
         try {
             JsonNode node = JSON.readTree(trimmed);
-            String text = text(node.get("text"));
-            String imageUrl = text(node.get("imageUrl"));
-            JsonNode reportedUserId = node.get("reportedUserId");
-            Long userId = reportedUserId == null || reportedUserId.isNull() ? null : reportedUserId.asLong();
-            return new Snapshot(text, imageUrl, userId);
+            if (node == null || !node.isObject()) {
+                return Snapshot.invalid(trimmed);
+            }
+            TextValue text = readText(node.get("text"));
+            String imageUrl = optionalText(node.get("imageUrl"));
+            Long userId = readUserId(node.get("reportedUserId"));
+            if (text.invalid()) {
+                return new Snapshot(null, imageUrl, userId, SnapshotScope.INVALID);
+            }
+            SnapshotScope scope = "FULL".equals(readScope(node.get("textScope")))
+                    ? SnapshotScope.FULL
+                    : SnapshotScope.LEGACY;
+            return new Snapshot(text.value(), imageUrl, userId, scope);
         } catch (RuntimeException exception) {
-            return new Snapshot(trimmed, null, null);
+            return Snapshot.invalid(trimmed);
         }
     }
 
-    private static String text(JsonNode node) {
+    /** 본문. 빈 문자열은 누락과 구분하고, 문자열이 아니면 비교하지 않습니다. */
+    private static TextValue readText(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return new TextValue(null, false);
+        }
+        if (!node.isString()) {
+            return new TextValue(null, true);
+        }
+        return new TextValue(node.asString(), false);
+    }
+
+    private static String readScope(JsonNode node) {
+        if (node == null || node.isNull() || !node.isString()) {
+            return null;
+        }
+        return node.asString();
+    }
+
+    private static Long readUserId(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        return node.asLong();
+    }
+
+    /** 이미지 주소. 비어 있으면 없는 값입니다. */
+    private static String optionalText(JsonNode node) {
         if (node == null || node.isNull()) {
             return null;
         }
@@ -247,11 +288,31 @@ public class ReportTargetPreviewAdapter implements ReportTargetPreviewPort {
         return value == null || value.isBlank() ? null : value;
     }
 
-    private record LiveTarget(
-            String text, String excerpt, String link, long reportedUserId, ReportTargetVisibility visibility) {
+    private record TextValue(String value, boolean invalid) {
     }
 
-    private record Snapshot(String text, String imageUrl, Long reportedUserId) {
-        private static final Snapshot EMPTY = new Snapshot(null, null, null);
+    /** text는 카드 제목으로 쓸 현재 첫 줄이고, body는 비교와 current.text에 쓸 원문입니다. */
+    private record LiveTarget(
+            String text,
+            String body,
+            String link,
+            long reportedUserId,
+            ReportTargetVisibility visibility) {
+    }
+
+    private enum SnapshotScope {
+        FULL, LEGACY, INVALID
+    }
+
+    private record Snapshot(String text, String imageUrl, Long reportedUserId, SnapshotScope scope) {
+        private static final Snapshot EMPTY = new Snapshot(null, null, null, SnapshotScope.LEGACY);
+
+        private static Snapshot legacy(String text, String imageUrl, Long reportedUserId) {
+            return new Snapshot(text, imageUrl, reportedUserId, SnapshotScope.LEGACY);
+        }
+
+        private static Snapshot invalid(String text) {
+            return new Snapshot(text, null, null, SnapshotScope.INVALID);
+        }
     }
 }

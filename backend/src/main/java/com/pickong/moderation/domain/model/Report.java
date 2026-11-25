@@ -37,6 +37,45 @@ public class Report {
     private OffsetDateTime createdAt;
 
     /**
+     * 새 신고를 대기 상태로 만듭니다. 처리 정보는 비워 두고, 스냅샷 문자열은 그대로 둡니다.
+     * 사유는 기존 컬럼처럼 50자 이내의 비어 있지 않은 문자열입니다.
+     */
+    public static Report pending(
+            long reporterId,
+            ReportTargetType targetType,
+            long targetId,
+            String reason,
+            String detail,
+            String snapshot,
+            OffsetDateTime createdAt) {
+        if (reporterId <= 0 || targetId <= 0) {
+            throw new IllegalArgumentException("신고자와 대상 id가 필요합니다.");
+        }
+        if (targetType == null) {
+            throw new IllegalArgumentException("신고 대상 종류가 필요합니다.");
+        }
+        if (reason == null || reason.isBlank() || reason.length() > 50) {
+            throw new IllegalArgumentException("신고 사유는 50자 이내여야 합니다.");
+        }
+        if (snapshot == null) {
+            throw new IllegalArgumentException("신고 당시 내용이 필요합니다.");
+        }
+        if (createdAt == null) {
+            throw new IllegalArgumentException("신고 시각이 필요합니다.");
+        }
+        return Report.builder()
+                .reporterId(reporterId)
+                .targetType(targetType)
+                .targetId(targetId)
+                .reason(reason)
+                .detail(detail)
+                .status(ReportStatus.PENDING)
+                .snapshot(snapshot)
+                .createdAt(createdAt)
+                .build();
+    }
+
+    /**
      * 대기 신고를 기각합니다. 메모는 없어도 되고, 있으면 200자까지입니다.
      * 이미 처리된 신고는 상태와 기존 처리 정보를 바꾸지 않습니다.
      */
