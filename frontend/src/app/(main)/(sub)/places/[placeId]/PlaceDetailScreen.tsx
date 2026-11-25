@@ -78,7 +78,7 @@ export function PlaceDetailScreen({ id }: { id: string }) {
           <Link href={routes.post(discoveredFrom.postId)} className="mt-6 flex gap-3 rounded-card bg-soft p-4">
             <Thumb src={discoveredFrom.imageUrl} alt="" className="size-14" />
             <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-bold">{saved?.source.label ?? `${discoveredFrom.authorNickname}님의 게시물에서 발견했어요`}</p>
+              <p className="text-[13px] font-bold">{saved?.source.label ?? `${discoveredFrom.authorUsername}님의 게시물에서 발견했어요`}</p>
               <p className="mt-1 flex gap-1 text-[13px] text-ink-sub">
                 <Quote size={13} className="mt-0.5 shrink-0 text-primary-deep" />
                 <span className="line-clamp-2">{discoveredFrom.quote}</span>

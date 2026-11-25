@@ -12,7 +12,7 @@ export interface PaymentOrder {
   collectionId: string;
   amount: number;
   orderName: string;
-  sellerNickname: string;
+  sellerUsername: string;
   cardCompanies: string[];
 }
 

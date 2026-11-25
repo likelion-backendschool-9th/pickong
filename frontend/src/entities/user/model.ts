@@ -1,8 +1,8 @@
 export interface User {
   id: string;
-  /** 닉네임 = 사용자 ID (영문, 중복 불가). 프로필 주소에 쓰입니다. */
+  /** 아이디 (영문, 중복 불가). 프로필 주소에 쓰입니다. */
   username: string;
-  /** 화면에 보여 줄 이름: 이름이 있으면 이름, 없으면 닉네임(username) */
+  /** 표시 이름: 이름이 있으면 이름, 없으면 아이디. 회원 화면은 아이디(username)만 보여 주므로 관리자 화면에서만 씁니다 */
   nickname: string;
   /** 사용자가 정한 이름(중복 가능). 정하지 않았으면 null */
   name: string | null;
@@ -16,7 +16,7 @@ export interface User {
   isMe: boolean;
   /** 유료 컬렉션을 판매할 수 있는 크리에이터 */
   isCreator: boolean;
-  /** 내 정보에만 있음: 닉네임을 다시 바꿀 수 있는 시각(ISO). 지금 바꿀 수 있거나 다른 사람이면 null */
+  /** 내 정보에만 있음: 아이디를 다시 바꿀 수 있는 시각(ISO). 지금 바꿀 수 있거나 다른 사람이면 null */
   usernameChangeableAt: string | null;
 }
 

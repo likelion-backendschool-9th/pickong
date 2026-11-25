@@ -44,12 +44,12 @@ export function PostCard({ post, priority }: { post: Post; priority?: boolean })
   };
 
   return (
-    <article className="pb-5" aria-label={`${post.author.nickname}님의 게시물`}>
+    <article className="pb-5" aria-label={`${post.author.username}님의 게시물`}>
       <header className="flex items-center gap-2.5 px-4 py-2.5">
         <Link href={routes.user(post.author.username)} className="flex min-w-0 flex-1 items-center gap-2.5">
-          <Avatar src={post.author.profileImageUrl} name={post.author.nickname} size={36} />
+          <Avatar src={post.author.profileImageUrl} name={post.author.username} size={36} />
           <span className="min-w-0">
-            <span className="block truncate text-[14px] font-bold">{post.author.nickname}</span>
+            <span className="block truncate text-[14px] font-bold">{post.author.username}</span>
             <span className="block truncate text-[12px] text-ink-faint">
               {post.author.region} · {formatRelative(post.createdAt)}
             </span>
@@ -65,7 +65,7 @@ export function PostCard({ post, priority }: { post: Post; priority?: boolean })
         count={post.photos.length}
         index={index}
         onIndexChange={setIndex}
-        label={`${post.author.nickname}님의 사진`}
+        label={`${post.author.username}님의 사진`}
         renderSlide={(i) => (
           <Photo src={post.photos[i].url} alt={placeOfPhoto(post, i)?.name ?? "게시물 사진"} priority={priority && i === 0} />
         )}
@@ -109,7 +109,7 @@ export function PostCard({ post, priority }: { post: Post; priority?: boolean })
         <p className="text-[13px] font-bold">좋아요 {post.likeCount.toLocaleString()}개</p>
         <p className="mt-1 text-[14px] leading-relaxed whitespace-pre-line">
           <Link href={routes.user(post.author.username)} className="mr-1.5 font-bold">
-            {post.author.nickname}
+            {post.author.username}
           </Link>
           {post.content}
         </p>
@@ -130,7 +130,7 @@ export function PostCard({ post, priority }: { post: Post; priority?: boolean })
         onClose={close}
         places={sheet?.type === "save" && sheet.single ? [sheet.single] : post.places}
         currentPlace={sheet?.type === "save" && sheet.single ? undefined : currentPlace}
-        source={{ type: "POST", refId: post.id, label: `${post.author.nickname}님의 게시물에서 발견` }}
+        source={{ type: "POST", refId: post.id, label: `${post.author.username}님의 게시물에서 발견` }}
       />
       <CommentSheet postId={post.id} open={sheet?.type === "comments"} onClose={close} />
     </article>

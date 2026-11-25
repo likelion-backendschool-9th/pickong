@@ -45,7 +45,7 @@ export function VisitMap({ user }: { user: User }) {
         }))}
         selectedId={selectedId}
         onMarkerClick={setSelectedId}
-        ariaLabel={`${user.nickname}님의 방문 지도`}
+        ariaLabel={`${user.username}님의 방문 지도`}
       />
       {selected && (
         <div className="absolute inset-x-3 bottom-3 z-10 flex items-center gap-3 rounded-card bg-bg p-3 shadow-[0_2px_12px_rgba(0,0,0,0.12)]">
@@ -63,7 +63,7 @@ export function VisitMap({ user }: { user: User }) {
             <SavePlaceButton
               place={selected.place}
               withLabel
-              source={{ type: "POST", refId: selected.postIds[0], label: `${user.nickname}님의 방문 지도에서 발견` }}
+              source={{ type: "POST", refId: selected.postIds[0], label: `${user.username}님의 방문 지도에서 발견` }}
             />
           )}
         </div>

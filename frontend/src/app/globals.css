@@ -44,7 +44,7 @@
   --color-map-me: #2f80ed; /* 내 위치 (장소 핀과 구분) */
 
   --font-sans: var(--font-noto), system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
-  /* 화면 제목 타이포: 기능 제목(한글) · 영문(라벨 · 닉네임) */
+  /* 화면 제목 타이포: 기능 제목(한글) · 영문(라벨 · 아이디) */
   --font-title: var(--font-plex), var(--font-noto), system-ui, sans-serif;
   --font-latin: var(--font-inter), system-ui, sans-serif;
 

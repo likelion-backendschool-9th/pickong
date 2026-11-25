@@ -116,7 +116,7 @@ export const placeRoutes: Route[] = [
           sourcePost && author
             ? {
                 postId: sourcePost.id,
-                authorNickname: author.nickname,
+                authorUsername: author.username,
                 quote: sourcePost.content.split("\n")[0],
                 imageUrl: sourcePost.photos.find((ph) => ph.placeId === place.id)?.url ?? null,
               }

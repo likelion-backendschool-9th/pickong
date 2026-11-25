@@ -187,7 +187,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 > **소셜 로그인 스키마 결정 (V1)**
 > - 로그인 수단은 카카오 · Google만. `user_social_accounts`의 `(provider, provider_id)` UNIQUE(같은 소셜 계정은 한 찜콩 계정에만), `(user_id, provider)` UNIQUE(제공자마다 하나만 연결).
 > - 이메일 1인 1계정: 제공자가 준 **인증된** 이메일만 저장합니다 (가입 계정 → `users.email`, 연결 계정마다 → `user_social_accounts.email`, ERD에 컬럼 추가). 가입 · 연결하려는 소셜 계정의 이메일이 다른 회원의 이메일과 겹치면 "이미 가입된 이메일"로 막고 자동 연결은 하지 않습니다. `users.email`은 대소문자 무시 UNIQUE로 DB가 보장하고, 연결 계정 이메일은 같은 회원의 카카오 · Google 이메일이 같을 수 있어 서비스에서 확인합니다. 카카오는 이메일을 주지 않을 수 있어 확실한 1인 1계정은 이후 휴대폰 본인확인으로 보장합니다.
-> - 닉네임(`username`)은 대소문자 무시 UNIQUE, 이름(`display_name`)은 NULL 허용. 회원 행은 온보딩을 마칠 때 만들어지므로 온보딩 완료 여부 컬럼은 두지 않습니다.
+> - 아이디(`username`)는 대소문자 무시 UNIQUE, 이름(`display_name`)은 NULL 허용. 회원 행은 온보딩을 마칠 때 만들어지므로 온보딩 완료 여부 컬럼은 두지 않습니다.
 
 > **보안 결정 (2단계)**
 > - **Access Token:** JWT · HS256 · 15분, 쿠키 `pickong_at`. 내용은 `iss=pickong`, `sub=회원 id`, `iat`, `exp`만 (개인정보 없음). 비밀값은 환경변수 `JWT_SECRET` 또는 `backend/.env`, 기본값 없음(없으면 시작 실패).
@@ -222,7 +222,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 > **온보딩 결정 (5단계)**
 > - 이메일 · 비밀번호 로그인과 비밀번호 재설정은 소셜 로그인 전환으로 없앴습니다(위 표에서 제거). `password_reset_tokens` 엔티티는 남아 있지만 V1에 테이블이 없습니다.
 > - 가입 흐름은 `auth.SignUpService`가 맡고, 회원 생성은 `user`의 `UserAccountUseCase.register`, 약관 동의는 `terms`의 `TermsUseCase.agreeOnSignup`으로 처리합니다. 회원 생성 · 소셜 계정 연결 · 약관 동의가 **한 트랜잭션**이라 하나라도 실패하면 아무것도 남지 않습니다. 세션 발급은 커밋 뒤 컨트롤러가 `TokenUseCase.issue`로.
-> - **닉네임(= ID) 규칙은 `user.domain.vo.Username`**: 영문으로 시작 3~20자, 영문 소문자 · 숫자 · `_` · `.`, 끝 · 연속 마침표 금지, 소문자로 저장. 예약어(admin · pickong · official 등)는 '사용 중'. 이름은 `User.register`에서 공백 정리 · 비면 null · 20자(코드 포인트) 초과 금지.
+> - **아이디 규칙은 `user.domain.vo.Username`**: 영문으로 시작 3~20자, 영문 소문자 · 숫자 · `_` · `.`, 끝 · 연속 마침표 금지, 소문자로 저장. 예약어(admin · pickong · official 등)는 '사용 중'. 이름은 `User.register`에서 공백 정리 · 비면 null · 20자(코드 포인트) 초과 금지.
 > - **약관 초기 데이터는 Flyway `V2__seed_terms.sql`**(SERVICE · PRIVACY 필수, MARKETING 선택, 1.0). SERVICE · PRIVACY **1.1**은 `V12__add_terms_v1_1.sql`(2026-11-25 시행, 탈퇴 · 재가입 · 파기 조항, `requires_reconsent = false`라 1.0 동의를 그대로 인정). 필수 여부는 DB(`is_required`)를 따르고, 종류마다 시행일이 지난 최신 버전으로 동의를 기록. 약관을 바꿀 때는 새 버전 행을 넣는 새 마이그레이션 추가. **버전 행과 그 조항(`terms_sections`)은 같은 마이그레이션에 넣습니다** (조항 없이 버전만 넣으면 시행일부터 전문 조회가 빈 본문으로 200을 줌).
 > - **동시 가입:** 서비스가 먼저 확인해 정확한 사유를 알려 주고, 동시에 사전 확인을 통과한 경우는 DB UNIQUE가 막습니다. 어댑터가 `saveAndFlush` 후 제약 이름(`uk_users_username_lower` · `uk_users_email_lower` · `uk_user_social_accounts_provider_id`)으로 `USERNAME_TAKEN` · `EMAIL_ALREADY_REGISTERED` · `SOCIAL_ACCOUNT_ALREADY_LINKED`로 바꿉니다.
 > - 사진은 클라이언트가 주소를 보내지 않고 `useSocialProfileImage` 여부만 보내며, 서버는 임시 가입 토큰에 있는 주소만 씁니다(임의 URL 저장 방지).

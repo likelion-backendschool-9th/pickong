@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { nicknameError, nicknameFeedback, nicknameLockMessage, nicknameStatus, normalizeNicknameInput } from "./nickname";
 
-describe("nicknameError (닉네임 = 사용자 ID)", () => {
+describe("nicknameError (아이디)", () => {
   it("3~20자만 허용한다", () => {
-    expect(nicknameError("")).toBe("닉네임을 입력해 주세요.");
+    expect(nicknameError("")).toBe("아이디를 입력해 주세요.");
     expect(nicknameError("ab")).not.toBeNull();
     expect(nicknameError("abc")).toBeNull();
     expect(nicknameError("a".repeat(20))).toBeNull();
@@ -54,7 +54,7 @@ describe("nicknameStatus", () => {
     expect(nicknameStatus("seoyeon", "seoyeon", null)).toBe("error");
   });
 
-  it("프로필 편집에서 지금 쓰는 닉네임은 서버에 묻지 않고 current", () => {
+  it("프로필 편집에서 지금 쓰는 아이디는 서버에 묻지 않고 current", () => {
     expect(nicknameStatus("seoyeon", "seoye", undefined, "seoyeon")).toBe("current");
     expect(nicknameStatus("seoyeon2", "seoyeon2", true, "seoyeon")).toBe("available");
   });
@@ -62,9 +62,9 @@ describe("nicknameStatus", () => {
 
 describe("nicknameFeedback", () => {
   it("오류 상태에는 오류 문구, 나머지는 안내 문구를 준다", () => {
-    expect(nicknameFeedback("seoyeon", "taken").error).toBe("이미 사용 중인 닉네임이에요.");
+    expect(nicknameFeedback("seoyeon", "taken").error).toBe("이미 사용 중인 아이디예요.");
     expect(nicknameFeedback("서연", "invalid").error).toContain("영문으로만");
-    expect(nicknameFeedback("seoyeon", "available")).toEqual({ error: null, hint: "사용할 수 있는 닉네임이에요." });
+    expect(nicknameFeedback("seoyeon", "available")).toEqual({ error: null, hint: "사용할 수 있는 아이디예요." });
     expect(nicknameFeedback("seoyeon", "current").error).toBeNull();
   });
 });

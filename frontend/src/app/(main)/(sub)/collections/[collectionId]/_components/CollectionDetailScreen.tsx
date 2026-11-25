@@ -70,7 +70,7 @@ export function CollectionDetailScreen({ id }: { id: string }) {
           {c.price !== null && (c.isPurchased ? <Badge tone="neutral">구매함</Badge> : <Badge>{formatWon(c.price)}</Badge>)}
         </div>
         <p className="mt-1 text-[12px] text-ink-sub">
-          <Link href={routes.user(c.owner.username)} className="font-bold text-ink">{c.owner.nickname}</Link> · {c.placeCount}곳 ·{" "}
+          <Link href={routes.user(c.owner.username)} className="font-bold text-ink">{c.owner.username}</Link> · {c.placeCount}곳 ·{" "}
           {c.price !== null ? (c.isMine ? `${formatWon(c.price)}에 판매 중` : "유료 컬렉션") : visibilityLabel(c.visibility)}
         </p>
         {c.description && <p className="mt-3 text-[14px] leading-relaxed text-ink-sub">{c.description}</p>}
@@ -101,7 +101,7 @@ export function CollectionDetailScreen({ id }: { id: string }) {
                   onClick={() => router.push(routes.place(p.id))}
                   meta={p.savedByMe ? "내 지도에 저장됨" : undefined}
                   trailing={
-                    <SavePlaceButton place={p} source={{ type: "COLLECTION", refId: c.id, label: `${c.owner.nickname}님의 ‘${c.title}’에서 발견` }} />
+                    <SavePlaceButton place={p} source={{ type: "COLLECTION", refId: c.id, label: `${c.owner.username}님의 ‘${c.title}’에서 발견` }} />
                   }
                 />
               </li>
@@ -116,7 +116,7 @@ export function CollectionDetailScreen({ id }: { id: string }) {
             </span>
             <p className="mt-2 text-[15px] font-bold">{c.lockedPlaceCount}곳이 더 있어요</p>
             <p className="mt-1 text-[12px] text-ink-sub">
-              {c.owner.nickname}님이 고른 나머지 장소는 구매 후 볼 수 있어요. 한 번 구매하면 계속 볼 수 있어요.
+              {c.owner.username}님이 고른 나머지 장소는 구매 후 볼 수 있어요. 한 번 구매하면 계속 볼 수 있어요.
             </p>
           </div>
         )}

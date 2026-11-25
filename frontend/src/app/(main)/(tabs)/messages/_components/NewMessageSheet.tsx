@@ -75,10 +75,9 @@ function Picker({ onDone }: { onDone: () => void }) {
                 onClick={() => open(u.username, u.id)}
                 className="flex w-full items-center gap-3 py-2.5 text-left active:bg-fill disabled:opacity-60"
               >
-                <Avatar src={u.profileImageUrl} name={u.nickname} size={40} />
+                <Avatar src={u.profileImageUrl} name={u.username} size={40} />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[14px] font-bold">{u.nickname}</span>
-                  <span className="block truncate text-[12px] text-ink-sub">@{u.username}</span>
+                  <span className="block truncate text-[14px] font-bold">{u.username}</span>
                 </span>
                 {talkingWith.has(u.id) && <span className="shrink-0 text-[12px] text-ink-faint">대화 중</span>}
               </button>

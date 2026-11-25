@@ -19,7 +19,7 @@ const plex = IBM_Plex_Sans_KR({
   display: "swap",
 });
 
-/** 영문 라벨(MY MAP 등) · 닉네임 */
+/** 영문 라벨(MY MAP 등) · 아이디 */
 const inter = Inter({
   variable: "--font-inter",
   weight: ["600"],

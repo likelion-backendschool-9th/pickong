@@ -170,7 +170,7 @@ class SignupFlowIntegrationTest {
     // ── GET /auth/username-availability ───────────────────
 
     @Test
-    @DisplayName("닉네임 중복 확인: 사용 중(대소문자 무시) · 예약어는 false, 비어 있으면 true, 형식 오류는 400")
+    @DisplayName("아이디 중복 확인: 사용 중(대소문자 무시) · 예약어는 false, 비어 있으면 true, 형식 오류는 400")
     void usernameAvailability() throws Exception {
         insertUser("seoyeon", null);
 
@@ -239,7 +239,7 @@ class SignupFlowIntegrationTest {
     }
 
     @Test
-    @DisplayName("닉네임: 사용 중 · 예약어는 409 USERNAME_TAKEN, 형식 오류는 400 INVALID_USERNAME, 이름 21자는 400 INVALID_NAME")
+    @DisplayName("아이디: 사용 중 · 예약어는 409 USERNAME_TAKEN, 형식 오류는 400 INVALID_USERNAME, 이름 21자는 400 INVALID_NAME")
     void usernameAndNameErrors() throws Exception {
         insertUser("seoyeon", null);
         List<String> required = List.of("SERVICE", "PRIVACY");

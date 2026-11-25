@@ -86,7 +86,7 @@ function earnings(userId: string) {
       return {
         id: p.id,
         collectionTitle: db.collections.find((c) => c.id === p.collectionId)?.title ?? "삭제된 컬렉션",
-        buyerNickname: findUser(p.userId)?.nickname ?? "알 수 없음",
+        buyerUsername: findUser(p.userId)?.username ?? "알 수 없음",
         amount: p.amount,
         fee,
         net: refunded ? 0 : p.amount - fee,

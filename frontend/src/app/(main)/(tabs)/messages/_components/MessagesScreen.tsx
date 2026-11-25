@@ -149,12 +149,10 @@ function StartRow({ user }: { user: User }) {
       }
       className="flex w-full items-center gap-3 px-5 py-2.5 text-left active:bg-fill disabled:opacity-60"
     >
-      <Avatar src={user.profileImageUrl} name={user.nickname} size={44} />
+      <Avatar src={user.profileImageUrl} name={user.username} size={44} />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[14px] font-bold">{user.nickname}</span>
-        <span className="block truncate text-[12px] text-ink-sub">
-          @{user.username} · {user.region}
-        </span>
+        <span className="block truncate text-[14px] font-bold">{user.username}</span>
+        {user.region && <span className="block truncate text-[12px] text-ink-sub">{user.region}</span>}
       </span>
       <span className="shrink-0 text-[12px] font-bold text-primary-deep">메시지</span>
     </button>
@@ -169,10 +167,10 @@ function ConversationList({ conversations }: { conversations: Conversation[] }) 
         return (
           <li key={c.id}>
             <Link href={routes.conversation(c.id)} className="flex items-center gap-3 px-5 py-3 active:bg-fill">
-              <Avatar src={c.partner.profileImageUrl} name={c.partner.nickname} size={48} />
+              <Avatar src={c.partner.profileImageUrl} name={c.partner.username} size={48} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline gap-2">
-                  <span className="truncate text-[15px] font-bold">{c.partner.nickname}</span>
+                  <span className="truncate text-[15px] font-bold">{c.partner.username}</span>
                   <span className="shrink-0 text-[12px] text-ink-faint">{formatRelative(c.updatedAt)}</span>
                 </div>
                 <p className={cn("mt-0.5 truncate text-[13px]", unread ? "font-bold text-ink" : "text-ink-sub")}>

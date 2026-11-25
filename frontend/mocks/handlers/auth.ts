@@ -123,12 +123,12 @@ function providerOf(ctx: Ctx): Provider {
   return provider;
 }
 
-// ── 닉네임 = 사용자 ID 규칙 (프론트 signup.ts와 같음): 영문으로 시작, 영문 소문자 · 숫자 · _ · . 3~20자 ──
+// ── 아이디 규칙 (프론트 signup.ts와 같음): 영문으로 시작, 영문 소문자 · 숫자 · _ · . 3~20자 ──
 
 export const USERNAME_PATTERN = /^(?!.*\.\.)(?!.*\.$)[a-z][a-z0-9._]{2,19}$/;
-/** 회원이 아닌데도 쓸 수 없는 닉네임 */
+/** 회원이 아닌데도 쓸 수 없는 아이디 */
 const RESERVED_USERNAMES = ["admin", "pickong", "jjimkong", "settings", "login", "signup", "api", "me"];
-/** exceptUserId: 프로필 편집에서 지금 내 닉네임은 중복으로 보지 않습니다. */
+/** exceptUserId: 프로필 편집에서 지금 내 아이디는 중복으로 보지 않습니다. */
 export const isUsernameTaken = (username: string, exceptUserId?: string) =>
   RESERVED_USERNAMES.includes(username) || db.users.some((u) => u.id !== exceptUserId && u.username.toLowerCase() === username);
 
@@ -137,7 +137,7 @@ export const isUsernameTaken = (username: string, exceptUserId?: string) =>
 function consentPage(provider: Provider, mode: "login" | "link", state: string) {
   const callback = (params: Record<string, string>) =>
     `/api/v1/auth/oauth2/callback/${slug(provider)}?${new URLSearchParams({ state, ...params })}`;
-  const owner = (userId: string) => db.users.find((u) => u.id === userId)?.nickname ?? userId;
+  const owner = (userId: string) => db.users.find((u) => u.id === userId)?.username ?? userId;
   const existing = socialAccounts
     .filter((a) => a.provider === provider)
     .map((a) => ({
@@ -301,16 +301,16 @@ export const authRoutes: Route[] = [
         throw new HttpError(401, "SIGNUP_SESSION_EXPIRED", "가입 시간이 지났어요. 처음부터 다시 진행해 주세요.", [clearCookie("signup")]);
       }
 
-      // 닉네임 = 사용자 ID(username, 중복 불가), 이름(name, 중복 가능 · 없으면 null)
+      // 아이디(username, 중복 불가), 이름(name, 중복 가능 · 없으면 null)
       const username = String(ctx.body?.username ?? "").trim().toLowerCase();
       const name = typeof ctx.body?.name === "string" ? ctx.body.name.trim() || null : null;
       const agreed: string[] = Array.isArray(ctx.body?.agreedTerms) ? ctx.body.agreedTerms : [];
-      if (!USERNAME_PATTERN.test(username)) throw new HttpError(400, "INVALID_USERNAME", "닉네임 형식을 확인해 주세요.");
+      if (!USERNAME_PATTERN.test(username)) throw new HttpError(400, "INVALID_USERNAME", "아이디 형식을 확인해 주세요.");
       if (name && [...name].length > 20) throw new HttpError(400, "INVALID_NAME", "이름은 20자까지 쓸 수 있어요.");
       if (!agreed.includes("SERVICE") || !agreed.includes("PRIVACY")) {
         throw new HttpError(400, "REQUIRED_TERMS_NOT_AGREED", "필수 약관에 동의해 주세요.");
       }
-      if (isUsernameTaken(username)) throw new HttpError(409, "USERNAME_TAKEN", "이미 사용 중인 닉네임이에요.");
+      if (isUsernameTaken(username)) throw new HttpError(409, "USERNAME_TAKEN", "이미 사용 중인 아이디예요.");
       if (socialAccounts.some((a) => a.provider === pending.provider && a.providerUserId === pending.providerUserId)) {
         throw new HttpError(409, "SOCIAL_ACCOUNT_ALREADY_LINKED", "이미 가입된 소셜 계정이에요. 다시 로그인해 주세요.");
       }
@@ -349,13 +349,13 @@ export const authRoutes: Route[] = [
     },
   },
   {
-    /** 닉네임(= 사용자 ID) 중복 확인. 대소문자를 무시하고 비교합니다. */
+    /** 아이디 중복 확인. 대소문자를 무시하고 비교합니다. */
     method: "GET",
     path: "/api/v1/auth/username-availability",
     delay: 300,
     handler: ({ query }) => {
       const username = (query.get("username") ?? "").trim().toLowerCase();
-      if (!USERNAME_PATTERN.test(username)) throw new HttpError(400, "INVALID_USERNAME", "닉네임 형식을 확인해 주세요.");
+      if (!USERNAME_PATTERN.test(username)) throw new HttpError(400, "INVALID_USERNAME", "아이디 형식을 확인해 주세요.");
       return { available: !isUsernameTaken(username) };
     },
   },
