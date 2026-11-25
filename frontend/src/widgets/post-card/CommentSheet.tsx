@@ -16,8 +16,6 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
   const [text, setText] = useState("");
   const [replyTo, setReplyTo] = useState<PostComment | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  /** 답글 대상이 세팅된 경로: "button" = 답글 달기 버튼, "mention" = @닉네임 직접 입력 */
-  const replySource = useRef<"button" | "mention">("button");
 
   // 시트가 열리면 input 포커스 (시트 슬라이드 업 애니메이션 220ms 뒤)
   useEffect(() => {
@@ -26,7 +24,7 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
     return () => clearTimeout(id);
   }, [open]);
 
-  // 답글 달기 클릭 시 input 포커스 (mention 자동 감지된 경우에도)
+  // 답글 달기 클릭 시 input 포커스
   useEffect(() => {
     if (replyTo) requestAnimationFrame(() => inputRef.current?.focus());
   }, [replyTo]);
@@ -34,12 +32,27 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
   const roots = comments?.filter((c) => !c.parentId) ?? [];
   const repliesOf = (id: string) => comments?.filter((c) => c.parentId === id) ?? [];
 
-  /** 답글 달기 버튼 클릭: setText + setReplyTo를 같은 렌더에서 처리해야 span이 바로 보임 */
+  /** 답글 달기 버튼 클릭 */
   const handleReply = (comment: PostComment) => {
-    replySource.current = "button";
     setText(`@${comment.author.username} `);
     setReplyTo(comment);
   };
+
+  /**
+   * 색상 표시용 @username 감지. replyTo와 무관하게 텍스트에서 직접 추출.
+   * - 답글 달기 버튼: replyTo 세팅 + @username 삽입 → 둘 다 활성
+   * - 직접 타이핑: @username만 색상 표시, replyTo는 세팅 안 함 (일반 댓글로 전송)
+   */
+  const typedUsername = text.match(/^@(\S+)/)?.[1];
+  const activeMention = (() => {
+    if (replyTo && text.startsWith(`@${replyTo.author.username}`)) {
+      return `@${replyTo.author.username}`;
+    }
+    if (!replyTo && typedUsername && comments?.some((c) => c.author.username === typedUsername)) {
+      return `@${typedUsername}`;
+    }
+    return null;
+  })();
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,45 +79,32 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
           )}
           <div className="flex items-center gap-2">
             {/*
-             * @닉네임은 별도 span으로 분리해 색상 적용. input은 멘션 뒤 텍스트만 표시.
-             * text 상태는 항상 전체 문자열(@닉네임 포함)로 유지하고, onChange에서 재조합합니다.
+             * @username은 별도 span으로 색상 표시. input은 멘션 뒤 텍스트만 담당.
+             * activeMention은 replyTo 여부와 무관하게 텍스트에서 직접 감지.
              */}
             <div className="flex h-11 flex-1 items-center overflow-hidden rounded-full bg-soft px-4 focus-within:ring-2 focus-within:ring-primary-deep/30">
-              {replyTo && text.startsWith(`@${replyTo.author.username}`) && (
+              {activeMention && (
                 <span className="shrink-0 text-[14px] font-medium text-primary-deep">
-                  {`@${replyTo.author.username}`}
+                  {activeMention}
                 </span>
               )}
               <input
                 ref={inputRef}
-                value={
-                  replyTo && text.startsWith(`@${replyTo.author.username}`)
-                    ? text.slice(`@${replyTo.author.username}`.length)
-                    : text
-                }
+                value={activeMention ? text.slice(activeMention.length) : text}
                 onChange={(e) => {
                   const suffix = e.target.value;
-                  const mention = replyTo ? `@${replyTo.author.username}` : null;
-                  const val = mention && text.startsWith(mention) ? mention + suffix : suffix;
+                  const val = activeMention ? activeMention + suffix : suffix;
                   setText(val);
 
-                  // "@닉네임 " 형태로 직접 입력하면 해당 댓글 작성자를 답글 대상으로 자동 감지
-                  // (공백이 붙는 순간 확정 — 닉네임 완성 기준)
-                  const mentionMatch = suffix.match(/^@(\S+)\s/);
-                  if (mentionMatch && !replyTo) {
-                    const username = mentionMatch[1];
-                    const matched = comments?.find((c) => c.author.username === username);
-                    if (matched) {
-                      replySource.current = "mention";
-                      setReplyTo(matched);
-                    }
+                  // 답글 대상이 있는데 @username이 지워지면 답글 해제
+                  if (replyTo && !val.startsWith(`@${replyTo.author.username}`)) {
+                    setReplyTo(null);
                   }
                 }}
                 onKeyDown={(e) => {
-                  // input이 비었을 때 backspace → 멘션 span 제거
-                  const mention = replyTo ? `@${replyTo.author.username}` : null;
-                  const suffix = mention && text.startsWith(mention) ? text.slice(mention.length) : text;
-                  if (e.key === "Backspace" && replyTo && suffix === "") {
+                  // 멘션 뒤 텍스트가 비었을 때 backspace → 멘션 제거
+                  const suffix = activeMention ? text.slice(activeMention.length) : text;
+                  if (e.key === "Backspace" && activeMention && suffix === "") {
                     setReplyTo(null);
                     setText("");
                   }
