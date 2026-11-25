@@ -7,6 +7,7 @@ import type { LatLng, LatLngBounds, MapMarker } from "../types";
 import { naverMapGlOptions, shouldUseNaverGl } from "./config";
 import { clampNaverZoom, fromNaverBounds, metersPerPixelToZoom, toNaverLatLng } from "./convert";
 import { loadNaverSdk } from "./loadNaverSdk";
+import { diffMarkers, planMarkers, type MarkerPlan } from "./markerDiff";
 
 const DEFAULT_CENTER: LatLng = { lat: 37.5446, lng: 127.0525 };
 const USE_GL = shouldUseNaverGl();
@@ -73,8 +74,7 @@ export function NaverMapView({
 }: NaverMapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<naver.maps.Map | null>(null);
-  const markersRef = useRef<naver.maps.Marker[]>([]);
-  const markerListenersRef = useRef<object[]>([]);
+  const markersRef = useRef<Map<string, DrawnMarker>>(new Map());
   const userLocationMarkerRef = useRef<naver.maps.Marker | null>(null);
   const polylineRef = useRef<naver.maps.Polyline | null>(null);
   const focusedKeyRef = useRef<string | null>(null);
@@ -99,9 +99,11 @@ export function NaverMapView({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   /** 로딩 실패 후 다시 시도할 때 effect를 재실행합니다. */
   const [bootId, setBootId] = useState(0);
-
-  const pins = markers.filter((m) => m.tone !== "poi");
-  const pinCount = pins.length;
+  /**
+   * 지도를 새로 만들 때마다 늘어납니다.
+   * 탭을 떠났다 돌아오면 지도는 새로 생기지만 status는 ready 그대로라, 이 값으로 마커를 다시 그립니다.
+   */
+  const [mapVersion, setMapVersion] = useState(0);
 
   const retryLoad = () => {
     setErrorMessage(null);
@@ -147,6 +149,7 @@ export function NaverMapView({
         mapRef.current = map;
         mapCreated = true;
         setStatus("ready");
+        setMapVersion((n) => n + 1);
 
         const emitBounds = () => {
           if (!mapRef.current) return;
@@ -222,7 +225,7 @@ export function NaverMapView({
       const saved = lastCamera;
       for (const listener of listeners) naver.maps.Event.removeListener(listener);
       if (mapCreated) onCameraChangeRef.current?.(saved);
-      clearMarkers(markersRef, markerListenersRef);
+      clearMarkers(markersRef);
       userLocationMarkerRef.current?.setMap(null);
       userLocationMarkerRef.current = null;
       polylineRef.current?.setMap(null);
@@ -251,22 +254,32 @@ export function NaverMapView({
     map.morph(target, next);
   }, [focus, status]);
 
-  // 마커 동기화
+  // 마커 동기화: 모습이 바뀐 마커만 지우고 다시 그립니다.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || status !== "ready") return;
 
-    clearMarkers(markersRef, markerListenersRef);
+    const drawn = markersRef.current;
+    const { remove, add } = diffMarkers(drawn, planMarkers(markers, selectedId));
 
-    for (const m of markers) {
-      const selected = m.id === selectedId;
-      const content = createMarkerElement(m, selected, pinCount);
-      const size = estimateMarkerSize(m, selected, pinCount);
+    for (const key of remove) {
+      const old = drawn.get(key);
+      if (!old) continue;
+      removeMarker(old);
+      drawn.delete(key);
+    }
+    if (add.length === 0) return;
+
+    // 색상은 모든 마커가 같으므로 한 번만 읽습니다.
+    const colors = readMarkerColors();
+    for (const plan of add) {
+      const { marker: m, selected } = plan;
+      const size = estimateMarkerSize(plan);
       const marker = new naver.maps.Marker({
         map,
         position: toNaverLatLng(m.position),
         icon: {
-          content,
+          content: createMarkerElement(plan, colors),
           size: new naver.maps.Size(size.w, size.h),
           anchor: new naver.maps.Point(size.w / 2, m.tone === "poi" ? size.h / 2 : size.h),
         },
@@ -277,10 +290,9 @@ export function NaverMapView({
       const listener = naver.maps.Event.addListener(marker, "click", () => {
         onMarkerClickRef.current?.(m.id);
       });
-      markersRef.current.push(marker);
-      markerListenersRef.current.push(listener);
+      drawn.set(plan.key, { marker, listener, signature: plan.signature });
     }
-  }, [markers, selectedId, pinCount, status]);
+  }, [markers, selectedId, status, mapVersion]);
 
   // 내 위치 (GPS)
   useEffect(() => {
@@ -430,14 +442,20 @@ function latLngFromNaverCenter(value: unknown): LatLng | null {
   return { lat, lng };
 }
 
-function clearMarkers(
-  markersRef: { current: naver.maps.Marker[] },
-  listenersRef: { current: object[] },
-) {
-  for (const listener of listenersRef.current) naver.maps.Event.removeListener(listener);
-  listenersRef.current = [];
-  for (const marker of markersRef.current) marker.setMap(null);
-  markersRef.current = [];
+interface DrawnMarker {
+  marker: naver.maps.Marker;
+  listener: object;
+  signature: string;
+}
+
+function removeMarker({ marker, listener }: DrawnMarker) {
+  naver.maps.Event.removeListener(listener);
+  marker.setMap(null);
+}
+
+function clearMarkers(drawnRef: { current: Map<string, DrawnMarker> }) {
+  for (const item of drawnRef.current.values()) removeMarker(item);
+  drawnRef.current.clear();
 }
 
 function createUserLocationElement(): HTMLElement {
@@ -457,8 +475,7 @@ function createUserLocationElement(): HTMLElement {
   return wrap;
 }
 
-function estimateMarkerSize(m: MapMarker, selected: boolean, pinCount: number): { w: number; h: number } {
-  const showTitle = !!m.title && (m.tone === "poi" ? selected : selected || pinCount <= 6);
+function estimateMarkerSize({ marker: m, selected, showTitle }: MarkerPlan): { w: number; h: number } {
   if (m.tone === "poi") {
     return { w: 28, h: showTitle ? 36 : 20 };
   }
@@ -466,16 +483,29 @@ function estimateMarkerSize(m: MapMarker, selected: boolean, pinCount: number): 
   return { w: Math.max(pin, showTitle ? 96 : pin), h: pin + (showTitle ? 16 : 0) };
 }
 
-function createMarkerElement(m: MapMarker, selected: boolean, pinCount: number): HTMLElement {
+interface MarkerColors {
+  primary: string;
+  primaryDeep: string;
+  onPrimary: string;
+  ink: string;
+  inkFaint: string;
+}
+
+function readMarkerColors(): MarkerColors {
+  return {
+    primary: cssVar("--color-primary", "#86cb16"),
+    primaryDeep: cssVar("--color-primary-deep", "#517c26"),
+    onPrimary: cssVar("--color-on-primary", "#1a2e05"),
+    ink: cssVar("--color-ink", "#20251f"),
+    inkFaint: cssVar("--color-ink-faint", "#9aa093"),
+  };
+}
+
+function createMarkerElement({ marker: m, selected, showTitle }: MarkerPlan, colors: MarkerColors): HTMLElement {
+  const { primary, primaryDeep, onPrimary, ink, inkFaint } = colors;
   const wrap = document.createElement("div");
   wrap.style.cssText =
     "display:flex;flex-direction:column;align-items:center;pointer-events:auto;cursor:pointer;";
-
-  const primary = cssVar("--color-primary", "#86cb16");
-  const primaryDeep = cssVar("--color-primary-deep", "#517c26");
-  const onPrimary = cssVar("--color-on-primary", "#1a2e05");
-  const ink = cssVar("--color-ink", "#20251f");
-  const inkFaint = cssVar("--color-ink-faint", "#9aa093");
 
   if (m.tone === "poi") {
     const dot = document.createElement("span");
@@ -483,7 +513,7 @@ function createMarkerElement(m: MapMarker, selected: boolean, pinCount: number):
     const bg = selected ? ink : inkFaint;
     dot.style.cssText = `display:block;width:${size}px;height:${size}px;border-radius:9999px;border:2px solid #fff;background:${bg};box-shadow:0 1px 3px rgba(0,0,0,0.3);`;
     wrap.appendChild(dot);
-    if (m.title && selected) wrap.appendChild(titleEl(m.title, ink));
+    if (m.title && showTitle) wrap.appendChild(titleEl(m.title, ink));
     return wrap;
   }
 
@@ -514,7 +544,7 @@ function createMarkerElement(m: MapMarker, selected: boolean, pinCount: number):
   }
   wrap.appendChild(pin);
 
-  if (m.title && (selected || pinCount <= 6)) wrap.appendChild(titleEl(m.title, ink));
+  if (m.title && showTitle) wrap.appendChild(titleEl(m.title, ink));
   return wrap;
 }
 
