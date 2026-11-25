@@ -14,6 +14,7 @@ import { Tabs } from "@/shared/ui/controls";
 import { EmptyState, ErrorState, Skeleton } from "@/shared/ui/display";
 import { PullToRefresh } from "@/shared/ui/PullToRefresh";
 import { FeedMap } from "./FeedMap";
+import { RegionDropdown } from "./RegionDropdown";
 
 /**
  * 홈 피드. 목록 · 지도 전환은 주소(?view=map)에 남기므로, 하단바 홈(/feed)을 누르면 언제나 피드 목록으로 돌아옵니다.
@@ -24,7 +25,20 @@ export function FeedScreen() {
   const router = useRouter();
   const pathname = usePathname();
   const mode = params.get("view") === "map" ? "map" : "list";
-  const setMode = (m: "list" | "map") => router.replace(m === "map" ? `${pathname}?view=map` : pathname, { scroll: false });
+  /** 쉼표 구분 지역 목록. "" = 전체 */
+  const region = params.get("region") ?? "";
+
+  const setMode = (m: "list" | "map") => {
+    const sp = new URLSearchParams(params.toString());
+    if (m === "map") sp.set("view", "map"); else sp.delete("view");
+    router.replace(`${pathname}?${sp.toString()}`.replace(/\?$/, ""), { scroll: false });
+  };
+
+  const setRegion = (r: string) => {
+    const sp = new URLSearchParams(params.toString());
+    if (!r) sp.delete("region"); else sp.set("region", r);
+    router.replace(`${pathname}?${sp.toString()}`.replace(/\?$/, ""), { scroll: false });
+  };
 
   return (
     <div>
@@ -52,27 +66,40 @@ export function FeedScreen() {
               { value: "recommended", label: "추천" },
             ]}
             value={tab}
-            onChange={setTab}
+            onChange={(t) => { setTab(t); if (t === "following") setRegion(""); }}
           />
-          <button
-            type="button"
-            onClick={() => setMode(mode === "map" ? "list" : "map")}
-            aria-pressed={mode === "map"}
-            className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-full bg-accent-soft px-3.5 text-[13px] font-bold text-primary-deep active:brightness-95"
-          >
-            {mode === "map" ? <List size={15} /> : <MapIcon size={15} />}
-            {mode === "map" ? "목록" : "지도"}
-          </button>
+          {/* 추천 탭 바로 옆에 위치 */}
+          {tab === "recommended" && (
+            <div className="ml-2">
+              <RegionDropdown value={region} onChange={setRegion} />
+            </div>
+          )}
+          <div className="ml-auto">
+            <button
+              type="button"
+              onClick={() => setMode(mode === "map" ? "list" : "map")}
+              aria-pressed={mode === "map"}
+              className="inline-flex h-7 items-center gap-1.5 rounded-full bg-accent-soft px-3 text-[12px] font-bold text-primary-deep active:brightness-95"
+            >
+              {mode === "map" ? <List size={14} /> : <MapIcon size={14} />}
+              {mode === "map" ? "목록" : "지도"}
+            </button>
+          </div>
         </div>
       </header>
 
-      {mode === "map" ? <FeedMap tab={tab} /> : <FeedList tab={tab} />}
+      {mode === "map" ? (
+        <FeedMap tab={tab} region={tab === "recommended" && region ? region : undefined} />
+      ) : (
+        <FeedList tab={tab} region={tab === "recommended" && region ? region : undefined} />
+      )}
     </div>
   );
 }
 
-function FeedList({ tab }: { tab: FeedTab }) {
-  const { data: posts, isPending, isError, error, refetch } = useFeed(tab);
+function FeedList({ tab, region }: { tab: FeedTab; region?: string }) {
+  const regionParam = region || undefined;
+  const { data: posts, isPending, isError, error, refetch } = useFeed(tab, regionParam);
   const [refreshSignal, setRefreshSignal] = useState(0);
 
   // 피드에서 홈 버튼을 다시 누르면: 맨 위로 올라간 뒤 당겨서 새로고침한 것처럼 새로고침

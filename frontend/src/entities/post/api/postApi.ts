@@ -12,9 +12,10 @@ export interface CreatePostInput {
 }
 
 export const postApi = {
-  feed: async (tab: FeedTab) => (await http.get<PostDto[]>("/feed", { query: { tab } })).map(toPost),
-  feedPlaces: async (tab: FeedTab) =>
-    (await http.get<FeedPlaceDto[]>("/feed/places", { query: { tab } })).map(toFeedPlace),
+  feed: async (tab: FeedTab, region?: string) =>
+    (await http.get<PostDto[]>("/feed", { query: region ? { tab, region } : { tab } })).map(toPost),
+  feedPlaces: async (tab: FeedTab, region?: string) =>
+    (await http.get<FeedPlaceDto[]>("/feed/places", { query: region ? { tab, region } : { tab } })).map(toFeedPlace),
   get: async (id: string) => toPost(await http.get<PostDto>(`/posts/${id}`)),
   byUser: async (username: string) => (await http.get<PostDto[]>(`/users/${username}/posts`)).map(toPost),
   /** 방문 지도: 이 사용자의 게시물에 연결된 장소 */
