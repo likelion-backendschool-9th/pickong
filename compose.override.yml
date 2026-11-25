@@ -33,12 +33,18 @@ services:
       retries: 5
       start_period: 5s
 
-  # JWT_SECRET 등 비밀값은 backend/.env에서 읽습니다. (backend/.env.example 참고)
-  # 코드를 고치면 docker compose restart backend로 다시 실행합니다.
+  # 코드를 고치면 docker compose restart backend, backend/.env를 고치면 docker compose up -d backend로 반영합니다.
   backend:
+    # compose.yml로 만드는 실행용 이미지(pickong-backend)와 섞이지 않게 이름을 나눕니다.
+    image: pickong-backend-dev
     build:
       target: development
     command: ["./gradlew", "bootRun", "--no-daemon"]
+    # JWT_SECRET 등 비밀값 (backend/.env.example 참고). 파일이 없어도 프론트 · mock · db는 실행할 수 있습니다.
+    env_file:
+      - path: ./backend/.env
+        required: false
+    # env_file보다 우선합니다.
     environment:
       DB_URL: jdbc:postgresql://db:5432/pickong
     ports:

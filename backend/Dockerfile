@@ -9,7 +9,7 @@ COPY gradle ./gradle
 RUN ./gradlew dependencies --configuration runtimeClasspath --no-daemon
 
 COPY src ./src
-# 테스트는 Testcontainers(Docker)가 필요해 이미지 빌드에서 실행하지 않습니다.
+# 이미지 빌드는 jar만 만듭니다. 테스트는 Testcontainers(Docker)가 필요해 PR 전에 ./gradlew build로 실행합니다.
 RUN ./gradlew bootJar --no-daemon
 
 FROM eclipse-temurin:21-jre-noble AS runner
