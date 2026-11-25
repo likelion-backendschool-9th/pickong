@@ -16,6 +16,8 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
   const [text, setText] = useState("");
   const [replyTo, setReplyTo] = useState<PostComment | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  /** 답글 대상이 세팅된 경로: "button" = 답글 달기 버튼, "mention" = @닉네임 직접 입력 */
+  const replySource = useRef<"button" | "mention">("button");
 
   // 시트가 열리면 input 포커스 (시트 슬라이드 업 애니메이션 220ms 뒤)
   useEffect(() => {
@@ -24,12 +26,12 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
     return () => clearTimeout(id);
   }, [open]);
 
-  // 답글 달기 클릭 시 @닉네임 삽입 + input 포커스 + 커서 끝으로
+  // 답글 달기 버튼으로 세팅된 경우에만 @닉네임 삽입 + 포커스
+  // 직접 타이핑으로 감지된 경우(mention)에는 텍스트를 덮어쓰지 않음
   useEffect(() => {
-    if (!replyTo) return;
+    if (!replyTo || replySource.current === "mention") return;
     const mention = `@${replyTo.author.nickname} `;
     setText(mention);
-    // setText 후 다음 프레임에 포커스 + 커서를 텍스트 끝으로 이동
     requestAnimationFrame(() => {
       const el = inputRef.current;
       if (!el) return;
@@ -40,6 +42,12 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
 
   const roots = comments?.filter((c) => !c.parentId) ?? [];
   const repliesOf = (id: string) => comments?.filter((c) => c.parentId === id) ?? [];
+
+  /** 답글 달기 버튼 클릭 */
+  const handleReply = (comment: PostComment) => {
+    replySource.current = "button";
+    setReplyTo(comment);
+  };
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,9 +79,22 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
               onChange={(e) => {
                 const val = e.target.value;
                 setText(val);
-                // @닉네임이 지워지면 답글 대상도 해제 (텍스트는 그대로 유지)
+
+                // @닉네임이 지워지면 답글 대상 해제
                 if (replyTo && !val.startsWith(`@${replyTo.author.nickname}`)) {
                   setReplyTo(null);
+                }
+
+                // "@닉네임 " 형태로 직접 입력하면 해당 댓글 작성자를 답글 대상으로 자동 감지
+                // (공백이 붙는 순간 확정 — 닉네임 완성 기준)
+                const mentionMatch = val.match(/^@(\S+)\s/);
+                if (mentionMatch && !replyTo) {
+                  const nickname = mentionMatch[1];
+                  const matched = comments?.find((c) => c.author.nickname === nickname);
+                  if (matched) {
+                    replySource.current = "mention";
+                    setReplyTo(matched);
+                  }
                 }
               }}
               placeholder={replyTo ? "답글 달기" : "댓글 달기"}
@@ -104,12 +125,12 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
         <ul className="space-y-5">
           {roots.map((c) => (
             <li key={c.id}>
-              <CommentItem comment={c} onReply={() => setReplyTo(c)} />
+              <CommentItem comment={c} onReply={() => handleReply(c)} />
               {repliesOf(c.id).length > 0 && (
                 <ul className="mt-3 space-y-3 pl-11">
                   {repliesOf(c.id).map((r) => (
                     <li key={r.id}>
-                      <CommentItem comment={r} onReply={() => setReplyTo(r)} small />
+                      <CommentItem comment={r} onReply={() => handleReply(r)} small />
                     </li>
                   ))}
                 </ul>
