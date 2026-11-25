@@ -49,7 +49,15 @@ export function RestoreScreen() {
       },
     });
 
-  const keepWithdrawal = () => leave.mutate(undefined, { onSettled: () => router.replace(routes.start()) });
+  /**
+   * 탈퇴 유지: 탈퇴 취소 쿠키를 지우고 시작 화면으로. 실패해도(네트워크 등) 탈퇴는 이미 유지 상태이고 쿠키는 10분 뒤 만료되므로
+   * 그대로 시작 화면으로 보내되, 왜 이동했는지 알 수 있게 알림을 띄웁니다.
+   */
+  const keepWithdrawal = () =>
+    leave.mutate(undefined, {
+      onError: () => toast({ message: "탈퇴는 그대로 유지돼요." }),
+      onSettled: () => router.replace(routes.start()),
+    });
 
   if (session.isPending || failure === RESTORE_SESSION_EXPIRED) {
     return (
