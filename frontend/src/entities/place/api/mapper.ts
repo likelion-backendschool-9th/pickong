@@ -1,5 +1,5 @@
-import type { Place, PlaceDetail, SavedPlace } from "../model";
-import type { PlaceDetailDto, PlaceDto, SavedPlaceDto } from "./dto";
+import type { Place, PlaceCluster, PlaceDetail, PlacesInBounds, SavedPlace } from "../model";
+import type { PlaceClusterDto, PlaceDetailDto, PlaceDto, PlacesInBoundsDto, SavedPlaceDto } from "./dto";
 
 export const toPlace = (dto: PlaceDto): Place => ({
   id: dto.id,
@@ -13,6 +13,18 @@ export const toPlace = (dto: PlaceDto): Place => ({
   description: dto.description ?? "",
   imageUrl: dto.imageUrl,
   businessHours: dto.businessHours,
+});
+
+export const toPlaceCluster = ({ lat, lng, count, bounds }: PlaceClusterDto): PlaceCluster => ({
+  id: [bounds.west, bounds.south, bounds.east, bounds.north].join(","),
+  location: { lat, lng },
+  count,
+  bounds,
+});
+
+export const toPlacesInBounds = (dto: PlacesInBoundsDto): PlacesInBounds => ({
+  places: dto.places.map(toPlace),
+  clusters: dto.clusters.map(toPlaceCluster),
 });
 
 export const toSavedPlace = (dto: SavedPlaceDto): SavedPlace => ({
