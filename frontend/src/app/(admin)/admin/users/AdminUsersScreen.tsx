@@ -33,7 +33,7 @@ export function AdminUsersScreen() {
     <div className="pb-10">
       <TopBar title="사용자 제재" backHref={routes.admin()} />
       <div className="space-y-3 px-5 pt-1 pb-2">
-        <SearchInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder="닉네임 · 아이디 검색" aria-label="사용자 검색" />
+        <SearchInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder="이름 · 아이디 검색" aria-label="사용자 검색" />
         <div className="flex gap-2">
           {(
             [

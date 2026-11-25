@@ -34,7 +34,7 @@ export interface CreatorOverview {
 
 export interface Earnings {
   summary: { totalSales: number; unsettled: number; scheduled: number; paidTotal: number; feeRate: number };
-  sales: { id: string; collectionTitle: string; buyerNickname: string; amount: number; fee: number; net: number; status: "PAID" | "REFUNDED"; soldAt: string }[];
+  sales: { id: string; collectionTitle: string; buyerUsername: string; amount: number; fee: number; net: number; status: "PAID" | "REFUNDED"; soldAt: string }[];
   settlements: { id: string; period: string; salesAmount: number; fee: number; amount: number; status: "SCHEDULED" | "PAID" | "HELD"; paidAt: string | null }[];
 }
 

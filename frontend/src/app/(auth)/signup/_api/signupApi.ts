@@ -26,7 +26,7 @@ export interface SignupSession {
 }
 
 export interface CompleteSignupInput {
-  /** 닉네임 = 사용자 ID(영문, 중복 불가) → users.username */
+  /** 아이디(영문, 중복 불가) → users.username */
   username: string;
   /** 이름(중복 가능) → users.display_name. 정하지 않으면 null */
   name: string | null;

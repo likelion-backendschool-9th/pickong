@@ -56,7 +56,7 @@ function NotificationRow({ n }: { n: AppNotification }) {
   return (
     <Link href={n.link} className={cn("-mx-5 flex items-start gap-3 px-5 py-3.5 active:bg-fill", !n.read && "bg-soft")}>
       {n.actor ? (
-        <Avatar src={n.actor.profileImageUrl} name={n.actor.nickname} size={40} />
+        <Avatar src={n.actor.profileImageUrl} name={n.actor.username} size={40} />
       ) : (
         <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-warning-soft text-warning">
           <AlertTriangle size={18} />

@@ -1,13 +1,13 @@
 import { NICKNAME_MAX, nicknameError, normalizeNicknameInput } from "@/entities/user";
 
 /**
- * 최초 가입 온보딩: 단계 순서, 닉네임 기본값, 약관 동의. (닉네임 · 이름 규칙은 entities/user)
+ * 최초 가입 온보딩: 단계 순서, 아이디 기본값, 약관 동의. (아이디 · 이름 규칙은 entities/user)
  * 소셜 인증을 마친 신규 회원만 들어오며, 비밀번호 · 전화번호는 받지 않습니다.
  * 검증 함수는 오류가 없으면 null을 돌려줍니다.
  */
 
 /**
- * nickname(닉네임 = 사용자 ID, 실시간 중복 확인) → profile(프로필 사진 · 이름, 선택이라 건너뛸 수 있음)
+ * nickname(아이디, 실시간 중복 확인) → profile(프로필 사진 · 이름, 선택이라 건너뛸 수 있음)
  * → terms(프로필 화면 위에 올라오는 약관 동의 시트)
  */
 export const SIGNUP_STEPS = ["nickname", "profile", "terms"] as const;
@@ -24,9 +24,9 @@ export function previousStep(step: SignupStep): SignupStep | null {
   return index > 0 ? SIGNUP_STEPS[index - 1] : null;
 }
 
-// ── 닉네임 = 사용자 ID: 규칙과 중복 확인 상태는 프로필 편집과 함께 쓰므로 entities/user/nickname.ts에 있습니다. ──
+// ── 아이디: 규칙과 중복 확인 상태는 프로필 편집과 함께 쓰므로 entities/user/nickname.ts에 있습니다. ──
 
-/** 소셜 계정 이메일의 앞부분이 규칙에 맞으면 닉네임 기본값으로 씁니다. 맞지 않으면 빈칸 */
+/** 소셜 계정 이메일의 앞부분이 규칙에 맞으면 아이디 기본값으로 씁니다. 맞지 않으면 빈칸 */
 export function suggestedNickname(email: string | null | undefined): string {
   const local = normalizeNicknameInput(email?.split("@")[0] ?? "").slice(0, NICKNAME_MAX);
   return nicknameError(local) ? "" : local;

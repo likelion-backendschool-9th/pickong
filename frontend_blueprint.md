@@ -143,9 +143,9 @@ pickong/
     │   │   │   └── signup/                 # 최초 가입 온보딩 (소셜 인증을 마친 신규 회원만)
     │   │   │       ├── page.tsx
     │   │   │       ├── _api/signupApi.ts       # 가입 세션 조회 · 완료 · 그만두기
-    │   │   │       ├── _lib/signup.ts          # 단계 순서, 닉네임 기본값, 약관 동의
+    │   │   │       ├── _lib/signup.ts          # 단계 순서, 아이디 기본값, 약관 동의
     │   │   │       └── _components/
-    │   │   │           ├── SignupFlow.tsx      # 닉네임 → 프로필 사진 · 이름(건너뛰기) → 약관 동의 시트
+    │   │   │           ├── SignupFlow.tsx      # 아이디 → 프로필 사진 · 이름(건너뛰기) → 약관 동의 시트
     │   │   │           ├── NicknameStep.tsx · ProfileStep.tsx · TermsSheet.tsx
     │   │   │           └── SignupUi.tsx        # 단계 화면 틀, o──o──o 진행 표시
     │   │   │
@@ -644,7 +644,7 @@ feature A가 feature B를 import하지 않습니다. **조합은 위 계층에�
 
 | 공개 | 로그인 필요 (`proxy.ts`에서 `/login`으로) |
 | --- | --- |
-| `/`, `/login`, `/signup`, `/terms/[type]` | `/feed`, `/map`, `/import`, `/plans/**`, `/terms/consent` |
+| `/`, `/login`, `/signup`, `/terms/[type]`, `/account/restore`(탈퇴 취소 쿠키) | `/feed`, `/map`, `/import`, `/plans/**`, `/terms/consent` |
 | `/posts/[postId]` (공개 범위 준수) | `/posts/new`, `/collections`, `/collections/new` |
 | `/places/[placeId]` | `/places/custom/new`, `/notifications`, `/settings/**` |
 | `/collections/[collectionId]` (공개 컬렉션) | |
@@ -973,7 +973,7 @@ entities/plan/model/            # React import 금지. 입력 → 출력만 있�
 | 경로 | 화면 | 접근 | 주요 렌더링 | 단계 |
 | --- | --- | --- | --- | --- |
 | `/` | 시작 화면 (로그인 시 `/feed`로) | 공개 | Server | 껍데기 |
-| `/login`, `/signup` | 로그인 · 회원가입 통합(카카오 · Google) · 최초 가입 온보딩(닉네임 = ID → 프로필 사진 · 이름(선택) → 약관). 온보딩은 서버의 임시 가입 세션이 기준이라 새로고침 · 재접속에도 상태가 유지되고, 세션이 없으면 `/login`, 이미 가입했으면 `/feed`로 | 공개 | Server + 폼(Client) | 껍데기 |
+| `/login`, `/signup` | 로그인 · 회원가입 통합(카카오 · Google) · 최초 가입 온보딩(아이디 → 프로필 사진 · 이름(선택) → 약관). 온보딩은 서버의 임시 가입 세션이 기준이라 새로고침 · 재접속에도 상태가 유지되고, 세션이 없으면 `/login`, 이미 가입했으면 `/feed`로 | 공개 | Server + 폼(Client) | 껍데기 |
 | `/feed` | 팔로잉 피드 | 로그인 | Server prefetch + 무한 스크롤(Client) | 껍데기 |
 | `/explore` | 탐색 | 공개 | Server + 버튼(Client) | 껍데기 |
 | `/map` | 나만의 지도 | 로그인 | Server prefetch + 지도(Client) | 껍데기 |
@@ -993,11 +993,12 @@ entities/plan/model/            # React import 금지. 입력 → 출력만 있�
 | `/messages` | DM 대화 목록 | 로그인 | Client (주기적 갱신) | 껍데기 |
 | `/messages/[conversationId]` | DM 대화방 | 로그인 | Client (주기적 갱신) | 껍데기 |
 | `/notifications` | 알림 | 로그인 | Server | 3차 |
-| `/settings`, `/settings/profile` | 설정 · 프로필 편집 (닉네임 = ID 변경 · 이름 · 소개 · 활동 지역) | 로그인 | 폼(Client) | 1차 |
+| `/settings`, `/settings/profile` | 설정 · 프로필 편집 (아이디 변경 · 이름 · 소개 · 활동 지역) | 로그인 | 폼(Client) | 1차 |
 | `/settings/login-methods` | 로그인 수단 관리: 카카오 · Google 연결 · 해제 | 로그인 | Client | 껍데기 |
-| `/settings/agreements`, `/notifications`, `/devices`, `/withdraw` | 약관 및 동의 관리 · 푸시 알림 설정 · 디바이스 관리 · 회원 탈퇴 | 로그인 | Client | 껍데기 |
+| `/settings/agreements`, `/notifications`, `/devices`, `/withdraw` | 약관 및 동의 관리 · 푸시 알림 설정 · 디바이스 관리 · 회원 탈퇴(`POST /me/withdrawal`, 30일 유예 안내) | 로그인 | Client | 껍데기 |
 | `/terms/[type]` | 약관 전문 (`service` · `privacy` · `marketing`) | 공개 | Client | 껍데기 |
 | `/terms/consent` | 바뀐 약관 재동의 (`?next=` 동의한 뒤 돌아갈 찜콩 안 경로, 없으면 피드). 로그인 직후 서버가 보내거나, 403 `TERMS_RECONSENT_REQUIRED`를 받으면 QueryClient가 보냄. 고정 경로라 `[type]`보다 먼저 맞음 | 로그인 | Client | 1차 |
+| `/account/restore` | 탈퇴 취소. 탈퇴 유예 중(30일 안)인 회원이 로그인하면 서버가 탈퇴 취소 쿠키(10분)와 함께 보냄. 취소하면 세션을 받고 피드로, 유지하면 시작 화면으로. 쿠키가 만료되면 `/login?error=RESTORE_SESSION_EXPIRED` | 탈퇴 취소 쿠키 | Client | 1차 |
 | `/tags`, `/tags/[name]` | 내 태그 검색(`?q=`) · 태그별 장소 | 로그인 | Client | 껍데기 (보류 기능, mock만) |
 | `/places/[placeId]/photos`, `/places/[placeId]/tags` | 저장한 장소의 개인 사진 추가 · 삭제 / 개인 태그 편집 | 로그인 | Client | 껍데기 |
 | `/places/mine`, `/places/[placeId]/edit` | 직접 등록한 장소 목록 · 수정 · 삭제 | 로그인 | 폼(Client) | 껍데기 |
@@ -1027,9 +1028,9 @@ type Visibility = 'PUBLIC' | 'FOLLOWERS' | 'PRIVATE';
 // entities/user/model.ts
 interface User {
   id: Id;
-  username: string;               // 닉네임 = 사용자 ID (영문, 중복 불가)
-  nickname: string;               // 화면 표시 이름 = 이름 ?? username (서버 계산)
-  name?: string | null;           // 사용자가 정한 이름 (중복 가능, 없으면 null)
+  username: string;               // 아이디 (영문, 중복 불가). 회원 화면에는 이것만 보여 줌
+  nickname: string;               // 표시 이름 = 이름 ?? username (서버 계산). 관리자 화면에서만 씀
+  name?: string | null;           // 이름 (한글 가능, 중복 가능, 없으면 null). 프로필의 소개 위에만 보여 줌
   profileImageUrl?: string;
   bio?: string;
   followerCount: number;

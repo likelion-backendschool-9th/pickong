@@ -87,10 +87,10 @@ const saved = (
 
 export const savedPlaces: SavedPlaceRow[] = [
   saved("sp-1", "u-seoyeon", "p-onyu", ["c-cafe"], {
-    source: { type: "POST", refId: "post-1", label: "지민님의 게시물에서 발견" },
+    source: { type: "POST", refId: "post-1", label: "jimin님의 게시물에서 발견" },
   }),
   saved("sp-2", "u-seoyeon", "p-salt", ["c-cafe"], {
-    source: { type: "POST", refId: "post-2", label: "민수님의 게시물에서 발견" },
+    source: { type: "POST", refId: "post-2", label: "minsu님의 게시물에서 발견" },
   }),
   saved("sp-3", "u-seoyeon", "p-gyeol", ["c-weekend"], {
     source: { type: "SEARCH", refId: null, label: "직접 검색해서 저장" },
@@ -99,7 +99,7 @@ export const savedPlaces: SavedPlaceRow[] = [
     visitStatus: "VISITED",
   }),
   saved("sp-5", "u-seoyeon", "p-hanok", ["c-photo"], {
-    source: { type: "POST", refId: "post-4", label: "유진님의 게시물에서 발견" },
+    source: { type: "POST", refId: "post-4", label: "yujin님의 게시물에서 발견" },
   }),
   saved("sp-6", "u-seoyeon", "p-rest-a", [], {
     source: { type: "LINK_IMPORT", refId: null, label: "블로그 링크에서 가져옴" },
@@ -107,7 +107,7 @@ export const savedPlaces: SavedPlaceRow[] = [
   saved("sp-7", "u-seoyeon", "p-cinema", []),
   saved("sp-8", "u-seoyeon", "p-book", ["c-weekend"], { visitStatus: "VISITED" }),
   saved("sp-9", "u-seoyeon", "p-baram", ["c-cafe"], {
-    source: { type: "POST", refId: "post-4", label: "유진님의 게시물에서 발견" },
+    source: { type: "POST", refId: "post-4", label: "yujin님의 게시물에서 발견" },
   }),
 
   saved("sp-10", "u-seoyeon", "p-my-alley", ["c-photo"], {

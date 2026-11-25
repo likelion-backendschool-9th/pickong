@@ -29,7 +29,7 @@ export interface SavedPlaceDto {
 export interface PlaceDetailDto {
   place: PlaceDto;
   saved: SavedPlaceDto | null;
-  discoveredFrom: { postId: string; authorNickname: string; quote: string; imageUrl: string | null } | null;
+  discoveredFrom: { postId: string; authorUsername: string; quote: string; imageUrl: string | null } | null;
   relatedPostCount: number;
   visits: { planId: string; title: string; date: string }[];
   isOwner?: boolean;

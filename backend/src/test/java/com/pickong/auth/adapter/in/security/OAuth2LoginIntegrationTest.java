@@ -234,7 +234,7 @@ class OAuth2LoginIntegrationTest {
         linkSocial(userId, "KAKAO", "4242", "kong@kakao.com");
         jdbc.update("""
                 INSERT INTO terms (type, version, title, content_url, is_required, effective_at, requires_reconsent)
-                VALUES ('PRIVACY', '9.9-login-test', '개인정보 새 버전', '/terms/privacy', TRUE, now() - interval '1 day', TRUE)
+                VALUES ('PRIVACY', '9.9-login-test', '개인정보 새 버전', '/terms/privacy', TRUE, now() - interval '1 minute', TRUE)
                 """);
         try {
             MvcResult result = loginWithKakao();

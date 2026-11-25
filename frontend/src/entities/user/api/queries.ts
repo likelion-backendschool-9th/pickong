@@ -15,8 +15,8 @@ export const userKeys = {
 };
 
 /**
- * 닉네임 입력칸의 실시간 확인. 입력이 멈추면(300ms) 형식을 검사하고 서버에 중복 여부를 묻습니다.
- * @param current 지금 쓰고 있는 닉네임(프로필 편집). 같은 값이면 묻지 않고 "current"
+ * 아이디 입력칸의 실시간 확인. 입력이 멈추면(300ms) 형식을 검사하고 서버에 중복 여부를 묻습니다.
+ * @param current 지금 쓰고 있는 아이디(프로필 편집). 같은 값이면 묻지 않고 "current"
  */
 export function useNicknameCheck(nickname: string, current?: string): NicknameStatus {
   const settled = useDebounced(nickname, 300);
@@ -65,7 +65,7 @@ export function useUpdateMe() {
       if (error instanceof ApiError && error.code === "USERNAME_TAKEN") {
         qc.setQueryData(userKeys.nicknameAvailability(input.username), { available: false });
       }
-      // 다른 기기에서 먼저 닉네임을 바꾼 경우: 내 정보를 다시 받아 입력칸 잠금과 다음 변경 가능 날짜를 보여 줍니다.
+      // 다른 기기에서 먼저 아이디를 바꾼 경우: 내 정보를 다시 받아 입력칸 잠금과 다음 변경 가능 날짜를 보여 줍니다.
       if (error instanceof ApiError && error.code === "USERNAME_CHANGE_TOO_SOON") {
         qc.invalidateQueries({ queryKey: userKeys.me() });
       }

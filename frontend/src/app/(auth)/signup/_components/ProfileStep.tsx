@@ -9,7 +9,7 @@ import { SignupScreen, type StepFrame } from "./SignupUi";
 
 /**
  * 2단계: 프로필 사진 · 이름. 둘 다 선택이라 건너뛸 수 있습니다.
- * 이름은 다른 사람과 같아도 되고, 비워 두면 화면에는 닉네임이 대신 보입니다. 가입 후 프로필 편집에서 바꿀 수 있습니다.
+ * 이름은 다른 사람과 같아도 되고 비워 둘 수 있습니다. 프로필의 소개 위에만 보이고, 피드 · 댓글 등에는 아이디만 보입니다. 가입 후 프로필 편집에서 바꿀 수 있습니다.
  */
 export function ProfileStep({
   frame,
@@ -24,7 +24,7 @@ export function ProfileStep({
 }: {
   frame: StepFrame;
   provider: SocialProvider;
-  /** 1단계에서 정한 닉네임: 이름을 비우면 대신 보입니다. */
+  /** 1단계에서 정한 아이디: 사진이 없을 때 기본 프로필 글자로 씁니다. */
   nickname: string;
   /** 소셜 계정의 프로필 사진. 제공자가 주지 않으면 null */
   socialImageUrl: string | null;
@@ -90,7 +90,7 @@ export function ProfileStep({
         }
         htmlFor="signup-name"
         error={error}
-        hint="다른 사람과 같아도 돼요. 비워 두면 닉네임이 대신 보여요."
+        hint="다른 사람과 같아도 돼요. 프로필에만 보여요."
       >
         <AuthInput
           id="signup-name"

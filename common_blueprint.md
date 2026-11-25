@@ -41,7 +41,7 @@ pickong/
 ├── frontend_blueprint.md        프론트엔드 설계
 ├── backend_blueprint.md         백엔드 설계
 ├── .gitignore · .editorconfig   공통 설정
-├── compose.yml                  로컬 실행용 컨테이너 (compose.override.yml · compose.prod.yml)
+├── compose.yml                  로컬 실행용 컨테이너 (compose.override.yml · compose.backend.yml · compose.prod.yml)
 ├── frontend/                    Next.js (App Router) · TypeScript · Tailwind
 └── backend/                     Spring Boot 4.1 · Java 21 · Gradle
 ```
@@ -57,7 +57,7 @@ pickong/
 | DB | PostgreSQL + PostGIS (`GEOGRAPHY(Point, 4326)`, GiST 인덱스) | |
 | 파일 저장소 | Cloudflare R2 (S3 호환, Presigned URL 업로드) | |
 | 지도 · 장소 | Kakao Maps JS SDK (프론트), Kakao 로컬 API (백엔드 프록시) | REST 키는 백엔드에만 둠 |
-| 소셜 로그인 | 카카오 · Google OAuth2 (Spring Security) | 이메일 · 닉네임 + 비밀번호 로그인과 일반 회원가입은 지원하지 않음 |
+| 소셜 로그인 | 카카오 · Google OAuth2 (Spring Security) | 이메일 · 아이디 + 비밀번호 로그인과 일반 회원가입은 지원하지 않음 |
 | 결제 | PG 연동 예정 (지금은 테스트 결제) | 제공자 확정 필요 |
 | AI 링크 추출 | LLM API (제공자 미정, 실행 기록은 `import_extraction_runs`) | |
 | API 문서 | springdoc OpenAPI (`/v3/api-docs`, `/swagger-ui.html`) | 프론트는 이 스펙으로 DTO 타입 생성 가능 |
@@ -199,6 +199,16 @@ pickong/
 | 크리에이터 · 정산 | `/creators`, `/me/creator/**` | `creators`, `creator_*` | `creator`, `settlement` | |
 | 결제 · 환불 | `/payments`, `/purchases/{id}/refunds` | `payments`, `refunds` | `payment` | |
 
+**회원의 아이디와 이름**
+
+| 화면 용어 | API · 코드 | DB | 규칙 | 보이는 곳 |
+| --- | --- | --- | --- | --- |
+| **아이디** | `username` | `users.username` | 영문, 중복 불가, 프로필 주소 | 회원 화면 전체(피드 · 게시물 · 댓글 · 메시지 · 알림 · 검색 · 팔로우 목록 · 컬렉션 · 프로필 상단) |
+| **이름** | `name` | `users.display_name` | 한글 가능, 중복 가능, 없을 수 있음 | **프로필의 소개 위에만** |
+| (표시 이름) | `nickname` | (서버 계산: 이름 ?? 아이디) | | 관리자 화면만 |
+
+- 예전 문서 · 코드에서는 아이디를 "닉네임"이라고 불렀습니다. 화면 · 문서는 "아이디"로 통일했고, 코드 이름(`NicknameStep`, `entities/user/nickname.ts` 등)은 그대로 둡니다(이 경우 `nickname` = 아이디 규칙).
+
 ---
 
 ## 7. 보류 범위
@@ -228,9 +238,9 @@ API 명세서에서 **'보류'**로 표시한 기능입니다. 프론트·백엔
 
 ### A.1 인증·프로필 (1차 MVP)
 - [껍데기] 로그인 · 회원가입 / 로그아웃: 카카오 · Google 소셜 로그인만 지원하고, 로그인과 회원가입을 한 화면(`/login`)으로 합침
-  - 기존 회원이면 바로 피드로, 처음이면 온보딩(`/signup`): 닉네임(= 사용자 ID) → 프로필 사진 · 이름(선택, 건너뛰기) → 약관 동의. 비밀번호 · 전화번호는 받지 않음
-  - 닉네임 = 사용자 ID(`users.username`): 영문으로 시작하는 3~20자(영문 소문자 · 숫자 · `_` · `.`), 중복 불가, 대소문자 무시. 프로필 주소(`/users/{닉네임}`)로 쓰임
-  - 이름(`users.display_name`): 20자까지, 중복 가능, 비우면 null. 화면의 표시 이름(API `nickname` 필드)은 이름 ?? 닉네임으로 서버가 계산해 보냄
+  - 기존 회원이면 바로 피드로, 처음이면 온보딩(`/signup`): 아이디 → 프로필 사진 · 이름(선택, 건너뛰기) → 약관 동의. 비밀번호 · 전화번호는 받지 않음
+  - 아이디(`users.username`): 영문으로 시작하는 3~20자(영문 소문자 · 숫자 · `_` · `.`), 중복 불가, 대소문자 무시. 프로필 주소(`/users/{아이디}`)로 쓰이고, 회원 화면에는 아이디만 보임
+  - 이름(`users.display_name`): 20자까지, 한글 가능, 중복 가능, 비우면 null. **프로필의 소개 위에만** 보임. API의 표시 이름(`nickname` = 이름 ?? 아이디)은 관리자 화면에서만 씀
   - 소셜 로그인 실패 · 가입 세션 만료 · 세션 만료는 `/login?error={코드}`로 돌아와 사유를 보여 줌 (`OAUTH_CANCELLED` · `OAUTH_FAILED` · `SIGNUP_SESSION_EXPIRED` · `SESSION_EXPIRED` · `ACCOUNT_UNAVAILABLE` · `EMAIL_ALREADY_REGISTERED&provider=` 그 이메일로 가입한 수단)
   - API (`/api/v1` 아래, mock도 같음): `GET /auth/oauth2/authorization/{provider}`(페이지 이동) · `GET·POST·DELETE /auth/signup`(가입 세션 조회 · 완료 `{ username, name, useSocialProfileImage, agreedTerms }` · 그만두기) · `GET /auth/username-availability?username=` · `POST /auth/refresh` · `POST /auth/logout`
   - 오류 코드: `SIGNUP_SESSION_EXPIRED`(401) · `ALREADY_REGISTERED`(409) · `USERNAME_TAKEN`(409) · `INVALID_USERNAME` · `INVALID_NAME` · `REQUIRED_TERMS_NOT_AGREED`(400)
@@ -261,8 +271,8 @@ API 명세서에서 **'보류'**로 표시한 기능입니다. 프론트·백엔
   - API: `GET/POST /api/conversations`, `GET /api/conversations/unread-count`(하단바 배지), `GET /api/conversations/:id`, `GET/POST /api/conversations/:id/messages` (목록 조회 시 읽음 처리, 보낼 때 `attachment: { type: "IMAGE", url } | { type: "PLACE", placeId }`). 사진은 업로드 API 연결 전까지 브라우저 임시 URL
   - 실시간 연결 전까지 열린 대화방은 5초마다 새 메시지를 확인
 - [껍데기] 팔로우 / 언팔로우, 팔로워·팔로잉 목록
-- 프로필 편집: 닉네임(= 사용자 ID, 바꾸면 프로필 주소도 바뀜) · 이름 · 소개 · 활동 지역 (`PATCH /me` `{ username, name, bio, region }`, 보낸 항목만 변경). 사진은 업로드 API 연결 후
-  - 닉네임은 14일에 한 번만 바꿀 수 있음(가입 후 첫 변경은 바로). 아직 바꿀 수 없으면 입력칸을 잠그고 `usernameChangeableAt`으로 다음 변경 가능 날짜를 보여 줌. 지금과 같은 닉네임을 보내는 것은 변경으로 치지 않음
+- 프로필 편집: 아이디(바꾸면 프로필 주소도 바뀜) · 이름 · 소개 · 활동 지역 (`PATCH /me` `{ username, name, bio, region }`, 보낸 항목만 변경). 사진은 업로드 API 연결 후
+  - 아이디는 14일에 한 번만 바꿀 수 있음(가입 후 첫 변경은 바로). 아직 바꿀 수 없으면 입력칸을 잠그고 `usernameChangeableAt`으로 다음 변경 가능 날짜를 보여 줌. 지금과 같은 아이디를 보내는 것은 변경으로 치지 않음
 
 ### A.2 위치 기반 소셜 피드 (1차 MVP)
 - [껍데기] 팔로잉 피드 (무한 스크롤) · 위에서 당겨서 새로고침 · 피드에서 하단바 홈을 다시 누르면 맨 위로 + 새로고침. 목록 · 지도 전환은 `?view=map`에 남겨 홈 버튼은 언제나 피드 목록으로

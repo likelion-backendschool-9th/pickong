@@ -13,7 +13,7 @@ describe("matchesConversation", () => {
   const jimin = conv("지민", "jimin", "모모도 같이 들러보세요");
 
   it("검색어가 없으면 모두", () => expect(matchesConversation(jimin, "  ")).toBe(true));
-  it("닉네임 · 아이디로 찾는다", () => {
+  it("아이디 · 이름으로 찾는다", () => {
     expect(matchesConversation(jimin, "지민")).toBe(true);
     expect(matchesConversation(jimin, "JIMIN")).toBe(true);
   });

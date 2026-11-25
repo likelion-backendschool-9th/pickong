@@ -9,6 +9,8 @@ export const routes = {
   /** 바뀐 약관 재동의. next: 동의한 뒤 돌아갈 찜콩 안 경로 (없으면 피드) */
   termsConsent: (next?: string) => (next ? `/terms/consent?next=${encodeURIComponent(next)}` : "/terms/consent"),
   feed: () => "/feed",
+  /** 탈퇴 유예 중인 회원이 로그인하면 서버가 보내는 탈퇴 취소 화면 */
+  accountRestore: () => "/account/restore",
   search: () => "/search",
   notifications: () => "/notifications",
   post: (id: string) => `/posts/${id}`,

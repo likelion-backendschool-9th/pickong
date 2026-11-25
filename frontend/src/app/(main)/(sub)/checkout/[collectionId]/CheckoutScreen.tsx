@@ -60,7 +60,7 @@ function Checkout({ collection: c, onPaid }: { collection: Collection; onPaid: (
           <div className="min-w-0 flex-1">
             <p className="truncate text-[15px] font-bold">{c.title}</p>
             <p className="mt-0.5 text-[12px] text-ink-sub">
-              {c.owner.nickname} · 장소 {c.placeCount}곳
+              {c.owner.username} · 장소 {c.placeCount}곳
             </p>
             <p className="mt-1 text-[12px] text-ink-faint">한 번 구매하면 계속 볼 수 있어요</p>
           </div>

@@ -69,7 +69,7 @@ export function SignupFlow() {
 }
 
 interface OnboardingValue {
-  /** 닉네임 = 사용자 ID (영문, 중복 불가) */
+  /** 아이디 (영문, 중복 불가) */
   nickname: string;
   /** 이름 (중복 가능, 비우면 null로 보냄) */
   name: string;
@@ -77,7 +77,7 @@ interface OnboardingValue {
   agreements: Agreements;
 }
 
-/** 닉네임(ID) → 프로필 사진 · 이름(선택, 건너뛰기 가능) → 약관 동의 시트 */
+/** 아이디 → 프로필 사진 · 이름(선택, 건너뛰기 가능) → 약관 동의 시트 */
 function OnboardingSteps({ session }: { session: SignupSession }) {
   const router = useRouter();
   const toast = useToast();
@@ -118,7 +118,7 @@ function OnboardingSteps({ session }: { session: SignupSession }) {
       },
       {
         onSuccess: () => {
-          toast({ message: `${name ?? nickname}님, 찜콩에 오신 걸 환영해요` });
+          toast({ message: `${nickname}님, 찜콩에 오신 걸 환영해요` });
           // replace: 가입을 마친 뒤 뒤로 가기로 온보딩에 돌아오지 않게 합니다.
           router.replace(routes.feed());
         },

@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 내 정보 조회 · 프로필 수정, 닉네임(= 아이디) 사용 가능 여부.
+ * 내 정보 조회 · 프로필 수정, 아이디 사용 가능 여부.
  * 글자 수 · 형식 · 14일 제한 같은 규칙은 domain(User · Username)에 있고, 이 서비스는 저장소가 필요한 확인(사용 중 · 예약어)과 순서만 맡습니다.
  */
 @Service
