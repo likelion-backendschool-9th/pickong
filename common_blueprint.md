@@ -98,17 +98,7 @@ pickong/
 - 소셜 로그인 경로는 Spring 기본값(`/oauth2/**`, `/login/oauth2/**`) 대신 `/api/v1/auth/oauth2/**`에 둡니다. 같은 rewrites를 타서 콜백에서 내려준 쿠키가 프론트 도메인에 저장되고, 프론트의 `/login` 페이지와도 겹치지 않습니다. 제공자 콘솔에 등록하는 Redirect URI도 프론트 도메인 기준입니다 (예: `https://{프론트 도메인}/api/v1/auth/oauth2/callback/kakao`).
 - **URL에는 DB 테이블 이름이 아니라 화면 용어를 씁니다.** 예: 게시물 테이블은 `posts`지만 경로는 `/feeds`입니다 (6장 용어표).
 
-> **지금 프론트 mock과 명세서의 경로가 다릅니다.** 프론트 mock 핸들러(`frontend/mocks/handlers/`)는 이전 경로를 쓰고 있으므로, 백엔드 연결 전에 명세서 기준으로 맞춥니다.
->
-> | 명세서 (기준) | 현재 mock |
-> | --- | --- |
-> | `/api/v1/**` | `/api/**` (버전 없음) |
-> | `/api/v1/feeds`, `/feeds/{feedId}` | `/api/posts`, `/api/posts/:id` |
-> | `POST·DELETE /feeds/{feedId}/likes`, `/bookmarks` | `/api/posts/:id/like`, `/bookmark` |
-> | `/users/{username}/feeds` | `/api/users/:username/posts` |
-> | `/place-imports` | `/api/imports` |
-> | `PATCH /plans/{planId}/items/{itemId}/visit` | `POST /api/plans/:id/visits` |
-> | `PATCH /notifications/{notificationId}/read` | `/api/notifications/read` |
+> **현재 부분 연동:** 프론트와 mock도 `/api/v1/**`를 사용합니다. `BACKEND_URL` 설정 시 `frontend/next.config.ts`의 `BACKEND_PATHS`에 있는 회원 인증·약관·관리자 사용자/게시물/신고 API만 백엔드로 전달하고 나머지는 mock을 사용합니다. 관리자 API의 현재 계약은 5.8에 기록합니다. 회원용 게시물 API의 Long ID와 공개 UUID 통합 등 나머지 연동 범위는 별도 협의하며, 아직 전환하지 않은 화면을 실제 백엔드 연동 완료로 취급하지 않습니다.
 
 ### 5.2 오류 응답
 
@@ -123,7 +113,7 @@ pickong/
 | 상태 | 언제 |
 | --- | --- |
 | 400 | 입력값 오류, 규칙 위반 (예: 가격이 100원 단위가 아님) |
-| 401 | 로그인이 필요하거나 Access Token 만료 → 프론트는 재발급(`/auth/refresh`)을 한 번 시도하고 실패하면 로그인 화면으로 |
+| 401 | 회원 API는 재발급(`/auth/refresh`)을 한 번 시도하고 실패하면 로그인 화면으로 이동. 별도 계정인 관리자 API의 401은 회원 재발급 없이 오류 표시 |
 | 403 | 로그인했지만 권한 없음 (`FORBIDDEN`, 예: 다른 사람의 일정 수정). 상태를 바꾸는 요청의 CSRF 토큰이 없거나 틀리면 `INVALID_CSRF_TOKEN` → 프론트는 `XSRF-TOKEN` 쿠키를 다시 읽어 한 번 재시도 |
 | 404 | 없거나, **존재 자체를 숨겨야 하는** 비공개 리소스 |
 | 409 | 중복 (이미 팔로우함, 이미 구매함, 사용자명 중복) |
@@ -172,7 +162,7 @@ pickong/
 
 - 무한 스크롤 목록(피드, 댓글, 메시지, 알림, 저장 장소)은 **커서 방식**: `?cursor=&size=` → `{ "items": [...], "nextCursor": "..." | null }`
 - 관리자 화면처럼 페이지 번호가 필요한 목록만 `?page=&size=` → `{ "items", "page", "size", "totalCount" }`
-- 예외: 신고 목록 `GET /admin/reports`와 장소 제보 목록은 화면에 페이지가 없어 배열 전체를 돌려줍니다. 페이지 UI가 생기면 이 형식으로 바꿉니다.
+- 예외: 관리자 사용자·게시물·신고 목록과 장소 제보 목록은 화면에 페이지가 없어 배열 전체를 돌려줍니다. 페이지 UI가 생기면 이 형식으로 바꿉니다.
 
 ### 5.7 공개 범위와 권한
 
@@ -181,6 +171,30 @@ pickong/
 - 차단 관계, 유료 컬렉션 잠금(미리보기 2곳)도 백엔드가 응답에 반영해서 보냅니다 (`isLocked`, `lockedPlaceCount` 등).
 
 ---
+
+### 5.8 사용자 제재·게시물 관리의 현재 API 계약 (2026-11-26)
+
+이 절은 저장소의 실제 구현과 이번 작업의 구현 방향을 기록합니다. **팀 전체 정책 합의·외부 API 명세 공유는 아직 미완료**이며, 관리자 로그인 전체 구현과 컬렉션 연동은 별도 범위입니다. 아래 경로 앞에는 모두 `/api/v1`이 붙습니다.
+
+| 기능 | Method · 경로 | 요청 | 성공 응답 |
+| --- | --- | --- | --- |
+| 사용자 목록 | `GET /admin/users` | `q?`, `filter?=ALL\|REPORTED\|SANCTIONED` | 200 `AdminUser[]` |
+| 제재 등록 | `POST /admin/users/{userId}/sanctions` | `{type, reason}` | 201 `Sanction` |
+| 특정 제재 해제 | `DELETE /admin/users/{userId}/sanctions/{sanctionId}` | 본문 생략 가능. 선택 본문 `{reason}` | 204, 본문 없음 |
+| 게시물 목록 | `GET /admin/feeds` | `q?` | 200 `AdminContent[]` |
+| 게시물 숨김·복구 | `PATCH /admin/feeds/{feedId}` | `{hidden, reason?}`. 숨김은 사유 필수 | 200 변경된 `AdminContent` |
+| 신고 목록 | `GET /admin/reports` | `status=PENDING\|RESOLVED` | 200 기존 신고 배열 |
+| 신고 처리 | `POST /admin/reports/{reportId}/resolve` | 기존 `{action, memo, sanctionType?}` | 200 처리된 기존 신고 표현 |
+
+- `AdminUser`는 `{id, username, nickname, profileImageUrl, isCreator, reportCount, postCount, status, sanction, sanctions}`입니다. `isCreator`는 기반 조회 구현 전까지 null(확인 불가)이며 신고 수·게시물 수는 실제 조회값입니다. 탈퇴 상태를 숨기거나 ACTIVE로 바꾸지 않습니다.
+- `Sanction`은 `{id, type, reason, startedAt, until}`입니다. `type`은 `WARNING · SUSPEND_7 · SUSPEND_30 · BAN`, 기간 정지 외 `until`은 null입니다. `sanctions`는 현재 유효한 모든 제재, `sanction`은 이용 제한 우선·없으면 최신 경고입니다. REPORTED는 처리 상태와 무관한 신고 이력, SANCTIONED는 경고를 포함한 유효한 제재 기준입니다.
+- `AdminContent`는 `{id, type:"POST", title, author, imageUrl, visibility, price, hidden, reportCount, createdAt, link}`입니다. `author`는 `AdminUserSummary` 또는 null입니다. 현재 `imageUrl`, `price`, `link`는 null이며 미구현 상세 경로를 만들지 않습니다. 삭제 게시물은 제외하고 숨김·모든 공개 범위를 포함하며, 생성 시각·동률 시 내부 ID 내림차순입니다. 검색은 제목 첫 줄·작성자 닉네임 기준입니다.
+- 내부 사용자·제재·신고 ID는 JSON 문자열이고 경로에서는 양의 BIGINT입니다. 관리자 게시물 ID는 `feeds.public_id`의 UUID 문자열입니다. 기존 회원용 게시물 Long API와의 통합은 후속 협의 사항입니다.
+- 제재·숨김 사유는 공백 불가, 해제·복구 사유는 선택입니다. 모두 최대 200 Unicode 코드 포인트이며 원래 제재 사유는 해제 시 변경하지 않습니다. 추가 기간 정지·이미 끝난 제재 재해제·이미 처리한 신고 재처리는 409입니다. 삭제된 콘텐츠의 숨김·복구는 404입니다. 이미 같은 숨김 상태이면 멱등 처리하고 실제 상태 변경만 로그에 남깁니다.
+- 주요 오류는 기존 `{status, code, message}`를 유지합니다. `ACTIVE_SANCTION_EXISTS`, `SANCTION_ALREADY_ENDED`, `SANCTION_ALREADY_EXPIRED`, `DUPLICATE_SANCTION_SOURCE`, `ALREADY_RESOLVED`는 409, `SANCTION_NOT_FOUND`, `FEED_NOT_FOUND`, `REPORT_NOT_FOUND`는 404입니다. 상세 코드는 각 모듈의 `ErrorCode`를 기준으로 합니다.
+- `/admin/**`는 ACTIVE 관리자와 `ROLE_ADMIN`이 필요합니다. 인증 없는 조회는 401, 일반 회원은 403입니다. 쓰기는 기존 CSRF가 먼저 검사되므로 CSRF가 없거나 틀리면 403 `INVALID_CSRF_TOKEN`입니다. 관리자 ID·원인 신고 ID는 클라이언트가 지정하지 않습니다.
+- 직접 제재·숨김은 신고를 자동 종료하지 않습니다. 신고 처리에서는 선택한 신고만 종료하며 스냅샷을 보존합니다. 게시물·댓글 숨김과 사용자 제재를 지원하고, 컬렉션의 제재·숨김은 501 `REPORT_ACTION_NOT_SUPPORTED`로 대기 상태를 유지합니다. 컬렉션 기각은 가능합니다.
+- 계정 상태는 `ACTIVE · SUSPENDED · BANNED · WITHDRAWN_PENDING · WITHDRAWN`입니다. WARNING은 정상 이용, SUSPENDED/BANNED는 로그인·재발급·회원 기능 불가이고 공개 콘텐츠는 비회원으로 조회할 수 있습니다. 인증 시 만료 정지를 확인하며 다른 유효한 이용 제한이 없을 때만 ACTIVE로 복구합니다. 제재 시 Refresh Token 전체 폐기는 커밋 후 처리하며 Access Token도 요청 시 계정 상태로 제한합니다. 탈퇴 중인 계정의 옛 Access Token을 사용한 재탈퇴 요청은 401이고, 복구 쿠키를 통한 탈퇴 취소는 유지합니다.
 
 ## 6. 용어 대응표
 
@@ -262,7 +276,7 @@ API 명세서에서 **'보류'**로 표시한 기능입니다. 프론트·백엔
   - 게시물은 유예 기간에 숨기고(작성자 상태로 조회에서 제외) 익명화할 때 삭제. 댓글은 남기고 작성자를 "탈퇴한 사용자"로 표시
   - 익명화한 뒤에는 같은 소셜 계정으로 새로 가입할 수 있음. 카카오 · Google 쪽 '연결된 앱'은 회원이 직접 끊음
   - 탈퇴 사유는 회원과 연결하지 않고 저장. 결제 · 정산 안내는 그 기능을 만들 때 추가
-  - API: `POST /me/withdrawal` `{ reason, detail }` → 204, 모든 기기에서 로그아웃(쿠키 삭제). `reason`은 `RARELY_USED` · `MISSING_FEATURE` · `PRIVACY` · `OTHER_SERVICE` · `ETC`(ETC는 `detail` 필수, 300자까지). 400 `INVALID_WITHDRAWAL_REASON`, 409 `WITHDRAWAL_NOT_ALLOWED`(이미 탈퇴 중 · 정지)
+  - API: `POST /me/withdrawal` `{ reason, detail }` → 204, 모든 기기에서 로그아웃(쿠키 삭제). `reason`은 `RARELY_USED` · `MISSING_FEATURE` · `PRIVACY` · `OTHER_SERVICE` · `ETC`(ETC는 `detail` 필수, 300자까지). 400 `INVALID_WITHDRAWAL_REASON`, 401(비ACTIVE 계정 인증 거절), 409 `WITHDRAWAL_NOT_ALLOWED`(인증 후 요청 중 상태 변경 등 도메인 거절)
   - 탈퇴 취소: 유예 중 소셜 로그인하면 로그인 세션 대신 탈퇴 취소 쿠키(10분)를 받고 `/account/restore`로 이동. `GET /auth/withdrawal` → `{ username, requestedAt, anonymizeAt }` · `POST /auth/withdrawal/cancel` → `{ username }` + 세션 쿠키 · `DELETE /auth/withdrawal` → 204(그만두기). 쿠키가 없거나 만료면 401 `RESTORE_SESSION_EXPIRED`(로그인 화면으로), 30일이 지났으면 409 `WITHDRAWAL_NOT_CANCELLABLE`(로그인은 `/login?error=ACCOUNT_UNAVAILABLE`)
 - [껍데기] 프로필 페이지: 게시물 · 컬렉션 · 방문 탭 (본인 프로필에는 일정 탭 추가)
   - 방문: 그 사용자가 게시물에 연결한 장소를 기록(목록) ↔ 지도로 전환해서 봄 (`GET /api/users/:username/posts`, `GET /api/users/:username/places`, 내가 볼 수 있는 게시물만). 저장한 장소 전체를 다루는 ‘내 지도’와 별개

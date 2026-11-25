@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   hasBootstrappedMapGps,
+  getMapSessionSnapshot,
+  getServerMapSessionSnapshot,
+  subscribeMapSession,
   markMapGpsBootstrapped,
   readMapCamera,
   readUserLocation,
@@ -25,6 +28,35 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("mapSession", () => {
+  it("서버 스냅샷은 세션 내용과 관계없이 null이고 클라이언트 스냅샷은 값이 같으면 동일하다", () => {
+    const before = getMapSessionSnapshot();
+    expect(getMapSessionSnapshot()).toBe(before);
+    writeMapCamera({ center: { lat: 37.5, lng: 127 }, zoom: 15 });
+    expect(getMapSessionSnapshot()).not.toBe(before);
+    expect(getMapSessionSnapshot()).toBe(getMapSessionSnapshot());
+    expect(getServerMapSessionSnapshot()).toBeNull();
+  });
+
+  it("같은 탭의 카메라·위치·부트스트랩 쓰기를 구독하고 해제 후에는 알리지 않는다", () => {
+    const changed = vi.fn();
+    const unsubscribe = subscribeMapSession(changed);
+    writeMapCamera({ center: { lat: 37.5, lng: 127 }, zoom: 15 });
+    writeUserLocation({ lat: 37.56, lng: 126.98 });
+    markMapGpsBootstrapped();
+    expect(changed).toHaveBeenCalledTimes(3);
+    unsubscribe();
+    writeMapCamera({ center: { lat: 36, lng: 128 }, zoom: 12 });
+    expect(changed).toHaveBeenCalledTimes(3);
+    expect(JSON.parse(getMapSessionSnapshot()!)).toEqual({ bootstrapped: true, camera: { center: { lat: 36, lng: 128 }, zoom: 12 }, userLocation: { lat: 37.56, lng: 126.98 } });
+  });
+
+  it("구독이 중단된 동안 저장한 카메라도 복귀 시 최신 값으로 읽는다", () => {
+    const unsubscribe = subscribeMapSession(vi.fn());
+    unsubscribe();
+    writeMapCamera({ center: { lat: 35, lng: 129 }, zoom: 13 });
+    expect(JSON.parse(getMapSessionSnapshot()!).camera).toEqual({ center: { lat: 35, lng: 129 }, zoom: 13 });
+  });
+
   it("GPS 부트스트랩 플래그를 세션에 기록한다", () => {
     expect(hasBootstrappedMapGps()).toBe(false);
     markMapGpsBootstrapped();
