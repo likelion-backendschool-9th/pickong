@@ -9,14 +9,21 @@ export const PLACE_BOUNDS_KEY_DIGITS = 3;
  */
 export const MAX_PLACE_BOUNDS_SPAN_METERS = 15_000;
 
-/** 캐시 키·요청 bbox에 쓰는 반올림된 범위 */
+/**
+ * 캐시 키·요청 bbox에 쓰는 범위. 화면을 모두 덮도록 바깥쪽으로 넓힙니다.
+ * 반올림하면 크게 확대했을 때 범위가 화면보다 작아지거나 0이 되어 장소가 빠집니다.
+ */
 export function quantizePlaceBounds(bounds: LatLngBounds, digits = PLACE_BOUNDS_KEY_DIGITS): LatLngBounds {
-  const q = (n: number) => Number(n.toFixed(digits));
+  const scale = 10 ** digits;
+  // 127.056 * 1000이 127056.00000000001이 되는 식의 부동소수점 오차로 한 칸 더 넓어지지 않게 먼저 다듬습니다.
+  const scaled = (n: number) => Number((n * scale).toFixed(6));
+  const down = (n: number) => Math.floor(scaled(n)) / scale;
+  const up = (n: number) => Math.ceil(scaled(n)) / scale;
   return {
-    west: q(bounds.west),
-    south: q(bounds.south),
-    east: q(bounds.east),
-    north: q(bounds.north),
+    west: down(bounds.west),
+    south: down(bounds.south),
+    east: up(bounds.east),
+    north: up(bounds.north),
   };
 }
 
