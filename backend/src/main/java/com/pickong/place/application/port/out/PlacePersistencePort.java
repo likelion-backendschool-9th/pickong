@@ -17,7 +17,4 @@ public interface PlacePersistencePort {
 
     /** 공개 장소 전체. 비공개 · 삭제된 장소는 제외합니다. 대기 · 반려 제보는 이 테이블에 없습니다. */
     List<Place> findAll();
-
-    /** 지도 범위 안의 공개 장소. 경도 west~east, 위도 south~north. */
-    List<Place> findInBounds(double west, double south, double east, double north);
 }

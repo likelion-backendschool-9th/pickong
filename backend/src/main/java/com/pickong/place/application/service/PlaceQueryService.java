@@ -3,10 +3,18 @@ package com.pickong.place.application.service;
 import com.pickong.common.domain.GeoPoint;
 import com.pickong.common.error.BusinessException;
 import com.pickong.common.error.CommonErrorCode;
+import com.pickong.place.application.dto.PlaceCluster;
+import com.pickong.place.application.dto.PlaceMapGroup;
+import com.pickong.place.application.dto.PlaceMapItem;
+import com.pickong.place.application.dto.PlaceMapQuery;
+import com.pickong.place.application.dto.PlaceMapResult;
 import com.pickong.place.application.port.in.PlaceQueryUseCase;
+import com.pickong.place.application.port.out.PlaceMapQueryPort;
 import com.pickong.place.application.port.out.PlacePersistencePort;
 import com.pickong.place.domain.PlaceErrorCode;
 import com.pickong.place.domain.model.Place;
+import com.pickong.place.domain.policy.MapGridPolicy;
+import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,10 +23,18 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class PlaceQueryService implements PlaceQueryUseCase {
 
-    private final PlacePersistencePort places;
+    /** 화면에 그대로 표시할 최대 좌표 수. 넘으면 격자로 묶습니다. */
+    static final int MAX_SPOTS = 200;
 
-    public PlaceQueryService(PlacePersistencePort places) {
+    /** 묶지 않은 목록의 최대 장소 수. */
+    static final int MAX_LIST = 500;
+
+    private final PlacePersistencePort places;
+    private final PlaceMapQueryPort placeMap;
+
+    public PlaceQueryService(PlacePersistencePort places, PlaceMapQueryPort placeMap) {
         this.places = places;
+        this.placeMap = placeMap;
     }
 
     @Override
@@ -27,16 +43,44 @@ public class PlaceQueryService implements PlaceQueryUseCase {
     }
 
     @Override
-    public List<Place> findInBounds(double west, double south, double east, double north) {
+    public PlaceMapResult findMap(PlaceMapQuery query) {
+        validate(query);
+        List<PlaceMapGroup> groups = placeMap.groupBySpot(query, MAX_SPOTS + 1);
+        if (groups.size() > MAX_SPOTS) {
+            double cellSize = MapGridPolicy.cellSize(query.west(), query.south(), query.east(), query.north());
+            groups = placeMap.groupByGrid(query, cellSize);
+        }
+        return toResult(groups);
+    }
+
+    @Override
+    public List<PlaceMapItem> findInBounds(PlaceMapQuery query) {
+        validate(query);
+        return placeMap.list(query, MAX_LIST);
+    }
+
+    private static PlaceMapResult toResult(List<PlaceMapGroup> groups) {
+        List<PlaceMapItem> singles = new ArrayList<>();
+        List<PlaceCluster> clusters = new ArrayList<>();
+        for (PlaceMapGroup group : groups) {
+            if (group.single() != null) {
+                singles.add(group.single());
+            } else {
+                clusters.add(group.cluster());
+            }
+        }
+        return new PlaceMapResult(List.copyOf(singles), List.copyOf(clusters));
+    }
+
+    private static void validate(PlaceMapQuery query) {
         try {
-            new GeoPoint(south, west);
-            new GeoPoint(north, east);
+            new GeoPoint(query.south(), query.west());
+            new GeoPoint(query.north(), query.east());
         } catch (IllegalArgumentException exception) {
             throw new BusinessException(PlaceErrorCode.INVALID_COORDINATES);
         }
-        if (south > north || west > east) {
+        if (query.south() > query.north() || query.west() > query.east()) {
             throw new BusinessException(CommonErrorCode.INVALID_INPUT);
         }
-        return places.findInBounds(west, south, east, north);
     }
 }

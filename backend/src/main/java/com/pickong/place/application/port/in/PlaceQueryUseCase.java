@@ -1,5 +1,8 @@
 package com.pickong.place.application.port.in;
 
+import com.pickong.place.application.dto.PlaceMapItem;
+import com.pickong.place.application.dto.PlaceMapQuery;
+import com.pickong.place.application.dto.PlaceMapResult;
 import com.pickong.place.domain.model.Place;
 import java.util.List;
 
@@ -11,6 +14,9 @@ public interface PlaceQueryUseCase {
 
     List<Place> findPublic();
 
-    /** 경도 west~east, 위도 south~north 안의 공개 장소. */
-    List<Place> findInBounds(double west, double south, double east, double north);
+    /** 지도 범위 안의 공개 장소. 가까이 있거나 좌표가 같은 장소는 묶습니다. */
+    PlaceMapResult findMap(PlaceMapQuery query);
+
+    /** 지도 범위 안의 공개 장소 목록. 묶지 않고 이름순으로 최대 개수까지만 돌려줍니다. */
+    List<PlaceMapItem> findInBounds(PlaceMapQuery query);
 }

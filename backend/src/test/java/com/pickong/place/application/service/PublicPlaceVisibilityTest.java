@@ -1,9 +1,10 @@
 package com.pickong.place.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
-import com.pickong.common.domain.GeoPoint;
 import com.pickong.place.application.dto.SubmitPlaceCommand;
+import com.pickong.place.application.port.out.PlaceMapQueryPort;
 import com.pickong.place.application.port.out.PlacePersistencePort;
 import com.pickong.place.application.port.out.PlaceSubmissionPersistencePort;
 import com.pickong.place.application.port.out.SubmitterLookupPort;
@@ -39,7 +40,7 @@ class PublicPlaceVisibilityTest {
         SubmitterLookupPort submitters = ids -> Map.of();
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
         reviews = new PlaceSubmissionService(submissions, places, submitters, clock);
-        publicPlaces = new PlaceQueryService(places);
+        publicPlaces = new PlaceQueryService(places, mock(PlaceMapQueryPort.class));
     }
 
     @Test
@@ -108,17 +109,6 @@ class PublicPlaceVisibilityTest {
         @Override
         public List<Place> findAll() {
             return List.copyOf(rows);
-        }
-
-        @Override
-        public List<Place> findInBounds(double west, double south, double east, double north) {
-            return rows.stream()
-                    .filter(place -> {
-                        GeoPoint location = place.getLocation();
-                        return location.longitude() >= west && location.longitude() <= east
-                                && location.latitude() >= south && location.latitude() <= north;
-                    })
-                    .toList();
         }
     }
 

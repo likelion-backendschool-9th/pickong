@@ -77,14 +77,6 @@ public class PlacePersistenceAdapter implements PlacePersistencePort {
         return jdbc.query(SELECT_PUBLIC + " ORDER BY id", (rs, rowNum) -> toPlace(rs));
     }
 
-    @Override
-    public List<Place> findInBounds(double west, double south, double east, double north) {
-        return jdbc.query(SELECT_PUBLIC + """
-                 AND location && ST_MakeEnvelope(?, ?, ?, ?, 4326)::geography
-                 ORDER BY id
-                """, (rs, rowNum) -> toPlace(rs), west, south, east, north);
-    }
-
     /** 공개 조회용. 비공개 · 삭제된 장소는 읽지 않습니다. */
     private static final String SELECT_PUBLIC = """
             SELECT id, public_id, source_type, visibility, name, address, region, country_code,
