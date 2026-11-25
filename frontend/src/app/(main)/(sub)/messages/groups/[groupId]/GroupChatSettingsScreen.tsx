@@ -60,7 +60,7 @@ function Settings({ g }: { g: GroupChat }) {
           )}
         </h2>
         <p className="mt-1 text-[12px] text-ink-sub">
-          {g.members.length}명 · {formatDotDate(g.createdAt)} 개설 · 방장 {g.owner.nickname}
+          {g.members.length}명 · {formatDotDate(g.createdAt)} 개설 · 방장 {g.owner.username}
         </p>
       </section>
 
@@ -91,14 +91,13 @@ function Settings({ g }: { g: GroupChat }) {
           {g.members.map((m) => (
             <li key={m.id} className="flex items-center gap-3 py-2.5">
               <Link href={routes.user(m.username)} className="flex min-w-0 flex-1 items-center gap-3">
-                <Avatar src={m.profileImageUrl} name={m.nickname} size={40} />
+                <Avatar src={m.profileImageUrl} name={m.username} size={40} />
                 <span className="min-w-0">
                   <span className="flex items-center gap-1 text-[14px] font-bold">
-                    <span className="truncate">{m.nickname}</span>
+                    <span className="truncate">{m.username}</span>
                     {m.isMe && <Badge tone="neutral">나</Badge>}
                     {m.isOwner && <Crown size={13} className="shrink-0 text-primary-deep" aria-label="방장" />}
                   </span>
-                  <span className="block truncate text-[12px] text-ink-sub">@{m.username}</span>
                 </span>
               </Link>
               {g.isOwner && !m.isMe && (
@@ -123,7 +122,7 @@ function Settings({ g }: { g: GroupChat }) {
       <BottomSheet open={sheet?.type === "remove"} onClose={() => setSheet(null)} title="내보낼까요?">
         {sheet?.type === "remove" && (
           <ConfirmBody
-            message={`${sheet.member.nickname}님을 채팅방에서 내보내요. 다시 초대하기 전까지 대화를 볼 수 없어요.`}
+            message={`${sheet.member.username}님을 채팅방에서 내보내요. 다시 초대하기 전까지 대화를 볼 수 없어요.`}
             confirmLabel="내보내기"
             loading={remove.isPending}
             error={remove.isError ? remove.error : null}
@@ -131,7 +130,7 @@ function Settings({ g }: { g: GroupChat }) {
             onConfirm={() =>
               remove.mutate(sheet.member.id, {
                 onSuccess: () => {
-                  toast({ message: `${sheet.member.nickname}님을 내보냈어요` });
+                  toast({ message: `${sheet.member.username}님을 내보냈어요` });
                   setSheet(null);
                 },
               })

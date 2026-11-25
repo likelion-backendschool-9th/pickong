@@ -38,7 +38,7 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
         <form onSubmit={submit} className="space-y-2">
           {replyTo && (
             <div className="flex items-center justify-between text-[12px] text-ink-sub">
-              <span>{replyTo.author.nickname}님에게 답글 남기는 중</span>
+              <span>{replyTo.author.username}님에게 답글 남기는 중</span>
               <button type="button" onClick={() => setReplyTo(null)} className="font-bold">취소</button>
             </div>
           )}
@@ -96,11 +96,11 @@ function CommentItem({ comment, onReply, small }: { comment: PostComment; onRepl
   return (
     <div className="flex gap-3">
       <Link href={routes.user(comment.author.username)}>
-        <Avatar src={comment.author.profileImageUrl} name={comment.author.nickname} size={small ? 28 : 32} />
+        <Avatar src={comment.author.profileImageUrl} name={comment.author.username} size={small ? 28 : 32} />
       </Link>
       <div className="min-w-0 flex-1">
         <div className="text-[13px]">
-          <span className="font-bold">{comment.author.nickname}</span>
+          <span className="font-bold">{comment.author.username}</span>
           <span className="ml-1.5 text-[11px] text-ink-faint">{formatRelative(comment.createdAt)}</span>
         </div>
         <p className="mt-0.5 text-[14px] leading-relaxed whitespace-pre-line">{comment.content}</p>

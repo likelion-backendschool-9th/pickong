@@ -51,7 +51,7 @@ function Checkout({ collection: c, onDone }: { collection: Collection; onDone: (
       <div className="rounded-card bg-fill px-4 py-3">
         <p className="text-[15px] font-bold">{c.title}</p>
         <p className="mt-0.5 text-[12px] text-ink-sub">
-          {c.owner.nickname} · 장소 {c.placeCount}곳 · 한 번 구매하면 계속 볼 수 있어요
+          {c.owner.username} · 장소 {c.placeCount}곳 · 한 번 구매하면 계속 볼 수 있어요
         </p>
         <p className="mt-3 flex items-baseline justify-between border-t border-line pt-3">
           <span className="text-[13px] text-ink-sub">결제 금액</span>

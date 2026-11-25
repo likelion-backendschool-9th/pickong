@@ -7,7 +7,7 @@ export type PurchaseStatus = "PAID" | "REFUND_REQUESTED" | "REFUNDED" | "REFUND_
 
 export interface Purchase {
   id: string;
-  collection: { id: string; title: string; coverImageUrl: string | null; ownerNickname: string } | null;
+  collection: { id: string; title: string; coverImageUrl: string | null; ownerUsername: string } | null;
   amount: number;
   method: "TEST" | "CARD";
   card: { company: string; installment: number } | null;

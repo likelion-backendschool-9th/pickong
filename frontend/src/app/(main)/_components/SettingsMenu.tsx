@@ -17,7 +17,7 @@ const sections: { title: string; rows: Row[] }[] = [
   {
     title: "계정",
     rows: [
-      { label: "프로필 편집", desc: "닉네임 · 이름 · 소개 · 활동 지역", href: routes.editProfile() },
+      { label: "프로필 편집", desc: "아이디 · 이름 · 소개 · 활동 지역", href: routes.editProfile() },
       { label: "로그인 수단 관리", desc: "카카오 · Google 계정 연결 · 해제", href: routes.loginMethods() },
       { label: "약관 및 동의 관리", desc: "필수 약관 확인 · 마케팅 수신 동의", href: routes.agreements() },
     ],

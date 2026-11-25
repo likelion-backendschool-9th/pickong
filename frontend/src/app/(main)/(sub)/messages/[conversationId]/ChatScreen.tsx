@@ -36,8 +36,8 @@ export function ChatScreen({ id }: { id: string }) {
         title={
           partner ? (
             <Link href={routes.user(partner.username)} className="inline-flex items-center gap-2">
-              <Avatar src={partner.profileImageUrl} name={partner.nickname} size={28} />
-              {partner.nickname}
+              <Avatar src={partner.profileImageUrl} name={partner.username} size={28} />
+              {partner.username}
             </Link>
           ) : (
             "메시지"
@@ -57,7 +57,7 @@ export function ChatScreen({ id }: { id: string }) {
         ) : isError ? (
           <ErrorState message={errorMessage(error)} onRetry={() => refetch()} />
         ) : messages.length === 0 ? (
-          <p className="pt-10 text-center text-[13px] text-ink-faint">{partner ? `${partner.nickname}님에게 첫 메시지를 보내 보세요.` : ""}</p>
+          <p className="pt-10 text-center text-[13px] text-ink-faint">{partner ? `${partner.username}님에게 첫 메시지를 보내 보세요.` : ""}</p>
         ) : (
           <ol className="space-y-1.5">
             {messages.map((m, i) => {
@@ -95,11 +95,11 @@ function MessageItem({
 }: {
   message: Message;
   showTime: boolean;
-  avatar?: { nickname: string; profileImageUrl: string | null };
+  avatar?: { username: string; profileImageUrl: string | null };
 }) {
   return (
     <li className={cn("flex items-end gap-1.5", m.isMine ? "flex-row-reverse" : "flex-row")}>
-      {!m.isMine && <span className="w-7 shrink-0">{avatar && <Avatar src={avatar.profileImageUrl} name={avatar.nickname} size={28} />}</span>}
+      {!m.isMine && <span className="w-7 shrink-0">{avatar && <Avatar src={avatar.profileImageUrl} name={avatar.username} size={28} />}</span>}
       <div className={cn("flex max-w-[75%] flex-col gap-1", m.isMine ? "items-end" : "items-start")}>
         {m.attachment && <AttachmentCard attachment={m.attachment} />}
         {m.text && (
@@ -134,7 +134,7 @@ function AttachmentCard({ attachment }: { attachment: NonNullable<Message["attac
       <Link href={routes.post(post.id)} className={box}>
         {post.imageUrl && <Thumb src={post.imageUrl} alt="" className="aspect-[4/3] w-full rounded-none" />}
         <span className="block px-3 py-2">
-          <span className="block text-[12px] font-bold">{post.authorNickname}님의 게시물</span>
+          <span className="block text-[12px] font-bold">{post.authorUsername}님의 게시물</span>
           <span className="block truncate text-[12px] text-ink-sub">{post.content.split("\n")[0]}</span>
         </span>
       </Link>

@@ -3,7 +3,7 @@ import type { UserSummary } from "@/entities/user";
 
 /** 메시지에 붙은 공유 카드. 볼 수 없는 게시물 · 사라진 장소는 null */
 export type MessageAttachment =
-  | { type: "POST"; post: { id: string; imageUrl: string | null; authorNickname: string; content: string } | null }
+  | { type: "POST"; post: { id: string; imageUrl: string | null; authorUsername: string; content: string } | null }
   | { type: "PLACE"; place: Place | null }
   | { type: "IMAGE"; url: string };
 
@@ -31,7 +31,7 @@ export interface Conversation {
 
 const norm = (s: string) => s.replace(/\s+/g, "").toLowerCase();
 
-/** 대화 검색: 상대 닉네임 · 아이디 · 마지막 메시지 (띄어쓰기 · 대소문자 무시) */
+/** 대화 검색: 상대 아이디 · 이름 · 마지막 메시지 (띄어쓰기 · 대소문자 무시). 화면에는 아이디만 보이지만 이름으로도 찾을 수 있게 둡니다 */
 export function matchesConversation(c: Conversation, query: string): boolean {
   const q = norm(query);
   if (!q) return true;

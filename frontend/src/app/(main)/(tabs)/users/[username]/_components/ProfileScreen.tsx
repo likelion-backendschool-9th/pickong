@@ -11,6 +11,7 @@ import { useUser, type User } from "@/entities/user";
 import { FollowButton } from "@/features/follow-user";
 import { errorMessage } from "@/shared/api/errors";
 import { routes } from "@/shared/config/routes";
+import { cn } from "@/shared/lib/cn";
 import { Button, ButtonLink } from "@/shared/ui/Button";
 import { Chip, Tabs } from "@/shared/ui/controls";
 import { Avatar, Badge, EmptyState, ErrorState, Skeleton } from "@/shared/ui/display";
@@ -95,14 +96,14 @@ export function ProfileScreen({ username }: { username: string }) {
           />
         </header>
       ) : (
-        <TopBar title={user.nickname} />
+        <TopBar title={user.username} />
       )}
       <section className="px-5 pt-2">
         <div className="flex items-center gap-4">
-          <Avatar src={user.profileImageUrl} name={user.nickname} size={72} />
+          <Avatar src={user.profileImageUrl} name={user.username} size={72} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <h2 className="truncate text-[20px] font-bold">{user.nickname}</h2>
+              <h2 className="truncate text-[20px] font-bold">{user.username}</h2>
               {user.isCreator && <Badge>크리에이터</Badge>}
             </div>
             <div className="mt-1 flex gap-3 text-[13px]">
@@ -118,7 +119,9 @@ export function ProfileScreen({ username }: { username: string }) {
             </div>
           </div>
         </div>
-        <p className="mt-3 text-[14px] leading-relaxed whitespace-pre-line text-ink-sub">{user.bio}</p>
+        {/* 이름(한글 가능, 없을 수 있음)은 여기에만 보여 줍니다. 피드 · 댓글 등 다른 화면에는 아이디만 보입니다 */}
+        {user.name && <p className="mt-3 text-[14px] font-bold">{user.name}</p>}
+        <p className={cn("text-[14px] leading-relaxed whitespace-pre-line text-ink-sub", user.name ? "mt-0.5" : "mt-3")}>{user.bio}</p>
         <div className="mt-4">
           {user.isMe ? (
             <div className="grid grid-cols-2 gap-2">
@@ -168,12 +171,12 @@ export function ProfileScreen({ username }: { username: string }) {
       </div>
 
       {tab === "posts" && <PostsTab username={username} isMe={user.isMe} vis={vis} />}
-      {tab === "collections" && <CollectionsTab username={username} isMe={user.isMe} nickname={user.nickname} vis={vis} />}
+      {tab === "collections" && <CollectionsTab username={username} isMe={user.isMe} vis={vis} />}
       {tab === "visits" && (visitView === "map" ? <VisitMap user={user} /> : <VisitList user={user} />)}
       {tab === "plans" && user.isMe && <PlansTab />}
 
       {user.isMe && (
-        <SideSheet open={menuOpen} onClose={() => setMenuOpen(false)} title={`${user.nickname}님의 계정`}>
+        <SideSheet open={menuOpen} onClose={() => setMenuOpen(false)} title={`${user.username}님의 계정`}>
           <SettingsMenu onNavigate={() => setMenuOpen(false)} />
         </SideSheet>
       )}
@@ -202,12 +205,10 @@ function PostsTab({ username, isMe, vis }: { username: string; isMe: boolean; vi
 function CollectionsTab({
   username,
   isMe,
-  nickname,
   vis,
 }: {
   username: string;
   isMe: boolean;
-  nickname: string;
   vis: VisibilityFilterValue;
 }) {
   const { data, isPending } = useUserCollections(username);
@@ -218,7 +219,7 @@ function CollectionsTab({
   return (
     <div className="px-5">
       <p className="pt-3 text-[13px] font-bold">
-        {isMe ? (vis === "ALL" ? "내 컬렉션" : `내 컬렉션 · ${visibilityFilterLabel(vis)}`) : `${nickname}님의 공개 컬렉션`}{" "}
+        {isMe ? (vis === "ALL" ? "내 컬렉션" : `내 컬렉션 · ${visibilityFilterLabel(vis)}`) : `${username}님의 공개 컬렉션`}{" "}
         {collections.length}
       </p>
       <div className="divide-y divide-line">
