@@ -5,12 +5,14 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/shared/lib/cn";
 import type { LatLng, LatLngBounds, MapMarker } from "../types";
 import { naverMapGlOptions, shouldUseNaverGl } from "./config";
-import { clampNaverZoom, fromNaverBounds, metersPerPixelToZoom, toNaverLatLng } from "./convert";
+import { clampNaverZoom, fromNaverBounds, metersPerPixelToZoom, toNaverBounds, toNaverLatLng } from "./convert";
 import { loadNaverSdk } from "./loadNaverSdk";
 import { diffMarkers, planMarkers, type MarkerPlan } from "./markerDiff";
 
 const DEFAULT_CENTER: LatLng = { lat: 37.5446, lng: 127.0525 };
 const USE_GL = shouldUseNaverGl();
+/** 범위에 맞출 때 가장자리에 두는 여백(px). GL 지도는 숫자 하나로 주면 오류가 나므로 객체로 줍니다. */
+const FIT_BOUNDS_MARGIN = { top: 48, right: 48, bottom: 48, left: 48 };
 
 export interface NaverMapViewProps {
   markers?: MapMarker[];
@@ -35,8 +37,8 @@ export interface NaverMapViewProps {
   onCameraChange?: (camera: { center: LatLng; zoom: number }) => void;
   /** 사용자가 지도를 드래그하기 시작했을 때 (초기 GPS 적용 취소 등) */
   onDragStart?: () => void;
-  /** 이 위치로 지도를 옮깁니다 (검색 결과 선택 등). key가 바뀔 때마다 한 번 이동 */
-  focus?: { key: string; position: LatLng; keepZoom?: boolean } | null;
+  /** 이 위치로 지도를 옮깁니다 (검색 결과 선택 등). key가 바뀔 때마다 한 번 이동. bounds가 있으면 그 범위가 보이게 맞춤 */
+  focus?: { key: string; position: LatLng; keepZoom?: boolean; bounds?: LatLngBounds } | null;
   /** 중앙 고정 핀 표시 (좌표 직접 지정용) */
   crosshair?: boolean;
   /** GPS로 확인한 내 위치 (파란 점). 장소 마커와 별도 */
@@ -245,6 +247,10 @@ export function NaverMapView({
     if (status !== "ready" || !map || !focus || focus.key === focusedKeyRef.current) return;
     focusedKeyRef.current = focus.key;
     suppressMoveRef.current = true;
+    if (focus.bounds) {
+      map.fitBounds(toNaverBounds(focus.bounds), FIT_BOUNDS_MARGIN);
+      return;
+    }
     const target = toNaverLatLng(focus.position);
     if (focus.keepZoom) {
       map.panTo(target);
@@ -281,7 +287,7 @@ export function NaverMapView({
         icon: {
           content: createMarkerElement(plan, colors),
           size: new naver.maps.Size(size.w, size.h),
-          anchor: new naver.maps.Point(size.w / 2, m.tone === "poi" ? size.h / 2 : size.h),
+          anchor: new naver.maps.Point(size.w / 2, m.tone === "poi" || m.tone === "cluster" ? size.h / 2 : size.h),
         },
         title: m.title,
         zIndex: selected ? 3 : m.tone === "poi" ? 1 : 2,
@@ -479,8 +485,17 @@ function estimateMarkerSize({ marker: m, selected, showTitle }: MarkerPlan): { w
   if (m.tone === "poi") {
     return { w: 28, h: showTitle ? 36 : 20 };
   }
+  if (m.tone === "cluster") {
+    const d = clusterDiameter(m);
+    return { w: d, h: d };
+  }
   const pin = selected ? 36 : 28;
   return { w: Math.max(pin, showTitle ? 96 : pin), h: pin + (showTitle ? 16 : 0) };
+}
+
+/** 묶음 원의 지름: 글자가 길수록 크게 */
+function clusterDiameter(m: MapMarker): number {
+  return 24 + Math.min(m.label?.length ?? 0, 4) * 4;
 }
 
 interface MarkerColors {
@@ -514,6 +529,15 @@ function createMarkerElement({ marker: m, selected, showTitle }: MarkerPlan, col
     dot.style.cssText = `display:block;width:${size}px;height:${size}px;border-radius:9999px;border:2px solid #fff;background:${bg};box-shadow:0 1px 3px rgba(0,0,0,0.3);`;
     wrap.appendChild(dot);
     if (m.title && showTitle) wrap.appendChild(titleEl(m.title, ink));
+    return wrap;
+  }
+
+  if (m.tone === "cluster") {
+    const circle = document.createElement("span");
+    const d = clusterDiameter(m);
+    circle.style.cssText = `display:flex;align-items:center;justify-content:center;width:${d}px;height:${d}px;border-radius:9999px;border:2px solid #fff;background:color-mix(in srgb, ${ink} 82%, transparent);color:#fff;font-size:11px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,0.3);`;
+    circle.textContent = m.label ?? "";
+    wrap.appendChild(circle);
     return wrap;
   }
 

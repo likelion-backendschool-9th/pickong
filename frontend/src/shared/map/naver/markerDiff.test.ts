@@ -33,6 +33,12 @@ describe("planMarkers", () => {
     expect(ids(plans.filter((p) => p.showTitle))).toEqual(["mine"]);
   });
 
+  it("묶음은 핀 개수에 세지 않고 이름표도 보여 주지 않는다", () => {
+    const cluster = (id: string): MapMarker => ({ id, position: { lat: 37.5, lng: 127 }, title: id, label: "9", tone: "cluster" });
+    const plans = planMarkers([pin("mine"), ...Array.from({ length: 20 }, (_, i) => cluster(`c${i}`))], "c1");
+    expect(ids(plans.filter((p) => p.showTitle))).toEqual(["mine"]);
+  });
+
   it("이름이 없으면 선택해도 이름표를 보여 주지 않는다", () => {
     expect(planMarkers([{ id: "a", position: { lat: 37.5, lng: 127 } }], "a")[0].showTitle).toBe(false);
   });
@@ -74,6 +80,11 @@ describe("diffMarkers", () => {
       remove: ["a"],
       add: ["a"],
     });
+  });
+
+  it("묶음의 개수가 바뀌면 다시 그린다", () => {
+    const cluster = (label: string): MapMarker => ({ id: "c", position: { lat: 37.5, lng: 127 }, label, tone: "cluster" });
+    expect(diff(planMarkers([cluster("3")], null), planMarkers([cluster("4")], null))).toEqual({ remove: ["c"], add: ["c"] });
   });
 
   it("빈 목록이면 모두 지운다", () => {
