@@ -28,3 +28,7 @@ _local/
 # Java 빌드 결과물
 backend/target/
 
+# macOS iCloud/Finder 복사본 (예: "파일 2.ts", "파일 3.tsx")
+* 2.*
+* 3.*
+
