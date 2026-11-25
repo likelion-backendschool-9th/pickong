@@ -4,18 +4,19 @@ import { postApi, type FeedTab } from "./postApi";
 
 export const postKeys = {
   all: ["posts"] as const,
-  feed: (tab: FeedTab) => [...postKeys.all, "feed", tab] as const,
-  feedPlaces: (tab: FeedTab) => [...postKeys.all, "feed-places", tab] as const,
+  feed: (tab: FeedTab, region?: string) => [...postKeys.all, "feed", tab, region ?? ""] as const,
+  feedPlaces: (tab: FeedTab, region?: string) => [...postKeys.all, "feed-places", tab, region ?? ""] as const,
   detail: (id: string) => [...postKeys.all, "detail", id] as const,
   byUser: (username: string) => [...postKeys.all, "user", username] as const,
   placesByUser: (username: string) => [...postKeys.all, "user-places", username] as const,
   comments: (id: string) => [...postKeys.all, "comments", id] as const,
 };
 
-export const useFeed = (tab: FeedTab) => useQuery({ queryKey: postKeys.feed(tab), queryFn: () => postApi.feed(tab) });
+export const useFeed = (tab: FeedTab, region?: string) =>
+  useQuery({ queryKey: postKeys.feed(tab, region), queryFn: () => postApi.feed(tab, region) });
 /** 피드 지도의 장소: 피드 탭과 같은 기준의 게시물에 연결된 장소 */
-export const useFeedPlaces = (tab: FeedTab) =>
-  useQuery({ queryKey: postKeys.feedPlaces(tab), queryFn: () => postApi.feedPlaces(tab) });
+export const useFeedPlaces = (tab: FeedTab, region?: string) =>
+  useQuery({ queryKey: postKeys.feedPlaces(tab, region), queryFn: () => postApi.feedPlaces(tab, region) });
 export const usePost = (id: string) => useQuery({ queryKey: postKeys.detail(id), queryFn: () => postApi.get(id) });
 export const useUserPosts = (username: string) =>
   useQuery({ queryKey: postKeys.byUser(username), queryFn: () => postApi.byUser(username) });
