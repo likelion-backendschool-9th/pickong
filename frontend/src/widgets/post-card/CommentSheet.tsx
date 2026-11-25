@@ -115,6 +115,7 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
                 comment={c}
                 isMine={me?.username === c.author.username}
                 onReply={() => handleReply(c)}
+                onDelete={() => { if (replyTo?.id === c.id) setReplyTo(null); }}
               />
               {repliesOf(c.id).length > 0 && (
                 <ul className="mt-3 space-y-3 pl-11">
@@ -125,6 +126,7 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
                         comment={r}
                         isMine={me?.username === r.author.username}
                         onReply={() => handleReply(r)}
+                        onDelete={() => { if (replyTo?.id === r.id) setReplyTo(null); }}
                         small
                       />
                     </li>
@@ -163,17 +165,21 @@ function CommentItem({
   comment,
   isMine,
   onReply,
+  onDelete,
   small,
 }: {
   postId: string;
   comment: PostComment;
   isMine: boolean;
   onReply: () => void;
+  onDelete: () => void;
   small?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(comment.content);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const editRef = useRef<HTMLTextAreaElement>(null);
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const update = useUpdateComment(postId);
   const remove = useDeleteComment(postId);
 
@@ -182,6 +188,9 @@ function CommentItem({
     if (editing) requestAnimationFrame(() => editRef.current?.focus());
   }, [editing]);
 
+  // 삭제 확인 타이머 정리
+  useEffect(() => () => { if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current); }, []);
+
   const handleEditSave = () => {
     if (!editText.trim() || editText.trim() === comment.content) {
       setEditing(false);
@@ -189,11 +198,25 @@ function CommentItem({
     }
     update.mutate(
       { commentId: comment.id, content: editText.trim() },
-      { onSuccess: () => setEditing(false) },
+      {
+        onSuccess: () => setEditing(false),
+        onError: (error: unknown) => {
+          // 이미 삭제된 댓글이면 편집 모드 종료
+          if ((error as { status?: number })?.status === 404) setEditing(false);
+        },
+      },
     );
   };
 
-  const handleDelete = () => {
+  // 첫 클릭: 확인 상태로 전환 (2초 후 자동 취소)
+  // 두 번째 클릭: 실제 삭제
+  const handleDeleteClick = () => {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      confirmTimerRef.current = setTimeout(() => setConfirmDelete(false), 2000);
+      return;
+    }
+    onDelete();
     remove.mutate(comment.id);
   };
 
@@ -210,13 +233,25 @@ function CommentItem({
           </div>
           {/* 본인 댓글에만 수정/삭제 표시 */}
           {isMine && !editing && (
-            <div className="flex gap-2 text-[12px] text-ink-faint">
-              <button type="button" onClick={() => { setEditText(comment.content); setEditing(true); }}>
+            <div className="flex items-center gap-2 text-[12px]">
+              <button type="button" onClick={() => { setEditText(comment.content); setEditing(true); }} className="text-ink-faint">
                 수정
               </button>
-              <button type="button" onClick={handleDelete} disabled={remove.isPending} className="text-danger">
-                삭제
-              </button>
+              {confirmDelete ? (
+                <>
+                  <span className="text-ink-sub">삭제할까요?</span>
+                  <button type="button" onClick={handleDeleteClick} disabled={remove.isPending} className="font-bold text-danger">
+                    확인
+                  </button>
+                  <button type="button" onClick={() => setConfirmDelete(false)} className="text-ink-faint">
+                    취소
+                  </button>
+                </>
+              ) : (
+                <button type="button" onClick={handleDeleteClick} className="text-danger">
+                  삭제
+                </button>
+              )}
             </div>
           )}
         </div>
