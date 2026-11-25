@@ -159,6 +159,33 @@ class ReportTargetLookupAdapterIntegrationTest {
     }
 
     @Test
+    @DisplayName("팔로워 공개 게시물의 댓글은 다른 회원에게 반환하지 않는다")
+    void commentsOnFollowersFeedsAreEmpty() {
+        long feedAuthor = insertUser();
+        long commentAuthor = insertUser();
+        long reporter = insertUser();
+        long followers = insertFeed(feedAuthor, "lookup-it-팔로워상위", "FOLLOWERS");
+        long comment = insertComment(followers, commentAuthor, "lookup-it-팔로워댓글");
+
+        assertThat(lookup.findReportable(reporter, ReportTargetType.COMMENT, comment)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("게시물 작성자가 타인의 댓글을 조회하면 댓글 작성자 id를 돌려준다")
+    void feedAuthorCanReadAnotherPersonsComment() {
+        long feedAuthor = insertUser();
+        long commentAuthor = insertUser();
+        long feed = insertFeed(feedAuthor, "lookup-it-상위", "PUBLIC");
+        long comment = insertComment(feed, commentAuthor, "lookup-it-타인댓글");
+
+        ReportTargetLookup found = lookup.findReportable(feedAuthor, ReportTargetType.COMMENT, comment).orElseThrow();
+
+        assertThat(found.authorId()).isEqualTo(commentAuthor);
+        assertThat(found.authorId()).isNotEqualTo(feedAuthor);
+        assertThat(found.text()).isEqualTo("lookup-it-타인댓글");
+    }
+
+    @Test
     @DisplayName("자기 댓글은 상위 글이 공개일 때 댓글 작성자 id를 돌려준다")
     void ownerCanReadTheirOwnComment() {
         long feedAuthor = insertUser();

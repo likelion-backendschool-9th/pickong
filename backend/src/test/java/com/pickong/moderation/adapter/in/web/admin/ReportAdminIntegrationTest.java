@@ -384,6 +384,55 @@ class ReportAdminIntegrationTest {
     }
 
     @Test
+    @DisplayName("게시물 id와 같은 id의 다른 회원이 있어도 작성자는 user_id다")
+    void reportedUserStaysTheAuthorWhenFeedIdMatchesAnotherUser() throws Exception {
+        long author = insertUser("실제작성자", "author-map@example.com");
+        long reporter = insertUser("신고자", "reporter-map@example.com");
+        long shared = nextFreeId();
+        long decoy = insertUserWithId(shared, "다른회원", "decoy-map@example.com");
+        long feed = insertFeedWithId(shared, author, "report-it-작성자확인");
+        assertThat(feed).isEqualTo(decoy).isNotEqualTo(author);
+
+        String original = """
+                {"text":"report-it-원문","imageUrl":null,"reportedUserId":%d,"textScope":"FULL"}
+                """.formatted(author);
+        long reportId = insertPending(reporter, "FEED", feed, "SPAM", "", original, NEWER);
+
+        assertAuthor(items("PENDING"), reportId, author, "실제작성자");
+
+        jdbc.update("UPDATE feeds SET hidden_at = now() WHERE id = ?", feed);
+        assertAuthor(items("PENDING"), reportId, author, "실제작성자");
+
+        jdbc.update("UPDATE feeds SET hidden_at = null, deleted_at = now() WHERE id = ?", feed);
+        JsonNode deleted = find(items("PENDING"), reportId);
+        assertThat(deleted.get("target").get("visibility").asString()).isEqualTo("DELETED");
+        assertThat(deleted.get("reportedUser").get("id").asString()).isEqualTo(Long.toString(author));
+        assertThat(deleted.get("reportedUser").get("nickname").asString()).isEqualTo("실제작성자");
+        assertThat(deleted.get("target").get("snapshot").get("text").asString()).isEqualTo("report-it-원문");
+        assertThat(snapshotOf(reportId)).isEqualTo(original);
+
+        long commentAuthor = insertUser("댓글작성자", "comment-map@example.com");
+        long commentFeed = insertFeed(author, "report-it-댓글상위");
+        long comment = insertComment(commentFeed, commentAuthor, "report-it-삭제댓글");
+        assertThat(comment).isNotEqualTo(commentAuthor);
+        String commentSnapshot = """
+                {"text":"report-it-댓글원문","imageUrl":null,"reportedUserId":%d,"textScope":"FULL"}
+                """.formatted(commentAuthor);
+        long commentReport = insertPending(reporter, "COMMENT", comment, "ABUSE", "", commentSnapshot, OLDER);
+        jdbc.update("UPDATE comments SET deleted_at = now() WHERE id = ?", comment);
+        assertAuthor(items("PENDING"), commentReport, commentAuthor, "댓글작성자");
+        assertThat(snapshotOf(commentReport)).isEqualTo(commentSnapshot);
+        assertThat(snapshotOf(reportId)).isEqualTo(original);
+
+        jdbc.update("DELETE FROM feeds WHERE id = ?", feed);
+        JsonNode missing = find(items("PENDING"), reportId);
+        assertThat(missing.get("target").get("visibility").asString()).isEqualTo("UNAVAILABLE");
+        assertThat(missing.get("reportedUser").get("id").asString()).isEqualTo(Long.toString(author));
+        assertThat(missing.get("reportedUser").get("nickname").asString()).isEqualTo("실제작성자");
+        assertThat(snapshotOf(reportId)).isEqualTo(original);
+    }
+
+    @Test
     @DisplayName("같은 트랜잭션에서 다시 읽으면 기각 결과가 보이고, 저장이 실패하면 선택한 신고는 대기로 남는다")
     void sameTransactionSeesDismissalAndFailureRollsBack() {
         long reporter = insertUser("신고자", null);
@@ -718,6 +767,48 @@ class ReportAdminIntegrationTest {
 
     private String statusOf(long id) {
         return jdbc.queryForObject("SELECT status FROM reports WHERE id = ?", String.class, id);
+    }
+
+    private void assertAuthor(JsonNode items, long reportId, long authorId, String nickname) {
+        JsonNode item = find(items, reportId);
+        assertThat(item.get("reportedUser").get("id").asString()).isEqualTo(Long.toString(authorId));
+        assertThat(item.get("reportedUser").get("nickname").asString()).isEqualTo(nickname);
+        assertThat(item.get("targetId").asString()).isNotEqualTo(item.get("reportedUser").get("id").asString());
+    }
+
+    private String snapshotOf(long reportId) {
+        return jdbc.queryForObject("SELECT snapshot FROM reports WHERE id = ?", String.class, reportId);
+    }
+
+    private long nextFreeId() {
+        return jdbc.queryForObject("""
+                SELECT GREATEST(
+                    (SELECT COALESCE(MAX(id), 0) FROM users),
+                    (SELECT COALESCE(MAX(id), 0) FROM feeds),
+                    (SELECT COALESCE(MAX(id), 0) FROM comments)
+                ) + 1
+                """, Long.class);
+    }
+
+    private long insertUserWithId(long id, String name, String email) {
+        String username = "r" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        jdbc.update(
+                "INSERT INTO users (id, username, display_name, email) VALUES (?, ?, ?, ?)",
+                id, username, name, email);
+        syncIdentity("users");
+        return id;
+    }
+
+    private long insertFeedWithId(long id, long userId, String content) {
+        jdbc.update("INSERT INTO feeds (id, user_id, content) VALUES (?, ?, ?)", id, userId, content);
+        syncIdentity("feeds");
+        return id;
+    }
+
+    private void syncIdentity(String table) {
+        jdbc.queryForObject(
+                "SELECT setval(pg_get_serial_sequence(?, 'id'), (SELECT MAX(id) FROM " + table + "))",
+                Long.class, table);
     }
 
     private long insertUser(String name, String email) {

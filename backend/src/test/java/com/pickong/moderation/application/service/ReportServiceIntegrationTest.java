@@ -99,6 +99,60 @@ class ReportServiceIntegrationTest {
         assertThat(count).isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("볼 수 없는 글은 접수하지 않고, 게시물 작성자는 타인의 댓글 작성자를 저장한다")
+    void unreadableTargetsAreNotFiledAndCommentAuthorIsStored() throws Exception {
+        long feedAuthor = insertUser();
+        long commentAuthor = insertUser();
+        long reporter = insertUser();
+        assertThat(feedAuthor).isNotEqualTo(commentAuthor);
+
+        long followers = insertFeed(feedAuthor, "service-it-팔로워비밀", "FOLLOWERS");
+        long privateFeed = insertFeed(feedAuthor, "service-it-비공개비밀", "PRIVATE");
+        long hidden = insertFeed(feedAuthor, "service-it-숨김비밀", "PUBLIC");
+        jdbc.update("UPDATE feeds SET hidden_at = now() WHERE id = ?", hidden);
+        long deleted = insertFeed(feedAuthor, "service-it-삭제비밀", "PUBLIC");
+        jdbc.update("UPDATE feeds SET deleted_at = now() WHERE id = ?", deleted);
+        long visible = insertFeed(feedAuthor, "service-it-댓글상위");
+        long hiddenComment = insertComment(visible, commentAuthor, "service-it-숨김댓글비밀");
+        jdbc.update("UPDATE comments SET hidden_at = now() WHERE id = ?", hiddenComment);
+
+        assertRejected(reporter, ReportTargetType.FEED, followers, ModerationErrorCode.REPORT_TARGET_NOT_FOUND, "팔로워비밀");
+        assertRejected(reporter, ReportTargetType.FEED, privateFeed, ModerationErrorCode.REPORT_TARGET_NOT_FOUND, "비공개비밀");
+        assertRejected(reporter, ReportTargetType.FEED, hidden, ModerationErrorCode.REPORT_TARGET_NOT_FOUND, "숨김비밀");
+        assertRejected(reporter, ReportTargetType.FEED, deleted, ModerationErrorCode.REPORT_TARGET_NOT_FOUND, "삭제비밀");
+        assertRejected(reporter, ReportTargetType.COMMENT, hiddenComment, ModerationErrorCode.REPORT_TARGET_NOT_FOUND, "숨김댓글비밀");
+        assertRejected(feedAuthor, ReportTargetType.FEED, followers, ModerationErrorCode.SELF_REPORT, "팔로워비밀");
+
+        long publicFeed = insertFeed(feedAuthor, "service-it-공개상위");
+        long comment = insertComment(publicFeed, commentAuthor, "service-it-타인댓글");
+        assertRejected(commentAuthor, ReportTargetType.COMMENT, comment, ModerationErrorCode.SELF_REPORT, "타인댓글");
+
+        ReportReceipt receipt = reports.report(
+                new ReportCommand(feedAuthor, ReportTargetType.COMMENT, comment, "ABUSE", null));
+
+        assertThat(receipt.targetType()).isEqualTo("COMMENT");
+        JsonNode stored = JSON.readTree(jdbc.queryForObject(
+                "SELECT snapshot FROM reports WHERE id = ?", String.class, receipt.id()));
+        assertThat(stored.get("text").asString()).isEqualTo("service-it-타인댓글");
+        assertThat(stored.get("reportedUserId").asLong()).isEqualTo(commentAuthor);
+        assertThat(stored.get("reportedUserId").asLong()).isNotEqualTo(feedAuthor);
+        assertThat(stored.get("textScope").asString()).isEqualTo("FULL");
+        Integer count = jdbc.queryForObject("SELECT count(*) FROM reports", Integer.class);
+        assertThat(count).isEqualTo(1);
+    }
+
+    private void assertRejected(
+            long reporterId, ReportTargetType type, long targetId, ModerationErrorCode code, String secret) {
+        assertThatThrownBy(() -> reports.report(new ReportCommand(reporterId, type, targetId, "SPAM", null)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(thrown -> {
+                    BusinessException exception = (BusinessException) thrown;
+                    assertThat(exception.getErrorCode()).isEqualTo(code);
+                    assertThat(exception.getMessage()).doesNotContain(secret);
+                });
+    }
+
     private JsonNode pendingItems() throws Exception {
         var body = mvc.perform(api(get("/api/v1/admin/reports")).param("status", "PENDING").with(authentication(admin())))
                 .andExpect(status().isOk())
@@ -124,9 +178,19 @@ class ReportServiceIntegrationTest {
     }
 
     private long insertFeed(long userId, String content) {
+        return insertFeed(userId, content, "PUBLIC");
+    }
+
+    private long insertFeed(long userId, String content, String visibility) {
         return jdbc.queryForObject(
-                "INSERT INTO feeds (user_id, content) VALUES (?, ?) RETURNING id",
-                Long.class, userId, content);
+                "INSERT INTO feeds (user_id, content, visibility) VALUES (?, ?, ?) RETURNING id",
+                Long.class, userId, content, visibility);
+    }
+
+    private long insertComment(long feedId, long userId, String content) {
+        return jdbc.queryForObject(
+                "INSERT INTO comments (feed_id, user_id, content) VALUES (?, ?, ?) RETURNING id",
+                Long.class, feedId, userId, content);
     }
 
     private static MockHttpServletRequestBuilder api(MockHttpServletRequestBuilder builder) {
