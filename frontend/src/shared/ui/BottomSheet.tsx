@@ -1,7 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type PointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/shared/lib/cn";
 
@@ -34,6 +34,8 @@ export function BottomSheet({
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
+  /** 드래그 시작 시점의 Y 좌표. null이면 드래그 중 아님 */
+  const dragStartY = useRef<number | null>(null);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -57,6 +59,39 @@ export function BottomSheet({
     };
   }, [open]);
 
+  /** 핸들에 손가락(포인터)이 닿으면 드래그 시작. setPointerCapture로 핸들 밖으로 나가도 추적 */
+  const handleDragStart = (e: PointerEvent<HTMLDivElement>) => {
+    dragStartY.current = e.clientY;
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  /** 드래그 중: 아래 방향만 허용하고 시트를 손가락 위치만큼 translateY */
+  const handleDragMove = (e: PointerEvent<HTMLDivElement>) => {
+    if (dragStartY.current === null || !panelRef.current) return;
+    const dy = Math.max(0, e.clientY - dragStartY.current);
+    panelRef.current.style.transition = "none";
+    panelRef.current.style.transform = `translateY(${dy}px)`;
+  };
+
+  /** 손가락을 뗐을 때: 임계값(시트 높이 30%) 초과면 닫고, 아니면 제자리로 복귀 */
+  const handleDragEnd = (e: PointerEvent<HTMLDivElement>) => {
+    if (dragStartY.current === null || !panelRef.current) return;
+    const dy = Math.max(0, e.clientY - dragStartY.current);
+    dragStartY.current = null;
+
+    const threshold = panelRef.current.offsetHeight * 0.3;
+    if (dy > threshold) {
+      // 임계값 초과 → 아래로 슬라이드 아웃 후 onClose 호출
+      panelRef.current.style.transition = "transform 220ms ease-in";
+      panelRef.current.style.transform = "translateY(100%)";
+      panelRef.current.addEventListener("transitionend", () => onCloseRef.current(), { once: true });
+    } else {
+      // 임계값 미만 → 제자리로 복귀
+      panelRef.current.style.transition = "transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1)";
+      panelRef.current.style.transform = "translateY(0)";
+    }
+  };
+
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
@@ -73,7 +108,15 @@ export function BottomSheet({
           className,
         )}
       >
-        <div className="flex justify-center pt-2.5 pb-1" aria-hidden>
+        {/* touch-none: 브라우저 스크롤이 대신 작동하는 걸 막음 */}
+        <div
+          className="flex touch-none justify-center pt-2.5 pb-1 cursor-grab active:cursor-grabbing"
+          aria-hidden
+          onPointerDown={handleDragStart}
+          onPointerMove={handleDragMove}
+          onPointerUp={handleDragEnd}
+          onPointerCancel={handleDragEnd}
+        >
           <span className="h-1 w-10 rounded-full bg-line" />
         </div>
         {(title || showClose) && (
