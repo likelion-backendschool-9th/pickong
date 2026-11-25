@@ -22,31 +22,22 @@ docker compose up -d db   # 저장소 루트에서. 로컬 PostgreSQL(PostGIS) �
 **2. 이미 켜 둔 것 끄기**
 
 ```bash
-docker compose stop frontend mock
+docker compose down
 ```
 
-터미널에서 `npm run dev`나 `./gradlew bootRun`을 실행 중이면 그것도 끕니다. (3000 · 8080 포트가 겹칩니다)
+DB 데이터는 남습니다. 터미널에서 `npm run dev`나 `./gradlew bootRun`을 실행 중이면 그것도 끕니다. (3000 · 8080 포트가 겹칩니다)
 
-**3. DB · 백엔드 실행**
+**3. 실행**
 
 ```bash
-docker compose up -d backend        # db도 함께 실행됩니다
-docker compose logs -f backend      # 'Started'가 나오면 완료. Ctrl+C로 나와도 백엔드는 계속 실행됩니다
+docker compose -f compose.yml -f compose.override.yml -f compose.backend.yml up -d --build
 ```
 
-처음에는 Gradle과 의존성을 내려받아 몇 분 걸립니다. 시작할 때 Flyway 마이그레이션이 자동으로 적용됩니다.
+- `compose.backend.yml`이 mock을 빼고 프론트를 백엔드에 연결합니다. 이 파일 없이 `docker compose up`을 실행하면 프론트는 mock에 연결됩니다.
+- 백엔드가 `healthy`가 된 뒤 프론트가 켜집니다. 처음에는 Gradle과 의존성을 내려받아 몇 분 걸립니다. 시작할 때 Flyway 마이그레이션이 자동으로 적용됩니다.
+- `frontend/.env.local`의 `API_BASE_URL`을 바꿔도 Docker로 켠 프론트에는 적용되지 않습니다.
 
-**4. 프론트 실행**
-
-```bash
-docker compose run -d --rm --no-deps --service-ports \
-  --name pickong-frontend-nomock \
-  -e API_BASE_URL=http://backend:8080 frontend
-```
-
-`docker compose up`으로 프론트를 켜면 mock도 함께 켜지므로 이 명령을 씁니다. `frontend/.env.local`의 `API_BASE_URL`을 바꿔도 Docker로 켠 프론트에는 적용되지 않습니다.
-
-**5. 확인**
+**4. 확인**
 
 | 주소 | 정상일 때 |
 | --- | --- |
@@ -59,10 +50,9 @@ docker compose run -d --rm --no-deps --service-ports \
 | 할 일 | 명령 |
 | --- | --- |
 | 백엔드 로그 | `docker compose logs -f backend` |
-| 프론트 로그 | `docker logs -f pickong-frontend-nomock` |
-| 프론트만 끄기 | `docker stop pickong-frontend-nomock` |
-| 모두 끄기 | 프론트를 끈 뒤 `docker compose down` |
-| mock으로 돌아가기 | 프론트를 끈 뒤 `docker compose up -d frontend` |
+| 프론트 로그 | `docker compose logs -f frontend` |
+| 모두 끄기 | `docker compose down` |
+| mock으로 돌아가기 | `docker compose down` 뒤 `docker compose up -d` |
 
 `docker compose down -v`는 DB 데이터까지 지웁니다.
 
