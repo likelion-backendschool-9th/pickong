@@ -1,0 +1,9 @@
+.gradle
+build
+target
+out
+.git
+.idea
+.env*
+**/application-local.yml
+*.log

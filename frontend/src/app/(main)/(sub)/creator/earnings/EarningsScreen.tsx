@@ -61,7 +61,7 @@ export function EarningsScreen() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[14px] font-bold">{s.collectionTitle}</p>
                       <p className="mt-0.5 text-[12px] text-ink-sub">
-                        {s.buyerNickname} · {formatDotDate(s.soldAt)}
+                        {s.buyerUsername} · {formatDotDate(s.soldAt)}
                       </p>
                     </div>
                     <div className="text-right">

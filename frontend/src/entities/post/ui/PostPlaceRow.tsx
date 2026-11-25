@@ -18,8 +18,8 @@ export function PostPlaceRow({ post, places = post.places, showAuthor = true }: 
         <div className="flex items-center gap-1.5">
           {showAuthor && (
             <>
-              <Avatar src={post.author.profileImageUrl} name={post.author.nickname} size={20} />
-              <span className="truncate text-[13px] font-bold">{post.author.nickname}</span>
+              <Avatar src={post.author.profileImageUrl} name={post.author.username} size={20} />
+              <span className="truncate text-[13px] font-bold">{post.author.username}</span>
               <span className="shrink-0 text-[12px] text-ink-faint">·</span>
             </>
           )}

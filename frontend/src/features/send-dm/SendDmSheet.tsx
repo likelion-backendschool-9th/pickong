@@ -14,7 +14,6 @@ import { useToast } from "@/shared/ui/Toast";
 
 interface Target {
   username: string;
-  nickname: string;
   profileImageUrl: string | null;
   /** 이미 대화 중이면 대화방 id */
   conversationId?: string;
@@ -47,7 +46,7 @@ function Picker({ text, onDone }: { text: string; onDone: () => void }) {
     },
     onSuccess: (_r, target) => {
       qc.invalidateQueries({ queryKey: conversationKeys.all });
-      toast({ message: `${target.nickname}님에게 보냈어요` });
+      toast({ message: `${target.username}님에게 보냈어요` });
       onDone();
     },
     onError: (e) => toast({ message: errorMessage(e) }),
@@ -88,10 +87,9 @@ function Picker({ text, onDone }: { text: string; onDone: () => void }) {
         <ul>
           {targets.map((t) => (
             <li key={t.username} className="flex items-center gap-3 py-2">
-              <Avatar src={t.profileImageUrl} name={t.nickname} size={40} />
+              <Avatar src={t.profileImageUrl} name={t.username} size={40} />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[14px] font-bold">{t.nickname}</span>
-                <span className="block truncate text-[12px] text-ink-sub">@{t.username}</span>
+                <span className="block truncate text-[14px] font-bold">{t.username}</span>
               </span>
               <button
                 type="button"

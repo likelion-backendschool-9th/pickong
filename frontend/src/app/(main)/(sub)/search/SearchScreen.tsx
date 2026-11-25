@@ -84,7 +84,7 @@ export function SearchScreen() {
                   <div className="min-w-0">
                     <p className="line-clamp-2 text-[14px] font-bold">{p.content.split("\n")[0]}</p>
                     <p className="mt-0.5 text-[12px] text-ink-sub">
-                      {p.author.nickname} · 사진 {p.photos.length} · 장소 {p.places.length}곳
+                      {p.author.username} · 사진 {p.photos.length} · 장소 {p.places.length}곳
                     </p>
                   </div>
                 </button>

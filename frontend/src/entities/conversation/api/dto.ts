@@ -2,7 +2,7 @@ import type { PlaceDto } from "@/entities/place";
 import type { UserSummaryDto } from "@/entities/user";
 
 export type MessageAttachmentDto =
-  | { type: "POST"; post: { id: string; imageUrl: string | null; authorNickname: string; content: string } | null }
+  | { type: "POST"; post: { id: string; imageUrl: string | null; authorUsername: string; content: string } | null }
   | { type: "PLACE"; place: PlaceDto | null }
   | { type: "IMAGE"; url: string };
 

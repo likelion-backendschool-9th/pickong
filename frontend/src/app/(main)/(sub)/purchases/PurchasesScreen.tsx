@@ -52,7 +52,7 @@ function PurchaseCard({ p }: { p: Purchase }) {
           <Thumb src={p.collection.coverImageUrl} alt="" className="size-14" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-[15px] font-bold">{p.collection.title}</p>
-            <p className="mt-0.5 text-[12px] text-ink-sub">{p.collection.ownerNickname}</p>
+            <p className="mt-0.5 text-[12px] text-ink-sub">{p.collection.ownerUsername}</p>
           </div>
         </Link>
       ) : (

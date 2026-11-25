@@ -42,7 +42,7 @@ class ConcurrentSignupConstraintTest {
     }
 
     @Test
-    @DisplayName("같은 닉네임(대소문자만 다름)이 DB까지 가면 USERNAME_TAKEN으로 바뀐다")
+    @DisplayName("같은 아이디(대소문자만 다름)이 DB까지 가면 USERNAME_TAKEN으로 바뀐다")
     void usernameUniqueMapped() {
         users.save(newUser("seoyeon", null));
 

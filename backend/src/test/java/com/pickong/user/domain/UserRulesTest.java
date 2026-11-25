@@ -11,7 +11,7 @@ import java.time.OffsetDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/** 닉네임(= 사용자 ID) · 이름 · 신규 회원 규칙 단위 테스트. 프론트 nickname.test.ts · name.test.ts와 같은 기준입니다. */
+/** 아이디 · 이름 · 신규 회원 규칙 단위 테스트. 프론트 nickname.test.ts · name.test.ts와 같은 기준입니다. */
 class UserRulesTest {
 
     private static final OffsetDateTime NOW = OffsetDateTime.parse("2026-11-23T00:00:00Z");
@@ -24,7 +24,7 @@ class UserRulesTest {
     }
 
     @Test
-    @DisplayName("닉네임: 영문으로 시작하는 3~20자, 영문 소문자 · 숫자 · _ · .만")
+    @DisplayName("아이디: 영문으로 시작하는 3~20자, 영문 소문자 · 숫자 · _ · .만")
     void usernameFormat() {
         assertThat(Username.of("seoyeon").value()).isEqualTo("seoyeon");
         assertThat(Username.of("seo_yeon.92").value()).isEqualTo("seo_yeon.92");
@@ -39,20 +39,20 @@ class UserRulesTest {
     }
 
     @Test
-    @DisplayName("닉네임: 마침표는 끝 · 연속으로 쓸 수 없다")
+    @DisplayName("아이디: 마침표는 끝 · 연속으로 쓸 수 없다")
     void usernameDots() {
         assertInvalidUsername("seoyeon.");
         assertInvalidUsername("seo..yeon");
     }
 
     @Test
-    @DisplayName("닉네임: 앞뒤 공백은 지우고 대문자는 소문자로 맞춘다")
+    @DisplayName("아이디: 앞뒤 공백은 지우고 대문자는 소문자로 맞춘다")
     void usernameNormalized() {
         assertThat(Username.of("  SeoYeon ").value()).isEqualTo("seoyeon");
     }
 
     @Test
-    @DisplayName("닉네임: admin · pickong 같은 예약어를 구분한다")
+    @DisplayName("아이디: admin · pickong 같은 예약어를 구분한다")
     void reserved() {
         assertThat(Username.of("admin").isReserved()).isTrue();
         assertThat(Username.of("Pickong").isReserved()).isTrue();

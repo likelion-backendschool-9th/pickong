@@ -52,12 +52,12 @@ function GroupRow({ g }: { g: GroupChat }) {
       <span className="relative size-12 shrink-0" aria-hidden>
         {faces[0] && (
           <span className="absolute top-0 left-0">
-            <Avatar src={faces[0].profileImageUrl} name={faces[0].nickname} size={32} />
+            <Avatar src={faces[0].profileImageUrl} name={faces[0].username} size={32} />
           </span>
         )}
         {faces[1] && (
           <span className="absolute right-0 bottom-0 rounded-full ring-2 ring-bg">
-            <Avatar src={faces[1].profileImageUrl} name={faces[1].nickname} size={32} />
+            <Avatar src={faces[1].profileImageUrl} name={faces[1].username} size={32} />
           </span>
         )}
       </span>
@@ -68,7 +68,7 @@ function GroupRow({ g }: { g: GroupChat }) {
           {g.isOwner && <Crown size={13} className="text-primary-deep" aria-label="방장" />}
           {g.muted && <BellOff size={13} className="text-ink-faint" aria-label="알림 꺼짐" />}
         </div>
-        <p className="truncate text-[12px] text-ink-sub">{g.members.map((m) => m.nickname).join(", ")}</p>
+        <p className="truncate text-[12px] text-ink-sub">{g.members.map((m) => m.username).join(", ")}</p>
       </div>
       <span className="text-[11px] text-ink-faint">{formatRelative(g.updatedAt)}</span>
     </Link>

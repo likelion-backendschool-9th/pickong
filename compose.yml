@@ -6,3 +6,12 @@ services:
       target: runner
     expose:
       - "3000"
+
+  # DB_URL · DB_USERNAME · DB_PASSWORD · JWT_SECRET 등은 환경변수로 넣습니다.
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runner
+    expose:
+      - "8080"

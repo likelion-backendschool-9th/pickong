@@ -46,7 +46,7 @@ public class SignUpService implements SignUpUseCase {
      *   <li>임시 가입 토큰 확인 (없거나 만료 → 401, 이미 로그인한 상태 → 409 ALREADY_REGISTERED)</li>
      *   <li>이 소셜 계정이 이미 가입돼 있는지 (같은 토큰으로 두 번 제출)</li>
      *   <li>인증된 이메일이 그 사이 다른 계정에 연결됐는지 (로그인 때 확인했지만 30분 사이에 바뀔 수 있음)</li>
-     *   <li>회원 생성 (user 모듈: 닉네임 · 이름 · 이메일 규칙)</li>
+     *   <li>회원 생성 (user 모듈: 아이디 · 이름 · 이메일 규칙)</li>
      *   <li>소셜 계정 연결</li>
      *   <li>약관 동의 기록 (terms 모듈: 필수 약관 확인)</li>
      * </ol>

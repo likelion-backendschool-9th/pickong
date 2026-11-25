@@ -41,7 +41,7 @@ export default function LoginPage() {
               <>
                 쓰던 계정으로 바로 시작해요.
                 <br />
-                처음이라면 닉네임만 정하면 돼요.
+                처음이라면 아이디만 정하면 돼요.
               </>
             }
           />

@@ -6,29 +6,30 @@ const ago = (days: number) => new Date(Date.now() - days * 86_400_000).toISOStri
 
 type TermsType = "SERVICE" | "PRIVACY" | "MARKETING";
 
-/** 백엔드 V8__create_terms_sections.sql의 1.0 초안과 같은 문구. (아직 정하지 않은 정책은 넣지 않은 법률 검토 전 초안) */
+/** 지금 시행 중인 버전. 백엔드와 같은 문구입니다: SERVICE · PRIVACY는 V12의 1.1, MARKETING은 V8의 1.0 (법률 검토 전 초안) */
 const TERMS: Record<TermsType, { title: string; required: boolean; version: string; effectiveDate: string; sections: { heading: string; body: string }[] }> = {
   SERVICE: {
     title: "서비스 이용약관",
     required: true,
-    version: "1.0",
-    effectiveDate: "2026-11-01",
+    version: "1.1",
+    effectiveDate: "2026-11-25",
     sections: [
       { heading: "제1조 (목적)", body: "이 약관은 찜콩(이하 ‘서비스’)이 제공하는 장소 저장 · 공유 · 일정 기능의 이용 조건과 절차, 회원과 서비스의 권리 · 의무를 정합니다." },
       { heading: "제2조 (회원 가입)", body: "회원 가입은 이용자가 카카오 또는 Google 계정으로 로그인하고 약관에 동의한 뒤 가입 신청을 하면 완료됩니다. 한 사람은 하나의 계정만 만들 수 있습니다." },
       { heading: "제3조 (게시물)", body: "회원이 올린 사진 · 후기 · 컬렉션의 권리는 회원에게 있습니다. 다른 사람의 권리를 침해하는 게시물은 신고에 따라 숨김 처리될 수 있습니다." },
-      { heading: "제4조 (탈퇴)", body: "회원은 언제든지 탈퇴할 수 있습니다. 탈퇴 후 정보 처리와 다시 가입하는 절차는 서비스의 운영 정책을 따릅니다." },
+      { heading: "제4조 (탈퇴)", body: "회원은 언제든지 설정에서 탈퇴를 신청할 수 있습니다. 신청하면 바로 모든 기기에서 로그아웃되고, 프로필과 게시물이 다른 회원에게 보이지 않습니다. 신청한 때부터 30일 안에 같은 소셜 계정으로 다시 로그인하면 탈퇴를 취소할 수 있습니다. 30일이 지나면 계정 정보와 게시물, 저장한 장소 · 컬렉션 · 일정을 지우며 되돌릴 수 없습니다. 회원이 남긴 댓글은 지우지 않고 작성자를 ‘탈퇴한 사용자’로 표시합니다." },
+      { heading: "제5조 (다시 가입)", body: "탈퇴를 신청한 뒤 30일 동안은 같은 소셜 계정으로 새로 가입할 수 없고, 로그인하면 탈퇴를 취소하는 화면으로 이동합니다. 30일이 지나 계정 정보가 지워진 뒤에는 같은 소셜 계정으로 새로 가입할 수 있으며, 이전 계정의 정보와 게시물은 이어지지 않습니다." },
     ],
   },
   PRIVACY: {
     title: "개인정보 수집 및 이용",
     required: true,
-    version: "1.0",
-    effectiveDate: "2026-11-01",
+    version: "1.1",
+    effectiveDate: "2026-11-25",
     sections: [
       { heading: "수집 항목", body: "필수: 소셜 계정 식별자(카카오 · Google 회원번호), 사용자 ID, 소셜 계정에서 인증된 이메일(제공되는 경우)\n선택: 이름, 프로필 사진, 소개, 활동 지역" },
       { heading: "이용 목적", body: "회원 식별, 한 사람 한 계정 확인, 서비스 제공, 부정 이용 방지" },
-      { heading: "보관 기간", body: "탈퇴하면 개인정보를 파기합니다. 파기 시점과 관련 법령에 따라 따로 보관하는 정보는 서비스의 운영 정책을 따릅니다." },
+      { heading: "보관 기간 및 파기", body: "탈퇴를 신청하면 30일 동안 보관한 뒤 파기합니다. 이 기간에 다시 로그인하면 탈퇴를 취소할 수 있습니다. 파기할 때는 이름 · 이메일 · 프로필 사진 · 소개 · 활동 지역 · 소셜 계정 연결을 지우고, 사용자 ID는 알아볼 수 없는 값으로 바꿉니다. 탈퇴 사유는 서비스 개선 통계로만 쓰며, 회원을 알아볼 수 없게 날짜와 함께만 보관합니다. 카카오 · Google 계정 설정의 ‘연결된 앱’에서 찜콩 연결은 회원이 직접 해제할 수 있습니다." },
     ],
   },
   MARKETING: {
@@ -45,7 +46,7 @@ const TERMS: Record<TermsType, { title: string; required: boolean; version: stri
 
 /**
  * 재동의 화면을 mock으로 보려면 MOCK_RECONSENT=PRIVACY,MARKETING처럼 지정합니다.
- * 지정한 약관이 '재동의 필요' 1.1로 바뀐 것으로 보고, 다시 동의할 때까지 동의하지 않음으로 둡니다.
+ * 지정한 약관이 '재동의 필요' 다음 버전(예: 1.1 → 1.2)으로 바뀐 것으로 보고, 다시 동의할 때까지 동의하지 않음으로 둡니다.
  * (서버의 403 TERMS_RECONSENT_REQUIRED 차단은 흉내 내지 않습니다. 백엔드로 확인하세요)
  */
 const reconsent = new Set(
@@ -54,7 +55,12 @@ const reconsent = new Set(
     .map((type) => type.trim().toUpperCase())
     .filter((type): type is TermsType => type === "SERVICE" || type === "PRIVACY" || type === "MARKETING"),
 );
-for (const type of reconsent) TERMS[type].version = "1.1";
+/** 다음 버전 번호 (1.1 → 1.2) */
+const nextVersion = (version: string) => {
+  const [major, minor = "0"] = version.split(".");
+  return `${major}.${Number(minor) + 1}`;
+};
+for (const type of reconsent) TERMS[type].version = nextVersion(TERMS[type].version);
 
 const agreements: Record<TermsType, { agreed: boolean; agreedAt: string | null }> = {
   SERVICE: { agreed: true, agreedAt: ago(40) },
@@ -151,16 +157,7 @@ export const accountRoutes: Route[] = [
       return agreementList();
     },
   },
-  {
-    /** 탈퇴: 사유 확인. 소셜 로그인 전용이라 비밀번호는 받지 않습니다. */
-    method: "POST",
-    path: "/api/v1/me/withdrawal",
-    delay: 600,
-    handler: ({ body }) => {
-      if (!String(body?.reason ?? "")) throw new HttpError(400, "INVALID_INPUT", "탈퇴 사유를 선택해 주세요.");
-      return undefined;
-    },
-  },
+  // 탈퇴 신청(POST /api/v1/me/withdrawal)은 세션을 끊어야 해서 auth.ts에 있습니다.
 
   // ── 푸시 알림 설정 ──────────────────────────────────
   { method: "GET", path: "/api/v1/me/notification-settings", handler: () => notificationSettings },

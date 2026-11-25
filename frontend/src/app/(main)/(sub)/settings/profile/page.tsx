@@ -36,14 +36,14 @@ function EditProfileForm({ me }: { me: User }) {
   const router = useRouter();
   const toast = useToast();
   const update = useUpdateMe();
-  // 닉네임 = 사용자 ID: 바꾸면 프로필 주소(/users/닉네임)도 함께 바뀝니다.
+  // 아이디: 바꾸면 프로필 주소(/users/아이디)도 함께 바뀝니다.
   const [nickname, setNickname] = useState(me.username);
-  // 이름: 중복 가능, 비우면 null(화면에는 닉네임이 대신 보임)
+  // 이름: 중복 가능, 비우면 null. 프로필의 소개 위에만 보입니다(다른 화면은 아이디만)
   const [name, setName] = useState(me.name ?? "");
   const [bio, setBio] = useState(me.bio);
   const [region, setRegion] = useState(me.region);
 
-  // 닉네임은 14일에 한 번만 바꿀 수 있습니다. 아직 바꿀 수 없으면 입력칸을 잠그고 다음 변경 가능 날짜를 보여 줍니다.
+  // 아이디는 14일에 한 번만 바꿀 수 있습니다. 아직 바꿀 수 없으면 입력칸을 잠그고 다음 변경 가능 날짜를 보여 줍니다.
   const lockMessage = nicknameLockMessage(me.usernameChangeableAt);
   const status = useNicknameCheck(nickname, me.username);
   const { error: nicknameErr, hint } = nicknameFeedback(nickname, status);
@@ -59,7 +59,7 @@ function EditProfileForm({ me }: { me: User }) {
           <span className="text-[12px] text-ink-faint">사진 변경은 업로드 API 연결 후 제공돼요</span>
         </div>
         <Field
-          label="닉네임"
+          label="아이디"
           htmlFor="pf-nick"
           error={nicknameErr}
           hint={
@@ -98,7 +98,7 @@ function EditProfileForm({ me }: { me: User }) {
           htmlFor="pf-name"
           optional
           error={nameErr}
-          hint="다른 사람과 같아도 돼요. 비워 두면 닉네임이 대신 보여요."
+          hint="다른 사람과 같아도 돼요. 프로필에만 보여요."
         >
           <Input
             id="pf-name"

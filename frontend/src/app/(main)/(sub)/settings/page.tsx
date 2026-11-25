@@ -10,7 +10,7 @@ export default function SettingsPage() {
   return (
     <div>
       <TopBar title="계정 설정" backHref={me ? routes.user(me.username) : routes.feed()} />
-      <h2 className="px-5 pt-2 pb-3 text-[20px] font-bold">{me?.nickname ?? ""}님의 계정</h2>
+      <h2 className="px-5 pt-2 pb-3 text-[20px] font-bold">{me?.username ?? ""}님의 계정</h2>
       <SettingsMenu />
     </div>
   );

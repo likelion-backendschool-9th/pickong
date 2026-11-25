@@ -37,7 +37,7 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
   /** 답글 달기 버튼 클릭: setText + setReplyTo를 같은 렌더에서 처리해야 span이 바로 보임 */
   const handleReply = (comment: PostComment) => {
     replySource.current = "button";
-    setText(`@${comment.author.nickname} `);
+    setText(`@${comment.author.username} `);
     setReplyTo(comment);
   };
 
@@ -60,7 +60,7 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
         <form onSubmit={submit} className="space-y-2">
           {replyTo && (
             <div className="flex items-center justify-between text-[12px] text-ink-sub">
-              <span>{replyTo.author.nickname}님에게 답글 남기는 중</span>
+              <span>{replyTo.author.username}님에게 답글 남기는 중</span>
               <button type="button" onClick={() => { setReplyTo(null); setText(""); }} className="font-bold">취소</button>
             </div>
           )}
@@ -70,21 +70,21 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
              * text 상태는 항상 전체 문자열(@닉네임 포함)로 유지하고, onChange에서 재조합합니다.
              */}
             <div className="flex h-11 flex-1 items-center overflow-hidden rounded-full bg-soft px-4 focus-within:ring-2 focus-within:ring-primary-deep/30">
-              {replyTo && text.startsWith(`@${replyTo.author.nickname}`) && (
+              {replyTo && text.startsWith(`@${replyTo.author.username}`) && (
                 <span className="shrink-0 text-[14px] font-medium text-primary-deep">
-                  {`@${replyTo.author.nickname}`}
+                  {`@${replyTo.author.username}`}
                 </span>
               )}
               <input
                 ref={inputRef}
                 value={
-                  replyTo && text.startsWith(`@${replyTo.author.nickname}`)
-                    ? text.slice(`@${replyTo.author.nickname}`.length)
+                  replyTo && text.startsWith(`@${replyTo.author.username}`)
+                    ? text.slice(`@${replyTo.author.username}`.length)
                     : text
                 }
                 onChange={(e) => {
                   const suffix = e.target.value;
-                  const mention = replyTo ? `@${replyTo.author.nickname}` : null;
+                  const mention = replyTo ? `@${replyTo.author.username}` : null;
                   const val = mention && text.startsWith(mention) ? mention + suffix : suffix;
                   setText(val);
 
@@ -92,8 +92,8 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
                   // (공백이 붙는 순간 확정 — 닉네임 완성 기준)
                   const mentionMatch = suffix.match(/^@(\S+)\s/);
                   if (mentionMatch && !replyTo) {
-                    const nickname = mentionMatch[1];
-                    const matched = comments?.find((c) => c.author.nickname === nickname);
+                    const username = mentionMatch[1];
+                    const matched = comments?.find((c) => c.author.username === username);
                     if (matched) {
                       replySource.current = "mention";
                       setReplyTo(matched);
@@ -102,7 +102,7 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
                 }}
                 onKeyDown={(e) => {
                   // input이 비었을 때 backspace → 멘션 span 제거
-                  const mention = replyTo ? `@${replyTo.author.nickname}` : null;
+                  const mention = replyTo ? `@${replyTo.author.username}` : null;
                   const suffix = mention && text.startsWith(mention) ? text.slice(mention.length) : text;
                   if (e.key === "Backspace" && replyTo && suffix === "") {
                     setReplyTo(null);
@@ -160,11 +160,11 @@ function CommentItem({ comment, onReply, small }: { comment: PostComment; onRepl
   return (
     <div className="flex gap-3">
       <Link href={routes.user(comment.author.username)}>
-        <Avatar src={comment.author.profileImageUrl} name={comment.author.nickname} size={small ? 28 : 32} />
+        <Avatar src={comment.author.profileImageUrl} name={comment.author.username} size={small ? 28 : 32} />
       </Link>
       <div className="min-w-0 flex-1">
         <div className="text-[13px]">
-          <span className="font-bold">{comment.author.nickname}</span>
+          <span className="font-bold">{comment.author.username}</span>
           <span className="ml-1.5 text-[11px] text-ink-faint">{formatRelative(comment.createdAt)}</span>
         </div>
         <p className="mt-0.5 text-[14px] leading-relaxed whitespace-pre-line">{comment.content}</p>

@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * auth 모듈 전용 회원 계정 기능: 로그인 가능 여부, 신규 회원 생성.
- * (닉네임 사용 가능 여부 · 내 정보 · 프로필 수정은 {@link UserProfileService})
+ * (아이디 사용 가능 여부 · 내 정보 · 프로필 수정은 {@link UserProfileService})
  */
 @Service
 @Transactional(readOnly = true)
@@ -36,7 +36,7 @@ public class UserAccountService implements UserAccountUseCase {
     }
 
     /**
-     * 순서: 닉네임 형식 → 예약어 · 사용 중 → 이메일 사용 중 → 이름 규칙(User.register) → 저장.
+     * 순서: 아이디 형식 → 예약어 · 사용 중 → 이메일 사용 중 → 이름 규칙(User.register) → 저장.
      * 미리 확인하는 이유는 사용자에게 정확한 사유를 알려 주기 위해서이고,
      * 동시에 같은 값으로 가입하는 경우는 DB UNIQUE가 최종으로 막습니다(저장소 어댑터에서 같은 오류 코드로 변환).
      */

@@ -52,7 +52,7 @@ export interface SavedPlace {
 export interface PlaceDetail {
   place: Place;
   saved: SavedPlace | null;
-  discoveredFrom: { postId: string; authorNickname: string; quote: string; imageUrl: string | null } | null;
+  discoveredFrom: { postId: string; authorUsername: string; quote: string; imageUrl: string | null } | null;
   relatedPostCount: number;
   visits: { planId: string; title: string; date: string }[];
   /** 내가 직접 등록한 장소라 수정 · 삭제할 수 있는지 */

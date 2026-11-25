@@ -7,13 +7,13 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * 닉네임 = 사용자 ID (users.username). 프로필 주소(/users/{닉네임})에 그대로 쓰이는 값입니다.
+ * 아이디 (users.username). 프로필 주소(/users/{아이디})에 그대로 쓰이는 값입니다.
  * <p>
  * 규칙(프론트 entities/user/nickname.ts와 같음):
  * <ul>
  *   <li>영문으로 시작, 3~20자, 영문 소문자 · 숫자 · 밑줄(_) · 마침표(.)만</li>
  *   <li>마침표는 끝에 쓰거나 연달아 쓸 수 없음</li>
- *   <li>대문자는 소문자로 바꿔 저장 → 대소문자만 다른 닉네임은 같은 닉네임 (DB도 lower(username) UNIQUE)</li>
+ *   <li>대문자는 소문자로 바꿔 저장 → 대소문자만 다른 아이디는 같은 아이디 (DB도 lower(username) UNIQUE)</li>
  * </ul>
  *
  * @param value 규칙을 통과하고 소문자로 맞춘 값
@@ -26,7 +26,7 @@ public record Username(String value) {
     public static final String ANONYMIZED_PREFIX = "deleted_";
 
     /**
-     * 운영자 · 공식 계정으로 착각할 수 있어 회원이 쓸 수 없는 닉네임. '사용 중'으로 처리합니다.
+     * 운영자 · 공식 계정으로 착각할 수 있어 회원이 쓸 수 없는 아이디. '사용 중'으로 처리합니다.
      * (나중에 공식 계정을 만들 수 있도록 비워 둠)
      */
     private static final Set<String> RESERVED = Set.of(
@@ -35,7 +35,7 @@ public record Username(String value) {
             "api", "me", "settings", "login", "signup", "null", "undefined");
 
     /**
-     * 입력값을 검사해 닉네임을 만듭니다. 앞뒤 공백은 지우고 소문자로 맞춥니다.
+     * 입력값을 검사해 아이디를 만듭니다. 앞뒤 공백은 지우고 소문자로 맞춥니다.
      *
      * @throws BusinessException 400 INVALID_USERNAME — 형식이 맞지 않을 때
      */

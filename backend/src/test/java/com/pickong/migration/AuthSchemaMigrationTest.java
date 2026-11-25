@@ -63,7 +63,7 @@ class AuthSchemaMigrationTest {
     }
 
     @Test
-    @DisplayName("닉네임(username)은 대소문자를 무시하고 중복될 수 없다")
+    @DisplayName("아이디(username)은 대소문자를 무시하고 중복될 수 없다")
     void usernameUniqueIgnoringCase() {
         insertUser("seoyeon", null);
 

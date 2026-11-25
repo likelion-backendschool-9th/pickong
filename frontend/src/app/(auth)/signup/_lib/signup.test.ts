@@ -12,7 +12,7 @@ import {
 } from "./signup";
 
 describe("온보딩 단계", () => {
-  it("닉네임 → 프로필 → 약관 순서로 번호를 매긴다", () => {
+  it("아이디 → 프로필 → 약관 순서로 번호를 매긴다", () => {
     expect(stepNumber("nickname")).toBe(1);
     expect(stepNumber("profile")).toBe(2);
     expect(stepNumber("terms")).toBe(3);
@@ -61,7 +61,7 @@ describe("약관 동의", () => {
 });
 
 describe("stepForSignupError", () => {
-  it("닉네임 · 이름 · 약관 오류를 각 단계로 돌려보낸다", () => {
+  it("아이디 · 이름 · 약관 오류를 각 단계로 돌려보낸다", () => {
     expect(stepForSignupError("USERNAME_TAKEN")).toBe("nickname");
     expect(stepForSignupError("INVALID_USERNAME")).toBe("nickname");
     expect(stepForSignupError("INVALID_NAME")).toBe("profile");

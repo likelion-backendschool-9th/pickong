@@ -107,16 +107,27 @@ class SignupFlowIntegrationTest {
         return jdbc.queryForObject(sql, Integer.class, args);
     }
 
-    // ── 약관 데이터 (V2) ──────────────────────────────────
+    // ── 약관 데이터 (V2 · V12) ─────────────────────────────
 
     @Test
     @DisplayName("V2 마이그레이션으로 약관 3개(필수 2 · 선택 1, 1.0)가 들어 있다")
     void termsSeeded() {
-        List<Map<String, Object>> terms = jdbc.queryForList("SELECT type, version, is_required FROM terms ORDER BY id");
+        List<Map<String, Object>> terms = jdbc.queryForList("SELECT type, version, is_required FROM terms WHERE version = '1.0' ORDER BY id");
 
         assertThat(terms).hasSize(3);
         assertThat(terms).extracting(t -> t.get("type")).containsExactly("SERVICE", "PRIVACY", "MARKETING");
         assertThat(terms).extracting(t -> t.get("is_required")).containsExactly(true, true, false);
+    }
+
+    @Test
+    @DisplayName("V12 마이그레이션으로 서비스 이용약관 · 개인정보 1.1이 들어 있다 (필수 그대로, 재동의 필요 없음, 마케팅은 1.0 그대로)")
+    void termsV11Seeded() {
+        List<Map<String, Object>> terms = jdbc.queryForList(
+                "SELECT type, is_required, requires_reconsent FROM terms WHERE version = '1.1' ORDER BY id");
+
+        assertThat(terms).extracting(t -> t.get("type")).containsExactly("SERVICE", "PRIVACY");
+        assertThat(terms).extracting(t -> t.get("is_required")).containsExactly(true, true);
+        assertThat(terms).extracting(t -> t.get("requires_reconsent")).containsExactly(false, false);
     }
 
     // ── GET /auth/signup ──────────────────────────────────
@@ -159,7 +170,7 @@ class SignupFlowIntegrationTest {
     // ── GET /auth/username-availability ───────────────────
 
     @Test
-    @DisplayName("닉네임 중복 확인: 사용 중(대소문자 무시) · 예약어는 false, 비어 있으면 true, 형식 오류는 400")
+    @DisplayName("아이디 중복 확인: 사용 중(대소문자 무시) · 예약어는 false, 비어 있으면 true, 형식 오류는 400")
     void usernameAvailability() throws Exception {
         insertUser("seoyeon", null);
 
@@ -191,8 +202,10 @@ class SignupFlowIntegrationTest {
         assertThat(count("SELECT count(*) FROM user_social_accounts WHERE user_id = ? AND provider = 'KAKAO' AND provider_id = '4242' AND email = 'kong@kakao.com'", userId))
                 .isEqualTo(1);
         assertThat(jdbc.queryForList(
-                "SELECT t.type FROM user_terms_agreements a JOIN terms t ON t.id = a.terms_id WHERE a.user_id = ? ORDER BY t.id", String.class, userId))
-                .containsExactly("SERVICE", "PRIVACY", "MARKETING");
+                "SELECT t.type || ' ' || t.version FROM user_terms_agreements a JOIN terms t ON t.id = a.terms_id WHERE a.user_id = ?",
+                String.class, userId))
+                .as("종류마다 지금 시행 중인 버전으로 기록")
+                .containsExactlyInAnyOrder("SERVICE 1.1", "PRIVACY 1.1", "MARKETING 1.0");
 
         String access = setCookie(result, AuthCookies.ACCESS_TOKEN);
         assertThat(accessTokenVerifier.verify(access.substring(access.indexOf('=') + 1, access.indexOf(';')))).contains(new LoginUser(userId));
@@ -226,7 +239,7 @@ class SignupFlowIntegrationTest {
     }
 
     @Test
-    @DisplayName("닉네임: 사용 중 · 예약어는 409 USERNAME_TAKEN, 형식 오류는 400 INVALID_USERNAME, 이름 21자는 400 INVALID_NAME")
+    @DisplayName("아이디: 사용 중 · 예약어는 409 USERNAME_TAKEN, 형식 오류는 400 INVALID_USERNAME, 이름 21자는 400 INVALID_NAME")
     void usernameAndNameErrors() throws Exception {
         insertUser("seoyeon", null);
         List<String> required = List.of("SERVICE", "PRIVACY");

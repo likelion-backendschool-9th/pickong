@@ -64,7 +64,7 @@ export function Screen({ children, className }: { children: ReactNode; className
 /**
  * 탭 화면 상단 제목: 작은 영문 라벨(MY MAP 등) + 큰 제목.
  * - variant "ko": 한글 기능 제목 (IBM Plex Sans KR Medium 29px)
- * - variant "latin": 영문 닉네임 (Inter Semi Bold 28px)
+ * - variant "latin": 영문 아이디 (Inter Semi Bold 28px)
  * titleAddon은 제목 바로 오른쪽(예: 계정 화살표), right는 오른쪽 끝(아이콘 버튼 등)에 놓입니다.
  * compact: 지도처럼 화면을 넓게 써야 하는 곳에서 여백과 제목 크기를 줄입니다 (한글 제목 26px).
  */
