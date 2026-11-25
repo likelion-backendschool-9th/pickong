@@ -73,8 +73,8 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
             </div>
           )}
           <div className="flex items-center gap-2">
-            {/* input 위에 overlay를 겹쳐 @닉네임만 색상 표시. input 자체는 text-transparent */}
-            <div className="relative flex-1">
+            {/* bg-soft·rounded-full은 wrapper에. input의 불투명 배경이 overlay를 가리지 않도록 input은 bg-transparent */}
+            <div className="relative flex-1 h-11 rounded-full bg-soft focus-within:ring-2 focus-within:ring-primary-deep/30">
               <div
                 aria-hidden
                 className="pointer-events-none absolute inset-0 flex items-center overflow-hidden whitespace-pre rounded-full px-4 text-[14px] select-none"
@@ -114,7 +114,7 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
                 }}
                 placeholder={replyTo ? "답글 달기" : "댓글 달기"}
                 aria-label="댓글 입력"
-                className="h-11 w-full rounded-full bg-soft px-4 text-[14px] text-transparent caret-ink outline-none placeholder:text-ink-faint focus:ring-2 focus:ring-primary-deep/30"
+                className="h-full w-full rounded-full bg-transparent px-4 text-[14px] text-transparent caret-ink outline-none placeholder:text-ink-faint"
                 maxLength={300}
               />
             </div>
