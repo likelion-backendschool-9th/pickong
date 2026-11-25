@@ -68,7 +68,14 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
             <input
               ref={inputRef}
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setText(val);
+                // @닉네임이 지워지면 답글 대상도 해제 (텍스트는 그대로 유지)
+                if (replyTo && !val.startsWith(`@${replyTo.author.nickname}`)) {
+                  setReplyTo(null);
+                }
+              }}
               placeholder={replyTo ? "답글 달기" : "댓글 달기"}
               aria-label="댓글 입력"
               className="h-11 flex-1 rounded-full bg-soft px-4 text-[14px] outline-none placeholder:text-ink-faint focus:ring-2 focus:ring-primary-deep/30"
