@@ -65,7 +65,7 @@ export function NewPlaceScreen() {
           onBoundsChange={setBounds}
           markers={nearby.map((p) => ({ id: p.id, position: p.location, title: p.name, tone: "poi" as const }))}
           onMarkerClick={(id) => setPicked(nearby.find((p) => p.id === id) ?? null)}
-          caption="예시 지도 · 가운데 핀 위치로 제보"
+          caption="가운데 핀 위치로 제보"
         />
       </div>
 

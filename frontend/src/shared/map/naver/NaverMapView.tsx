@@ -359,7 +359,13 @@ export function NaverMapView({
       aria-label={ariaLabel}
       className={cn("relative overflow-hidden bg-map-land select-none", className)}
     >
-      <div ref={containerRef} className="absolute inset-0 size-full" />
+      {/*
+        SDK가 지도 요소에 인라인 position: relative를 넣어 absolute가 무효가 됩니다.
+        래퍼가 높이를 확정해야 부모가 min-h · flex-1일 때도 지도 높이가 0이 되지 않습니다.
+      */}
+      <div className="absolute inset-0">
+        <div ref={containerRef} className="size-full" />
+      </div>
 
       {status === "loading" && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-map-land text-[13px] text-ink-sub">
