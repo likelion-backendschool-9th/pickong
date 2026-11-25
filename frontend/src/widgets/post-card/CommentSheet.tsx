@@ -73,35 +73,51 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
             </div>
           )}
           <div className="flex items-center gap-2">
-            <input
-              ref={inputRef}
-              value={text}
-              onChange={(e) => {
-                const val = e.target.value;
-                setText(val);
+            {/* input 위에 overlay를 겹쳐 @닉네임만 색상 표시. input 자체는 text-transparent */}
+            <div className="relative flex-1">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 flex items-center overflow-hidden whitespace-pre rounded-full px-4 text-[14px] select-none"
+              >
+                {replyTo && text.startsWith(`@${replyTo.author.nickname}`) ? (
+                  <>
+                    <span className="font-medium text-primary-deep">{`@${replyTo.author.nickname}`}</span>
+                    <span className="text-ink">{text.slice(`@${replyTo.author.nickname}`.length)}</span>
+                  </>
+                ) : (
+                  <span className="text-ink">{text}</span>
+                )}
+              </div>
+              <input
+                ref={inputRef}
+                value={text}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setText(val);
 
-                // @닉네임이 지워지면 답글 대상 해제
-                if (replyTo && !val.startsWith(`@${replyTo.author.nickname}`)) {
-                  setReplyTo(null);
-                }
-
-                // "@닉네임 " 형태로 직접 입력하면 해당 댓글 작성자를 답글 대상으로 자동 감지
-                // (공백이 붙는 순간 확정 — 닉네임 완성 기준)
-                const mentionMatch = val.match(/^@(\S+)\s/);
-                if (mentionMatch && !replyTo) {
-                  const nickname = mentionMatch[1];
-                  const matched = comments?.find((c) => c.author.nickname === nickname);
-                  if (matched) {
-                    replySource.current = "mention";
-                    setReplyTo(matched);
+                  // @닉네임이 지워지면 답글 대상 해제
+                  if (replyTo && !val.startsWith(`@${replyTo.author.nickname}`)) {
+                    setReplyTo(null);
                   }
-                }
-              }}
-              placeholder={replyTo ? "답글 달기" : "댓글 달기"}
-              aria-label="댓글 입력"
-              className="h-11 flex-1 rounded-full bg-soft px-4 text-[14px] outline-none placeholder:text-ink-faint focus:ring-2 focus:ring-primary-deep/30"
-              maxLength={300}
-            />
+
+                  // "@닉네임 " 형태로 직접 입력하면 해당 댓글 작성자를 답글 대상으로 자동 감지
+                  // (공백이 붙는 순간 확정 — 닉네임 완성 기준)
+                  const mentionMatch = val.match(/^@(\S+)\s/);
+                  if (mentionMatch && !replyTo) {
+                    const nickname = mentionMatch[1];
+                    const matched = comments?.find((c) => c.author.nickname === nickname);
+                    if (matched) {
+                      replySource.current = "mention";
+                      setReplyTo(matched);
+                    }
+                  }
+                }}
+                placeholder={replyTo ? "답글 달기" : "댓글 달기"}
+                aria-label="댓글 입력"
+                className="h-11 w-full rounded-full bg-soft px-4 text-[14px] text-transparent caret-ink outline-none placeholder:text-ink-faint focus:ring-2 focus:ring-primary-deep/30"
+                maxLength={300}
+              />
+            </div>
             <button
               type="submit"
               disabled={!text.trim() || add.isPending}
