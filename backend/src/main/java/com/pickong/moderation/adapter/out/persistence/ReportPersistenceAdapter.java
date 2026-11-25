@@ -1,18 +1,22 @@
 package com.pickong.moderation.adapter.out.persistence;
 
+import com.pickong.common.error.BusinessException;
 import com.pickong.moderation.adapter.out.persistence.entity.ReportJpaEntity;
 import com.pickong.moderation.adapter.out.persistence.repository.ReportJpaRepository;
 import com.pickong.moderation.application.dto.ReportDismissal;
 import com.pickong.moderation.application.port.out.ReportPersistencePort;
+import com.pickong.moderation.domain.ModerationErrorCode;
 import com.pickong.moderation.domain.model.Report;
 import com.pickong.moderation.domain.vo.ReportAction;
 import com.pickong.moderation.domain.vo.ReportStatus;
 import com.pickong.moderation.domain.vo.ReportTargetType;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -25,6 +29,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class ReportPersistenceAdapter implements ReportPersistencePort {
+
+    static final String PENDING_REPORTER_TARGET = "ux_reports_pending_reporter_target";
 
     private final ReportJpaRepository repository;
     private final JdbcTemplate jdbc;
@@ -40,6 +46,27 @@ public class ReportPersistenceAdapter implements ReportPersistencePort {
     @Override
     public Optional<Report> findById(long id) {
         return repository.findById(id).map(ReportPersistenceAdapter::toDomain);
+    }
+
+    @Override
+    public boolean existsPending(long reporterId, ReportTargetType targetType, long targetId) {
+        if (reporterId <= 0 || targetId <= 0 || targetType == null) {
+            return false;
+        }
+        return repository.existsByReporterIdAndTargetTypeAndTargetIdAndStatus(
+                reporterId, targetType.name(), targetId, ReportStatus.PENDING.name());
+    }
+
+    @Override
+    public Report save(Report report) {
+        if (report.getId() != null || report.getStatus() != ReportStatus.PENDING) {
+            throw new IllegalArgumentException("새 대기 신고만 저장합니다.");
+        }
+        try {
+            return toDomain(repository.saveAndFlush(ReportJpaEntity.forInsert(report)));
+        } catch (DataIntegrityViolationException exception) {
+            throw translate(exception);
+        }
     }
 
     @Override
@@ -72,6 +99,17 @@ public class ReportPersistenceAdapter implements ReportPersistencePort {
         primary.applyDismissal(dismissed.getResolutionAction().name(), dismissed.getResolutionMemo(), adminId, now);
         entityManager.flush();
         return ReportDismissal.dismissed(dismissed);
+    }
+
+    /** 대기 신고 중복 인덱스만 중복 신고로 바꿉니다. FK · CHECK 위반은 그대로 둡니다. */
+    private static RuntimeException translate(DataIntegrityViolationException exception) {
+        Throwable cause = exception.getMostSpecificCause();
+        if (cause instanceof SQLException sql
+                && "23505".equals(sql.getSQLState())
+                && String.valueOf(cause.getMessage()).contains(PENDING_REPORTER_TARGET)) {
+            return new BusinessException(ModerationErrorCode.DUPLICATE_REPORT);
+        }
+        return exception;
     }
 
     private static Report toDomain(ReportJpaEntity entity) {

@@ -84,9 +84,10 @@ class ReportAdminIntegrationTest {
     @DisplayName("대기와 완료를 접수 시각 내림차순으로 나누고, 결과가 없으면 빈 배열이다")
     void listsByStatus() throws Exception {
         long reporter = insertUser("신고자", "reporter@example.com");
+        long otherReporter = insertUser("다른 신고자", null);
         long author = insertUser("작성자", "author@example.com");
         long feed = insertFeed(author, "report-it-목록");
-        long older = insertPending(reporter, "FEED", feed, "SPAM", "같은 사진", null, OLDER);
+        long older = insertPending(otherReporter, "FEED", feed, "SPAM", "같은 사진", null, OLDER);
         long newer = insertPending(reporter, "FEED", feed, "ABUSE", "", null, NEWER);
         insertResolved(reporter, "USER", author, "ETC", OLDER.minusHours(1), 3L, "이전 기각");
 
@@ -122,11 +123,12 @@ class ReportAdminIntegrationTest {
     @DisplayName("기각은 선택한 신고만 닫고, 같은 대상의 다른 신고와 기존 처리 이력은 유지한다")
     void dismissesOnlyTheSelectedReport() throws Exception {
         long reporter = insertUser("신고자", null);
+        long siblingReporter = insertUser("다른 신고자", null);
         long author = insertUser("작성자", null);
         long feed = insertFeed(author, "report-it-기각");
         long otherFeed = insertFeed(author, "report-it-다른대상");
         long primary = insertPending(reporter, "FEED", feed, "SPAM", "반복", null, NEWER);
-        long sibling = insertPending(reporter, "FEED", feed, "ABUSE", "", null, OLDER);
+        long sibling = insertPending(siblingReporter, "FEED", feed, "ABUSE", "", null, OLDER);
         long already = insertResolved(reporter, "FEED", feed, "SPAM", OLDER.minusHours(2), 3L, "기존 판단");
         long other = insertPending(reporter, "FEED", otherFeed, "SPAM", "", null, NEWER);
 
@@ -207,6 +209,7 @@ class ReportAdminIntegrationTest {
     @DisplayName("삭제된 같은 게시물의 신고는 각자의 스냅샷을 유지한다")
     void deletedReportsKeepTheirOwnSnapshots() throws Exception {
         long reporter = insertUser("신고자", null);
+        long otherReporter = insertUser("다른 신고자", null);
         long author = insertUser("작성자", null);
         long feed = insertFeed(author, "report-it-덮어쓰기");
         String olderSnapshot = """
@@ -215,7 +218,7 @@ class ReportAdminIntegrationTest {
         String newerSnapshot = """
                 {"text":"수정된 게시물","imageUrl":"https://example.com/new.jpg","reportedUserId":%d}
                 """.formatted(author);
-        long older = insertPending(reporter, "FEED", feed, "ABUSE", "", olderSnapshot, OLDER);
+        long older = insertPending(otherReporter, "FEED", feed, "ABUSE", "", olderSnapshot, OLDER);
         long newer = insertPending(reporter, "FEED", feed, "SPAM", "", newerSnapshot, NEWER);
         jdbc.update("UPDATE feeds SET deleted_at = now() WHERE id = ?", feed);
 
@@ -252,6 +255,7 @@ class ReportAdminIntegrationTest {
     @DisplayName("현재 글이 있어도 신고 당시 스냅샷을 유지하고 수정 여부를 구분한다")
     void liveTargetKeepsSnapshotBesideCurrentContent() throws Exception {
         long reporter = insertUser("신고자", null);
+        long otherReporter = insertUser("다른 신고자", null);
         long author = insertUser("작성자", null);
         long changed = insertFeed(author, "report-it-현재 본문\n둘째 줄");
         long unchanged = insertFeed(author, "report-it-같은글");
@@ -260,7 +264,7 @@ class ReportAdminIntegrationTest {
                 {"text":"욕설이 포함된 게시물\\n이전 줄","imageUrl":"https://example.com/evidence.jpg","reportedUserId":%d}
                 """.formatted(author);
         long changedReport = insertPending(reporter, "FEED", changed, "ABUSE", "", changedSnapshot, NEWER);
-        long missingSnapshot = insertPending(reporter, "FEED", changed, "SPAM", "", null, OLDER);
+        long missingSnapshot = insertPending(otherReporter, "FEED", changed, "SPAM", "", null, OLDER);
         long sameReport = insertPending(
                 reporter, "FEED", unchanged, "SPAM", "", "{\"text\":\"report-it-같은글\"}", NEWER);
         long plainReport = insertPending(reporter, "FEED", plain, "ETC", "", "평문 증거", NEWER);
@@ -277,7 +281,7 @@ class ReportAdminIntegrationTest {
         assertThat(changedItem.get("target").get("visibility").asString()).isEqualTo("LIVE");
         assertThat(changedItem.get("target").get("snapshot").get("text").asString()).isEqualTo("욕설이 포함된 게시물\n이전 줄");
         assertThat(changedItem.get("target").get("snapshot").get("imageUrl").asString()).isEqualTo("https://example.com/evidence.jpg");
-        assertThat(changedItem.get("target").get("current").get("text").asString()).isEqualTo("report-it-현재 본문");
+        assertThat(changedItem.get("target").get("current").get("text").asString()).isEqualTo("report-it-현재 본문\n둘째 줄");
         assertThat(changedItem.get("target").get("current").get("imageUrl").isNull()).isTrue();
         assertThat(changedItem.get("target").get("modified").asBoolean()).isTrue();
 
@@ -285,7 +289,7 @@ class ReportAdminIntegrationTest {
         assertThat(missingItem.get("target").get("text").asString()).isEqualTo("report-it-현재 본문");
         assertThat(missingItem.get("target").get("imageUrl").isNull()).isTrue();
         assertThat(missingItem.get("target").get("snapshot").isNull()).isTrue();
-        assertThat(missingItem.get("target").get("current").get("text").asString()).isEqualTo("report-it-현재 본문");
+        assertThat(missingItem.get("target").get("current").get("text").asString()).isEqualTo("report-it-현재 본문\n둘째 줄");
         assertThat(missingItem.get("target").get("modified").isNull()).isTrue();
 
         JsonNode sameItem = find(items, sameReport);
@@ -373,19 +377,70 @@ class ReportAdminIntegrationTest {
         assertThat(collectionItem.get("target").get("visibility").asString()).isEqualTo("UNAVAILABLE");
         assertThat(collectionItem.get("target").get("current").isNull()).isTrue();
         assertThat(collectionItem.get("target").get("link").isNull()).isTrue();
+        assertThat(collectionItem.get("target").get("modified").isNull()).isTrue();
 
         reports.resolve(deleted, 7L, "DISMISS", null, null);
         assertThat(statusOf(deleted)).isEqualTo("RESOLVED");
     }
 
     @Test
+    @DisplayName("게시물 id와 같은 id의 다른 회원이 있어도 작성자는 user_id다")
+    void reportedUserStaysTheAuthorWhenFeedIdMatchesAnotherUser() throws Exception {
+        long author = insertUser("실제작성자", "author-map@example.com");
+        long reporter = insertUser("신고자", "reporter-map@example.com");
+        long shared = nextFreeId();
+        long decoy = insertUserWithId(shared, "다른회원", "decoy-map@example.com");
+        long feed = insertFeedWithId(shared, author, "report-it-작성자확인");
+        assertThat(feed).isEqualTo(decoy).isNotEqualTo(author);
+
+        String original = """
+                {"text":"report-it-원문","imageUrl":null,"reportedUserId":%d,"textScope":"FULL"}
+                """.formatted(author);
+        long reportId = insertPending(reporter, "FEED", feed, "SPAM", "", original, NEWER);
+
+        assertAuthor(items("PENDING"), reportId, author, "실제작성자");
+
+        jdbc.update("UPDATE feeds SET hidden_at = now() WHERE id = ?", feed);
+        assertAuthor(items("PENDING"), reportId, author, "실제작성자");
+
+        jdbc.update("UPDATE feeds SET hidden_at = null, deleted_at = now() WHERE id = ?", feed);
+        JsonNode deleted = find(items("PENDING"), reportId);
+        assertThat(deleted.get("target").get("visibility").asString()).isEqualTo("DELETED");
+        assertThat(deleted.get("reportedUser").get("id").asString()).isEqualTo(Long.toString(author));
+        assertThat(deleted.get("reportedUser").get("nickname").asString()).isEqualTo("실제작성자");
+        assertThat(deleted.get("target").get("snapshot").get("text").asString()).isEqualTo("report-it-원문");
+        assertThat(snapshotOf(reportId)).isEqualTo(original);
+
+        long commentAuthor = insertUser("댓글작성자", "comment-map@example.com");
+        long commentFeed = insertFeed(author, "report-it-댓글상위");
+        long comment = insertComment(commentFeed, commentAuthor, "report-it-삭제댓글");
+        assertThat(comment).isNotEqualTo(commentAuthor);
+        String commentSnapshot = """
+                {"text":"report-it-댓글원문","imageUrl":null,"reportedUserId":%d,"textScope":"FULL"}
+                """.formatted(commentAuthor);
+        long commentReport = insertPending(reporter, "COMMENT", comment, "ABUSE", "", commentSnapshot, OLDER);
+        jdbc.update("UPDATE comments SET deleted_at = now() WHERE id = ?", comment);
+        assertAuthor(items("PENDING"), commentReport, commentAuthor, "댓글작성자");
+        assertThat(snapshotOf(commentReport)).isEqualTo(commentSnapshot);
+        assertThat(snapshotOf(reportId)).isEqualTo(original);
+
+        jdbc.update("DELETE FROM feeds WHERE id = ?", feed);
+        JsonNode missing = find(items("PENDING"), reportId);
+        assertThat(missing.get("target").get("visibility").asString()).isEqualTo("UNAVAILABLE");
+        assertThat(missing.get("reportedUser").get("id").asString()).isEqualTo(Long.toString(author));
+        assertThat(missing.get("reportedUser").get("nickname").asString()).isEqualTo("실제작성자");
+        assertThat(snapshotOf(reportId)).isEqualTo(original);
+    }
+
+    @Test
     @DisplayName("같은 트랜잭션에서 다시 읽으면 기각 결과가 보이고, 저장이 실패하면 선택한 신고는 대기로 남는다")
     void sameTransactionSeesDismissalAndFailureRollsBack() {
         long reporter = insertUser("신고자", null);
+        long siblingReporter = insertUser("다른 신고자", null);
         long author = insertUser("작성자", null);
         long feed = insertFeed(author, "report-it-롤백");
         long primary = insertPending(reporter, "FEED", feed, "SPAM", "", null, NEWER);
-        long sibling = insertPending(reporter, "FEED", feed, "SPAM", "", null, OLDER);
+        long sibling = insertPending(siblingReporter, "FEED", feed, "SPAM", "", null, OLDER);
 
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
             persistence.dismissIfPrimaryPending(primary, 7L, "확인", NEWER.plusHours(1));
@@ -428,10 +483,11 @@ class ReportAdminIntegrationTest {
     @DisplayName("같은 대상의 서로 다른 신고를 동시에 기각하면 각자 처리된다")
     void concurrentDismissOfSameTarget() throws Exception {
         long reporter = insertUser("신고자", null);
+        long rightReporter = insertUser("다른 신고자", null);
         long author = insertUser("작성자", null);
         long feed = insertFeed(author, "report-it-대상동시");
         long left = insertPending(reporter, "FEED", feed, "SPAM", "", null, NEWER);
-        long right = insertPending(reporter, "FEED", feed, "ABUSE", "", null, OLDER);
+        long right = insertPending(rightReporter, "FEED", feed, "ABUSE", "", null, OLDER);
 
         List<Object> outcomes = race(
                 () -> reports.resolve(left, 7L, "DISMISS", "왼쪽", null),
@@ -484,6 +540,215 @@ class ReportAdminIntegrationTest {
                 "SELECT resolution_action FROM reports WHERE id = ?", String.class, arrived[0])).isNull();
     }
 
+    @Test
+    @DisplayName("FULL 스냅샷 게시물은 첫 줄이 같아도 이후 본문 변경을 구분하고 전체 본문을 돌려줍니다")
+    void fullFeedSnapshotComparesTheWholeBody() throws Exception {
+        long reporter = insertUser("신고자", null);
+        long author = insertUser("작성자", null);
+        String current = "report-it-첫 줄\n바뀐 둘째 줄  ";
+        String evidence = "report-it-첫 줄\n신고 당시 둘째 줄";
+        long feed = insertFeed(author, current);
+        String snapshot = jsonText(evidence, "FULL");
+        long id = insertPending(reporter, "FEED", feed, "ABUSE", "", snapshot, NEWER);
+
+        JsonNode item = find(pendingItems(), id);
+        assertThat(item.get("target").get("text").asString()).isEqualTo("report-it-첫 줄");
+        assertThat(item.get("target").get("snapshot").get("text").asString()).isEqualTo(evidence);
+        assertThat(item.get("target").get("current").get("text").asString()).isEqualTo(current);
+        assertThat(item.get("target").get("current").get("imageUrl").isNull()).isTrue();
+        assertThat(item.get("target").get("modified").asBoolean()).isTrue();
+        assertThat(item.get("target").has("textScope")).isFalse();
+
+        reports.resolve(id, 7L, "DISMISS", null, null);
+        assertThat(jdbc.queryForObject("SELECT snapshot FROM reports WHERE id = ?", String.class, id)).isEqualTo(snapshot);
+        JsonNode resolved = find(items("RESOLVED"), id);
+        assertThat(resolved.get("target").get("snapshot").get("text").asString()).isEqualTo(evidence);
+        assertThat(resolved.get("target").get("current").get("text").asString()).isEqualTo(current);
+    }
+
+    @Test
+    @DisplayName("FULL 스냅샷 댓글은 첫 줄이 같아도 이후 본문 변경을 구분하고 전체 본문을 돌려줍니다")
+    void fullCommentSnapshotComparesTheWholeBody() throws Exception {
+        long reporter = insertUser("신고자", null);
+        long author = insertUser("작성자", null);
+        long feed = insertFeed(author, "report-it-댓글부모");
+        String current = "report-it-댓글 첫 줄\n바뀐 댓글 둘째 줄";
+        String evidence = "report-it-댓글 첫 줄\n신고 당시 댓글";
+        long comment = insertComment(feed, author, current);
+        long id = insertPending(reporter, "COMMENT", comment, "ABUSE", "", jsonText(evidence, "FULL"), NEWER);
+
+        JsonNode item = find(pendingItems(), id);
+        assertThat(item.get("targetType").asString()).isEqualTo("COMMENT");
+        assertThat(item.get("target").get("text").asString()).isEqualTo("report-it-댓글 첫 줄");
+        assertThat(item.get("target").get("snapshot").get("text").asString()).isEqualTo(evidence);
+        assertThat(item.get("target").get("current").get("text").asString()).isEqualTo(current);
+        assertThat(item.get("target").get("modified").asBoolean()).isTrue();
+        assertThat(item.get("target").get("link").asString()).startsWith("/posts/");
+    }
+
+    @Test
+    @DisplayName("숨긴 FULL 본문은 비교하고 링크는 없으며, 삭제된 FULL 본문은 수정 여부를 판단하지 않습니다")
+    void hiddenFullSnapshotComparesAndDeletedFullSnapshotDoesNot() throws Exception {
+        long reporter = insertUser("신고자", null);
+        long author = insertUser("작성자", null);
+        String hiddenBody = "report-it-숨김 첫 줄\n현재 둘째";
+        long hiddenFeed = insertFeed(author, hiddenBody);
+        jdbc.update("UPDATE feeds SET hidden_at = now() WHERE id = ?", hiddenFeed);
+        long hiddenReport = insertPending(
+                reporter, "FEED", hiddenFeed, "ABUSE", "",
+                jsonText("report-it-숨김 첫 줄\n신고 당시 둘째", "FULL"), NEWER);
+        long deletedFeed = insertFeed(author, "report-it-삭제될 본문\n둘째");
+        String deletedSnapshot = jsonText("report-it-삭제될 본문\n신고 당시", "FULL");
+        long deletedReport = insertPending(reporter, "FEED", deletedFeed, "SPAM", "", deletedSnapshot, OLDER);
+        jdbc.update("UPDATE feeds SET deleted_at = now() WHERE id = ?", deletedFeed);
+
+        JsonNode items = pendingItems();
+        JsonNode hiddenItem = find(items, hiddenReport);
+        assertThat(hiddenItem.get("target").get("visibility").asString()).isEqualTo("HIDDEN");
+        assertThat(hiddenItem.get("target").get("link").isNull()).isTrue();
+        assertThat(hiddenItem.get("target").get("current").get("text").asString()).isEqualTo(hiddenBody);
+        assertThat(hiddenItem.get("target").get("modified").asBoolean()).isTrue();
+
+        JsonNode deletedItem = find(items, deletedReport);
+        assertThat(deletedItem.get("target").get("visibility").asString()).isEqualTo("DELETED");
+        assertThat(deletedItem.get("target").get("current").isNull()).isTrue();
+        assertThat(deletedItem.get("target").get("snapshot").get("text").asString()).isEqualTo("report-it-삭제될 본문\n신고 당시");
+        assertThat(deletedItem.get("target").get("modified").isNull()).isTrue();
+    }
+
+    @Test
+    @DisplayName("회원 신고는 표시 이름만 비교하고, textScope가 FULL이어도 전체 본문으로 보지 않습니다")
+    void userReportComparesDisplayNameOnly() throws Exception {
+        long reporter = insertUser("신고자", null);
+        long author = insertUser("작성자", null);
+        String username = jdbc.queryForObject("SELECT username FROM users WHERE id = ?", String.class, author);
+        String label = "작성자 (@" + username + ")";
+        long secondReporter = insertUser("둘째 신고자", null);
+        long thirdReporter = insertUser("셋째 신고자", null);
+        long same = insertPending(reporter, "USER", author, "IMPERSONATION", "", jsonText(label, "FULL"), NEWER);
+        long renamed = insertPending(
+                secondReporter, "USER", author, "ETC", "", jsonText("다른 이름 (@" + username + ")", null), OLDER);
+        long extraLine = insertPending(
+                thirdReporter, "USER", author, "ABUSE", "", jsonText(label + "\n추가 설명", "FULL"), NEWER.minusMinutes(1));
+
+        JsonNode items = pendingItems();
+        assertThat(find(items, same).get("target").get("current").get("text").asString()).isEqualTo(label);
+        assertThat(find(items, same).get("target").get("modified").asBoolean()).isFalse();
+        assertThat(find(items, renamed).get("target").get("modified").asBoolean()).isTrue();
+        assertThat(find(items, extraLine).get("target").get("modified").asBoolean()).isFalse();
+    }
+
+    @Test
+    @DisplayName("FULL 스냅샷은 빈 문자열과 누락된 본문을 구분합니다")
+    void fullSnapshotDistinguishesBlankTextFromMissingText() throws Exception {
+        long reporter = insertUser("신고자", null);
+        long author = insertUser("작성자", null);
+        long emptyFeed = insertFeed(author, "report-it-비울본문");
+        long nullFeed = insertFeed(author, "report-it-널본문");
+        long filledFeed = insertFeed(author, "report-it-있는본문");
+        jdbc.update("UPDATE feeds SET content = '' WHERE id = ?", emptyFeed);
+        jdbc.update("UPDATE feeds SET content = NULL WHERE id = ?", nullFeed);
+        try {
+            long otherReporter = insertUser("다른 신고자", null);
+            long bothEmpty = insertPending(reporter, "FEED", emptyFeed, "SPAM", "", jsonText("", "FULL"), NEWER);
+            long onlySnapshotEmpty = insertPending(
+                    reporter, "FEED", filledFeed, "SPAM", "", jsonText("", "FULL"), OLDER);
+            long missingText = insertPending(
+                    otherReporter, "FEED", emptyFeed, "ABUSE", "", jsonText(null, "FULL"), NEWER.minusMinutes(1));
+            long currentMissing = insertPending(
+                    reporter, "FEED", nullFeed, "ETC", "", jsonText("", "FULL"), OLDER.minusHours(1));
+
+            JsonNode items = pendingItems();
+            assertThat(find(items, bothEmpty).get("target").get("current").get("text").asString()).isEmpty();
+            assertThat(find(items, bothEmpty).get("target").get("snapshot").get("text").asString()).isEmpty();
+            assertThat(find(items, bothEmpty).get("target").get("modified").asBoolean()).isFalse();
+            assertThat(find(items, onlySnapshotEmpty).get("target").get("modified").asBoolean()).isTrue();
+            assertThat(find(items, missingText).get("target").get("snapshot").get("text").isNull()).isTrue();
+            assertThat(find(items, missingText).get("target").get("modified").isNull()).isTrue();
+            assertThat(find(items, currentMissing).get("target").get("current").get("text").isNull()).isTrue();
+            assertThat(find(items, currentMissing).get("target").get("modified").isNull()).isTrue();
+        } finally {
+            jdbc.update("DELETE FROM feeds WHERE id IN (?, ?)", emptyFeed, nullFeed);
+        }
+    }
+
+    /**
+     * 하위 호환: 평문, textScope 없음 · null · FULL이 아닌 값은 첫 줄만 비교합니다.
+     * 둘째 줄이 달라도 false인 것은 그 스냅샷을 전체 본문으로 보장할 수 없기 때문입니다.
+     */
+    @Test
+    @DisplayName("기존 스냅샷은 첫 줄만 비교하고, 잘못된 스냅샷은 목록 조회를 막지 않습니다")
+    void legacySnapshotsKeepFirstLineComparison() throws Exception {
+        long[] reporters = new long[10];
+        for (int i = 0; i < reporters.length; i++) {
+            reporters[i] = insertUser("신고자" + i, null);
+        }
+        long author = insertUser("작성자", null);
+        String current = "report-it-첫줄\n현재뒷줄";
+        long feed = insertFeed(author, current);
+        long plain = insertPending(reporters[0], "FEED", feed, "SPAM", "", "report-it-첫줄", NEWER);
+        long noScope = insertPending(
+                reporters[1], "FEED", feed, "ABUSE", "", "{\"text\":\"report-it-첫줄\\n옛뒷줄\"}", NEWER.minusMinutes(1));
+        long nullScope = insertPending(
+                reporters[2], "FEED", feed, "ETC", "",
+                "{\"text\":\"report-it-첫줄\\n옛뒷줄\",\"textScope\":null}", NEWER.minusMinutes(2));
+        long partial = insertPending(
+                reporters[3], "FEED", feed, "SPAM", "", jsonText("report-it-첫줄\n옛뒷줄", "PARTIAL"), NEWER.minusMinutes(3));
+        long paddedFull = insertPending(
+                reporters[4], "FEED", feed, "SPAM", "", jsonText("report-it-첫줄\n옛뒷줄", "FULL "), NEWER.minusMinutes(4));
+        long differentLine = insertPending(
+                reporters[5], "FEED", feed, "ABUSE", "", "{\"text\":\"report-it-다른첫줄\\n현재뒷줄\"}", OLDER);
+        long emptyFirstLine = insertPending(
+                reporters[6], "FEED", feed, "ETC", "", "{\"text\":\"\\nreport-it-옛뒷줄\"}", OLDER.minusMinutes(1));
+        long missingText = insertPending(reporters[7], "FEED", feed, "SPAM", "", jsonText(null, "FULL"), OLDER.minusMinutes(2));
+        long invalidText = insertPending(
+                reporters[8], "FEED", feed, "ABUSE", "", "{\"text\":1,\"textScope\":\"FULL\"}", OLDER.minusMinutes(3));
+        long broken = insertPending(reporters[9], "FEED", feed, "SPAM", "", "{broken", OLDER.minusMinutes(4));
+
+        JsonNode items = pendingItems();
+        assertThat(items.size()).isEqualTo(10);
+        assertThat(find(items, plain).get("target").get("modified").asBoolean()).isFalse();
+        assertThat(find(items, plain).get("target").get("current").get("text").asString()).isEqualTo(current);
+        assertThat(find(items, noScope).get("target").get("modified").asBoolean()).isFalse();
+        assertThat(find(items, noScope).get("target").get("snapshot").get("text").asString()).isEqualTo("report-it-첫줄\n옛뒷줄");
+        assertThat(find(items, nullScope).get("target").get("modified").asBoolean()).isFalse();
+        assertThat(find(items, partial).get("target").get("modified").asBoolean()).isFalse();
+        assertThat(find(items, paddedFull).get("target").get("modified").asBoolean()).isFalse();
+        assertThat(find(items, differentLine).get("target").get("modified").asBoolean()).isTrue();
+        assertThat(find(items, emptyFirstLine).get("target").get("modified").isNull()).isTrue();
+        assertThat(find(items, missingText).get("target").get("modified").isNull()).isTrue();
+        assertThat(find(items, invalidText).get("target").get("modified").isNull()).isTrue();
+        assertThat(find(items, broken).get("target").get("modified").isNull()).isTrue();
+        assertThat(find(items, broken).get("target").get("snapshot").get("text").asString()).isEqualTo("{broken");
+    }
+
+    private JsonNode pendingItems() throws Exception {
+        return items("PENDING");
+    }
+
+    private JsonNode items(String status) throws Exception {
+        var body = mvc.perform(api(get("/api/v1/admin/reports")).param("status", status).with(authentication(admin())))
+                .andExpect(status().isOk())
+                .andReturn();
+        return JSON.readTree(body.getResponse().getContentAsString());
+    }
+
+    /** text가 null이면 필드를 생략합니다. textScope가 null이면 그 필드도 생략합니다. */
+    private static String jsonText(String text, String textScope) {
+        StringBuilder builder = new StringBuilder("{");
+        if (text != null) {
+            builder.append("\"text\":").append(JSON.writeValueAsString(text));
+        }
+        if (textScope != null) {
+            if (text != null) {
+                builder.append(',');
+            }
+            builder.append("\"textScope\":").append(JSON.writeValueAsString(textScope));
+        }
+        builder.append('}');
+        return builder.toString();
+    }
+
     private MockHttpServletRequestBuilder resolve(long id, String json) {
         return api(post("/api/v1/admin/reports/" + id + "/resolve"))
                 .with(authentication(admin()))
@@ -502,6 +767,48 @@ class ReportAdminIntegrationTest {
 
     private String statusOf(long id) {
         return jdbc.queryForObject("SELECT status FROM reports WHERE id = ?", String.class, id);
+    }
+
+    private void assertAuthor(JsonNode items, long reportId, long authorId, String nickname) {
+        JsonNode item = find(items, reportId);
+        assertThat(item.get("reportedUser").get("id").asString()).isEqualTo(Long.toString(authorId));
+        assertThat(item.get("reportedUser").get("nickname").asString()).isEqualTo(nickname);
+        assertThat(item.get("targetId").asString()).isNotEqualTo(item.get("reportedUser").get("id").asString());
+    }
+
+    private String snapshotOf(long reportId) {
+        return jdbc.queryForObject("SELECT snapshot FROM reports WHERE id = ?", String.class, reportId);
+    }
+
+    private long nextFreeId() {
+        return jdbc.queryForObject("""
+                SELECT GREATEST(
+                    (SELECT COALESCE(MAX(id), 0) FROM users),
+                    (SELECT COALESCE(MAX(id), 0) FROM feeds),
+                    (SELECT COALESCE(MAX(id), 0) FROM comments)
+                ) + 1
+                """, Long.class);
+    }
+
+    private long insertUserWithId(long id, String name, String email) {
+        String username = "r" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        jdbc.update(
+                "INSERT INTO users (id, username, display_name, email) VALUES (?, ?, ?, ?)",
+                id, username, name, email);
+        syncIdentity("users");
+        return id;
+    }
+
+    private long insertFeedWithId(long id, long userId, String content) {
+        jdbc.update("INSERT INTO feeds (id, user_id, content) VALUES (?, ?, ?)", id, userId, content);
+        syncIdentity("feeds");
+        return id;
+    }
+
+    private void syncIdentity(String table) {
+        jdbc.queryForObject(
+                "SELECT setval(pg_get_serial_sequence(?, 'id'), (SELECT MAX(id) FROM " + table + "))",
+                Long.class, table);
     }
 
     private long insertUser(String name, String email) {

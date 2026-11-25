@@ -1,5 +1,6 @@
 package com.pickong.moderation.adapter.out.persistence.entity;
 
+import com.pickong.moderation.domain.model.Report;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -68,6 +69,20 @@ public class ReportJpaEntity {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
+
+    /** 접수 행. 처리 정보는 비워 둡니다. */
+    public static ReportJpaEntity forInsert(Report report) {
+        ReportJpaEntity entity = new ReportJpaEntity();
+        entity.reporterId = report.getReporterId();
+        entity.targetType = report.getTargetType().name();
+        entity.targetId = report.getTargetId();
+        entity.reason = report.getReason();
+        entity.detail = report.getDetail();
+        entity.status = report.getStatus().name();
+        entity.snapshot = report.getSnapshot();
+        entity.createdAt = report.getCreatedAt();
+        return entity;
+    }
 
     /** 이미 검증된 기각 결과를 행에 반영합니다. 대기 행만 바꿉니다. */
     public void applyDismissal(String action, String memo, long adminId, OffsetDateTime handledAt) {
