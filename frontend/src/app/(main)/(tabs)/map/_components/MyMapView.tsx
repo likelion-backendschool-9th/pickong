@@ -22,7 +22,7 @@ import {
   writeMapCamera,
   writeUserLocation,
   type MapCamera,
-} from "../_lib/mapSession";
+} from "../../../_lib/mapSession";
 
 const POI = "poi:";
 

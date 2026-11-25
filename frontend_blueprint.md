@@ -174,6 +174,9 @@ pickong/
     │   │       │   ├── SideNav.tsx         # 데스크톱
     │   │       │   ├── ComposeMenu.tsx     # ➕ 게시물 작성 / 링크 가져오기
     │   │       │   └── LogoutButton.tsx    # 헤더 메뉴 + settings에서 사용
+    │   │       ├── _lib/
+    │   │       │   ├── mapSession.ts       # 지도 탭의 마지막 카메라 · 내 위치 (map, places/new에서 사용)
+    │   │       │   └── mapSession.test.ts
     │   │       │
     │   │       ├── feed/
     │   │       │   ├── page.tsx
