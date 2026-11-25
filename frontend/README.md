@@ -73,7 +73,7 @@ Docker Desktop에서 호스트의 mock 서버에 연결하려면 빌드할 때
 - **백엔드에 있는 API만 백엔드로 보내기:** `.env.local`에 `BACKEND_URL=http://localhost:8080`을 넣고 `npm run dev`로 실행합니다 (`.env.local.example` 참고).
   - `next.config.ts`의 `BACKEND_PATHS`(지금은 `/api/v1/auth/**` · `/api/v1/me` · `/api/v1/me/social-accounts/**` · `/api/v1/terms/**` · `/api/v1/me/agreements/**`)만 백엔드로 가고, 나머지는 mock으로 갑니다.
   - 백엔드에 새 API가 생기면 `BACKEND_PATHS`에 경로를 추가합니다.
-- 재동의 화면(`/terms/consent`)을 mock으로 보려면 `MOCK_RECONSENT=PRIVACY,MARKETING npm run dev`처럼 실행합니다. 지정한 약관이 재동의가 필요한 1.1로 바뀐 것으로 나옵니다. 서버의 403 차단은 mock이 흉내 내지 않으므로, 차단 · 이동까지 보려면 백엔드에 `requires_reconsent = true`인 새 버전 행을 넣고 확인합니다.
+- 재동의 화면(`/terms/consent`)을 mock으로 보려면 `MOCK_RECONSENT=PRIVACY,MARKETING npm run dev`처럼 실행합니다. 지정한 약관이 재동의가 필요한 다음 버전(예: 1.1 → 1.2)으로 바뀐 것으로 나옵니다. 서버의 403 차단은 mock이 흉내 내지 않으므로, 차단 · 이동까지 보려면 백엔드에 `requires_reconsent = true`인 새 버전 행을 넣고 확인합니다.
   - 백엔드 실행 방법은 [`../backend/README.md`](../backend/README.md)를 봅니다. 백엔드의 `FRONTEND_BASE_URL`은 `http://localhost:3000`(기본값)이어야 로그인 후 이 화면으로 돌아옵니다.
 - **전부 백엔드로 보내기:** `API_BASE_URL=http://localhost:8080`을 넣고 `npm run next`로 Next만 실행합니다. 백엔드에 없는 화면은 404가 납니다.
 - 쓰기 요청(POST · PUT · PATCH · DELETE)은 `http.ts`가 `XSRF-TOKEN` 쿠키 값을 `X-XSRF-TOKEN` 헤더로 자동으로 붙입니다. mock은 CSRF를 확인하지 않습니다.
