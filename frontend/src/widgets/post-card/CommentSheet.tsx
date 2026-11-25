@@ -26,26 +26,18 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
     return () => clearTimeout(id);
   }, [open]);
 
-  // 답글 달기 버튼으로 세팅된 경우에만 @닉네임 삽입 + 포커스
-  // 직접 타이핑으로 감지된 경우(mention)에는 텍스트를 덮어쓰지 않음
+  // 답글 달기 클릭 시 input 포커스 (mention 자동 감지된 경우에도)
   useEffect(() => {
-    if (!replyTo || replySource.current === "mention") return;
-    const mention = `@${replyTo.author.nickname} `;
-    setText(mention);
-    requestAnimationFrame(() => {
-      const el = inputRef.current;
-      if (!el) return;
-      el.focus();
-      el.setSelectionRange(mention.length, mention.length);
-    });
+    if (replyTo) requestAnimationFrame(() => inputRef.current?.focus());
   }, [replyTo]);
 
   const roots = comments?.filter((c) => !c.parentId) ?? [];
   const repliesOf = (id: string) => comments?.filter((c) => c.parentId === id) ?? [];
 
-  /** 답글 달기 버튼 클릭 */
+  /** 답글 달기 버튼 클릭: setText + setReplyTo를 같은 렌더에서 처리해야 span이 바로 보임 */
   const handleReply = (comment: PostComment) => {
     replySource.current = "button";
+    setText(`@${comment.author.nickname} `);
     setReplyTo(comment);
   };
 
