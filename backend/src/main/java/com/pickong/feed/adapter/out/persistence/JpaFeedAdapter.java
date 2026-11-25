@@ -115,6 +115,15 @@ public class JpaFeedAdapter implements FeedRepository {
     }
 
     @Override
+    public List<Feed> findByOwner(Long ownerUserId, boolean isOwner, Long cursor, int limit) {
+        // 본인이면 모든 visibility, 타인이면 PUBLIC만 조회
+        List<FeedJpaEntity> entities = isOwner
+                ? feedJpaRepository.findAllByOwner(ownerUserId, cursor, PageRequest.of(0, limit))
+                : feedJpaRepository.findPublicByOwner(ownerUserId, cursor, PageRequest.of(0, limit));
+        return toDomain(entities);
+    }
+
+    @Override
     public List<FeedPlaceSummary> findRecommendedFeedPlaces() {
         return feedJpaRepository.findRecommendedFeedPlaces().stream()
                 .map(this::toSummary)

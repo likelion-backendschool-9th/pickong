@@ -10,6 +10,8 @@ import com.pickong.feed.application.port.in.FeedUseCase;
 import com.pickong.feed.application.port.out.FeedRepository;
 import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.feed.domain.model.Feed;
+import com.pickong.user.application.port.out.UserPersistencePort;
+import com.pickong.user.domain.UserErrorCode;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -20,9 +22,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class FeedService implements FeedUseCase {
     private final FeedRepository feedRepository;
+    private final UserPersistencePort userPersistencePort;
 
-    public FeedService(FeedRepository feedRepository) {
+    public FeedService(FeedRepository feedRepository, UserPersistencePort userPersistencePort) {
         this.feedRepository = feedRepository;
+        this.userPersistencePort = userPersistencePort;
     }
 
     @Override
@@ -106,6 +110,20 @@ public class FeedService implements FeedUseCase {
                     return new FeedPlaceGroup(group.getFirst(), feedIds);
                 })
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public FeedPage getUserFeeds(String username, Long viewerUserId, Long cursor, int limit) {
+        // username으로 사용자 조회 — 없으면 404
+        Long ownerUserId = userPersistencePort.findByUsername(username)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND))
+                .getId();
+
+        // 본인이면 모든 visibility, 타인이면 PUBLIC만
+        boolean isOwner = ownerUserId.equals(viewerUserId);
+        List<Feed> feeds = feedRepository.findByOwner(ownerUserId, isOwner, cursor, limit + 1);
+        return toPage(feeds, limit);
     }
 
     // limit+1개 조회 결과로 FeedPage 생성 (hasNext, nextCursor 계산)
