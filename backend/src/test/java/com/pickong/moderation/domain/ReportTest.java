@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.pickong.common.error.BusinessException;
 import com.pickong.moderation.domain.model.Report;
 import com.pickong.moderation.domain.vo.ReportAction;
+import com.pickong.moderation.domain.vo.ReportReason;
 import com.pickong.moderation.domain.vo.ReportStatus;
 import com.pickong.moderation.domain.vo.ReportTargetType;
 import java.time.OffsetDateTime;
@@ -66,6 +67,56 @@ class ReportTest {
                 ModerationErrorCode.SANCTION_TYPE_NOT_ALLOWED);
         assertError(() -> ReportRules.parseAction("HIDE"), ModerationErrorCode.INVALID_REPORT_ACTION);
         assertError(() -> ReportRules.parseStatus("HANDLED"), ModerationErrorCode.INVALID_REPORT_STATUS);
+    }
+
+    @Test
+    @DisplayName("상세 내용은 기타만 필수이고 500자를 넘기면 거절합니다")
+    void detailRules() {
+        assertThat(ReportRules.normalizeDetail(ReportReason.SPAM, "  ")).isNull();
+        assertThat(ReportRules.normalizeDetail(ReportReason.ETC, "  내용  ")).isEqualTo("내용");
+        assertThat(ReportRules.normalizeDetail(ReportReason.ABUSE, "가".repeat(500))).hasSize(500);
+
+        assertError(() -> ReportRules.normalizeDetail(ReportReason.ETC, " \n "), ModerationErrorCode.REPORT_DETAIL_REQUIRED);
+        assertError(() -> ReportRules.normalizeDetail(ReportReason.SPAM, "가".repeat(501)), ModerationErrorCode.REPORT_DETAIL_TOO_LONG);
+        assertError(() -> ReportRules.reportableTarget(ReportTargetType.USER, 1L), ModerationErrorCode.INVALID_REPORT_TARGET);
+        assertError(() -> ReportRules.reportableTarget(ReportTargetType.COLLECTION, 1L), ModerationErrorCode.INVALID_REPORT_TARGET);
+        assertError(() -> ReportRules.reportableTarget(null, 1L), ModerationErrorCode.INVALID_REPORT_TARGET);
+        assertError(() -> ReportRules.reportableTarget(ReportTargetType.FEED, 0L), ModerationErrorCode.INVALID_REPORT_TARGET);
+        assertError(() -> ReportReason.parse("OTHER"), ModerationErrorCode.INVALID_REPORT_REASON);
+    }
+
+    @Test
+    @DisplayName("새 신고는 대기이고 스냅샷 원문을 바꾸지 않습니다")
+    void pendingKeepsTheSnapshot() {
+        String snapshot = "  첫째\r\n둘째  ";
+
+        Report report = Report.pending(2L, ReportTargetType.COMMENT, 9L, "ABUSE", null, snapshot, NOW);
+        Report dismissed = report.dismiss(7L, "유지", NOW);
+
+        assertThat(report.getId()).isNull();
+        assertThat(report.getStatus()).isEqualTo(ReportStatus.PENDING);
+        assertThat(report.getResolutionAction()).isNull();
+        assertThat(report.getDetail()).isNull();
+        assertThat(report.getSnapshot()).isEqualTo(snapshot);
+        assertThat(dismissed.getSnapshot()).isEqualTo(snapshot);
+        assertThat(dismissed.getStatus()).isEqualTo(ReportStatus.RESOLVED);
+    }
+
+    @Test
+    @DisplayName("신고자, 대상, 사유, 스냅샷, 시각이 없으면 새 신고를 만들지 않습니다")
+    void pendingRejectsMissingFields() {
+        assertThatThrownBy(() -> Report.pending(0L, ReportTargetType.FEED, 9L, "SPAM", null, "{}", NOW))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> Report.pending(2L, null, 9L, "SPAM", null, "{}", NOW))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> Report.pending(2L, ReportTargetType.FEED, 9L, "  ", null, "{}", NOW))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> Report.pending(2L, ReportTargetType.FEED, 9L, "가".repeat(51), null, "{}", NOW))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> Report.pending(2L, ReportTargetType.FEED, 9L, "SPAM", "", null, NOW))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> Report.pending(2L, ReportTargetType.FEED, 9L, "SPAM", "", "{}", null))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     private static Report pending() {

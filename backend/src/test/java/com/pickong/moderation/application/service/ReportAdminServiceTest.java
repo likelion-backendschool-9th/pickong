@@ -174,5 +174,15 @@ class ReportAdminServiceTest {
             current = dismissed;
             return ReportDismissal.dismissed(dismissed);
         }
+
+        @Override
+        public boolean existsPending(long reporterId, ReportTargetType targetType, long targetId) {
+            return false;
+        }
+
+        @Override
+        public Report save(Report report) {
+            throw new UnsupportedOperationException();
+        }
     }
 }
