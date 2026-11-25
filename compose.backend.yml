@@ -1,0 +1,14 @@
+# 로컬 개발용: mock 없이 프론트 · 백엔드 · DB만 실행합니다. 프론트의 API 요청이 모두 백엔드로 갑니다.
+# docker compose -f compose.yml -f compose.override.yml -f compose.backend.yml up -d --build
+services:
+  frontend:
+    environment:
+      API_BASE_URL: http://backend:8080
+    # override의 mock 의존을 백엔드로 바꿉니다.
+    depends_on: !override
+      backend:
+        condition: service_healthy
+
+  # 이 파일을 함께 쓰면 mock은 실행하지 않습니다.
+  mock:
+    profiles: ["mock"]
