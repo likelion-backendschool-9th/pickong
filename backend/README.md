@@ -58,7 +58,6 @@ docker compose run -d --rm --no-deps --service-ports \
 
 | 할 일 | 명령 |
 | --- | --- |
-| 백엔드 코드 수정 반영 | `docker compose restart backend` (프론트는 자동 반영) |
 | 백엔드 로그 | `docker compose logs -f backend` |
 | 프론트 로그 | `docker logs -f pickong-frontend-nomock` |
 | 프론트만 끄기 | `docker stop pickong-frontend-nomock` |
@@ -67,10 +66,36 @@ docker compose run -d --rm --no-deps --service-ports \
 
 `docker compose down -v`는 DB 데이터까지 지웁니다.
 
+**수정한 내용 반영**
+
+| 수정한 것 | 명령 |
+| --- | --- |
+| 프론트 코드 | 자동 반영 |
+| 백엔드 코드, `build.gradle` | `docker compose restart backend` |
+| `backend/.env`, compose 파일의 백엔드 설정 | `docker compose up -d backend` (`restart`는 바뀐 값을 읽지 않습니다) |
+| `backend/Dockerfile` | `docker compose up -d --build backend` |
+| 실행용(`runner`) 이미지 | 아래 '실행용 이미지 확인'을 다시 실행 |
+
+**실행용 이미지 확인**
+
+위 방법은 개발용(`development`)이라 소스를 마운트해 `bootRun`으로 실행합니다. 배포에 쓰는 실행용(`runner`)은 jar만 담고 있어, 코드를 바꾸면 이미지를 다시 빌드해야 합니다. DB를 켠 상태에서 8081 포트로 확인합니다.
+
+```bash
+docker compose up -d db
+docker compose -f compose.yml build backend
+docker run --rm --network pickong_default -p 127.0.0.1:8081:8080 \
+  --env-file backend/.env -e DB_URL=jdbc:postgresql://db:5432/pickong pickong-backend
+```
+
+http://localhost:8081/api/v1/actuator/health 가 `"status":"UP"`이면 정상입니다. `.env`는 이미지에 들어가지 않으므로 환경변수로 넣습니다. 네트워크와 이미지 이름은 저장소 폴더 이름이 `pickong`일 때 기준입니다.
+
+이미지 빌드는 테스트를 실행하지 않습니다. 테스트는 PR 전에 `./gradlew build`로 확인합니다.
+
 **참고**
 
 - 로그인하지 않으면 대부분의 API가 401을 응답합니다. 로그인하려면 `backend/.env`에 카카오나 Google 키가 있어야 합니다.
 - 아직 백엔드에 없는 API를 쓰는 화면은 동작하지 않습니다. 이런 화면은 mock으로 확인합니다.
+- 백엔드가 `unhealthy`이거나 종료되면 `docker compose logs backend`에서 원인을 확인합니다.
 - `Detected resolved migration not applied to database: 9` 오류로 백엔드가 시작하지 않으면 이슈 #113을 확인합니다.
 
 ### DB 접속 정보
