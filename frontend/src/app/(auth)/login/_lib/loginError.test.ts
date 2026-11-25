@@ -10,6 +10,7 @@ describe("loginErrorMessage", () => {
   it("아는 사유는 그에 맞는 문구를 돌려준다", () => {
     expect(loginErrorMessage("SIGNUP_SESSION_EXPIRED")).toContain("가입 시간이 지났어요");
     expect(loginErrorMessage("SESSION_EXPIRED")).toContain("로그인이 만료됐어요");
+    expect(loginErrorMessage("RESTORE_SESSION_EXPIRED")).toBe("다시 로그인하면 탈퇴를 취소할 수 있어요.");
     expect(loginErrorMessage("OAUTH_CANCELLED")).toContain("취소");
   });
 
