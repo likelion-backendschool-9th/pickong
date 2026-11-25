@@ -24,9 +24,18 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
     return () => clearTimeout(id);
   }, [open]);
 
-  // 답글 달기 클릭 시 input 포커스
+  // 답글 달기 클릭 시 @닉네임 삽입 + input 포커스 + 커서 끝으로
   useEffect(() => {
-    if (replyTo) inputRef.current?.focus();
+    if (!replyTo) return;
+    const mention = `@${replyTo.author.nickname} `;
+    setText(mention);
+    // setText 후 다음 프레임에 포커스 + 커서를 텍스트 끝으로 이동
+    requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(mention.length, mention.length);
+    });
   }, [replyTo]);
 
   const roots = comments?.filter((c) => !c.parentId) ?? [];
@@ -52,7 +61,7 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
           {replyTo && (
             <div className="flex items-center justify-between text-[12px] text-ink-sub">
               <span>{replyTo.author.nickname}님에게 답글 남기는 중</span>
-              <button type="button" onClick={() => setReplyTo(null)} className="font-bold">취소</button>
+              <button type="button" onClick={() => { setReplyTo(null); setText(""); }} className="font-bold">취소</button>
             </div>
           )}
           <div className="flex items-center gap-2">
