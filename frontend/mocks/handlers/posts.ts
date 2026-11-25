@@ -165,4 +165,32 @@ export const postRoutes: Route[] = [
       return { ...comment, author: userDto(findUser(ME_ID)!) };
     },
   },
+  {
+    method: "PUT",
+    path: "/api/v1/posts/:id/comments/:commentId",
+    handler: ({ params, body }) => {
+      postOr404(params.id);
+      const idx = db.comments.findIndex((c) => c.id === params.commentId && c.postId === params.id);
+      if (idx === -1) throw new HttpError(404, "COMMENT_NOT_FOUND", "댓글을 찾을 수 없습니다.");
+      if (db.comments[idx].authorId !== ME_ID) throw new HttpError(403, "COMMENT_NOT_OWNER", "본인 댓글만 수정할 수 있습니다.");
+      const content = String(body?.content ?? "").trim();
+      if (!content) throw new HttpError(400, "EMPTY", "댓글 내용을 입력해 주세요.");
+      db.comments[idx] = { ...db.comments[idx], content };
+      return { ...db.comments[idx], author: userDto(findUser(ME_ID)!) };
+    },
+  },
+  {
+    method: "DELETE",
+    path: "/api/v1/posts/:id/comments/:commentId",
+    handler: ({ params }) => {
+      postOr404(params.id);
+      const idx = db.comments.findIndex((c) => c.id === params.commentId && c.postId === params.id);
+      if (idx === -1) throw new HttpError(404, "COMMENT_NOT_FOUND", "댓글을 찾을 수 없습니다.");
+      if (db.comments[idx].authorId !== ME_ID) throw new HttpError(403, "COMMENT_NOT_OWNER", "본인 댓글만 삭제할 수 있습니다.");
+      // 대댓글도 함께 삭제
+      const commentId = params.commentId;
+      db.comments = db.comments.filter((c) => c.id !== commentId && c.parentId !== commentId);
+      return null;
+    },
+  },
 ];
