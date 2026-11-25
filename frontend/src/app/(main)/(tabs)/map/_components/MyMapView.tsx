@@ -8,7 +8,7 @@ import { SavePlaceButton } from "@/features/save-place";
 import { routes } from "@/shared/config/routes";
 import { cn } from "@/shared/lib/cn";
 import { getCurrentPosition, type LatLng, type LatLngBounds } from "@/shared/lib/geo";
-import { MapView } from "@/shared/map";
+import { MapView, type MapMarker } from "@/shared/map";
 import { BottomSheet } from "@/shared/ui/BottomSheet";
 import { Button, ButtonLink } from "@/shared/ui/Button";
 import { Badge, Skeleton, Thumb } from "@/shared/ui/display";
@@ -162,6 +162,21 @@ export function MyMapView({
     return list;
   }, [nearby, savedPlaceIds, category, focus]);
 
+  // 렌더링마다 배열이 새로 생기면 지도가 매번 모든 마커를 비교하므로, 내용이 바뀔 때만 만듭니다.
+  const markers = useMemo<MapMarker[]>(
+    () => [
+      ...pois.map((p) => ({ id: POI + p.id, position: p.location, title: p.name, tone: "poi" as const })),
+      ...saved.map((s, i) => ({
+        id: s.id,
+        position: s.place.location,
+        label: String(i + 1),
+        title: s.place.name,
+        tone: s.visitStatus === "VISITED" ? ("muted" as const) : ("primary" as const),
+      })),
+    ],
+    [pois, saved],
+  );
+
   const selectedSaved = saved.find((s) => s.id === selectedId) ?? null;
   const selectedPoi = selectedId?.startsWith(POI) ? (pois.find((p) => POI + p.id === selectedId) ?? null) : null;
 
@@ -237,16 +252,7 @@ export function MyMapView({
         className="h-[calc(100dvh-250px)] min-h-[360px]"
         center={bootCamera?.center}
         zoom={bootCamera?.zoom}
-        markers={[
-          ...pois.map((p) => ({ id: POI + p.id, position: p.location, title: p.name, tone: "poi" as const })),
-          ...saved.map((s, i) => ({
-            id: s.id,
-            position: s.place.location,
-            label: String(i + 1),
-            title: s.place.name,
-            tone: s.visitStatus === "VISITED" ? ("muted" as const) : ("primary" as const),
-          })),
-        ]}
+        markers={markers}
         selectedId={selectedId}
         onMarkerClick={select}
         onMapClick={clearSelection}
