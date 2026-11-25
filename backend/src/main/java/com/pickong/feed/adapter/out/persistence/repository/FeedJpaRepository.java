@@ -1,6 +1,7 @@
 package com.pickong.feed.adapter.out.persistence.repository;
 
 import com.pickong.feed.adapter.out.persistence.entity.FeedJpaEntity;
+import com.pickong.feed.adapter.out.persistence.repository.FeedPlaceRow;
 import java.util.List;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -52,4 +53,54 @@ public interface FeedJpaRepository extends JpaRepository<FeedJpaEntity, Long> {
     @Modifying
     @Query("UPDATE FeedJpaEntity f SET f.bookmarkCount = f.bookmarkCount - 1 WHERE f.id = :feedId AND f.bookmarkCount > 0")
     void decrementBookmarkCount(@Param("feedId") Long feedId);
+
+    // 추천 피드 지도용: PUBLIC 피드에 연결된 장소 목록 (최대 500개 피드 기준)
+    // places 테이블을 직접 JOIN해서 장소 상세 정보를 함께 가져옴 (N+1 방지)
+    @Query(value = """
+            SELECT
+                p.id              AS placeId,
+                p.public_id::text AS placePublicId,
+                p.name            AS placeName,
+                p.address         AS placeAddress,
+                ST_Y(p.location::geometry) AS lat,
+                ST_X(p.location::geometry) AS lng,
+                p.category        AS category,
+                p.source_type     AS sourceType,
+                f.id              AS feedId
+            FROM feeds f
+            JOIN feed_places fp ON fp.feed_id = f.id
+            JOIN places p       ON p.id = fp.place_id
+            WHERE f.deleted_at IS NULL
+              AND f.hidden_at IS NULL
+              AND f.visibility = 'PUBLIC'
+            ORDER BY f.created_at DESC
+            LIMIT 500
+            """, nativeQuery = true)
+    List<FeedPlaceRow> findRecommendedFeedPlaces();
+
+    // 팔로잉 피드 지도용: 팔로잉한 사용자의 PUBLIC 피드에 연결된 장소 목록
+    @Query(value = """
+            SELECT
+                p.id              AS placeId,
+                p.public_id::text AS placePublicId,
+                p.name            AS placeName,
+                p.address         AS placeAddress,
+                ST_Y(p.location::geometry) AS lat,
+                ST_X(p.location::geometry) AS lng,
+                p.category        AS category,
+                p.source_type     AS sourceType,
+                f.id              AS feedId
+            FROM feeds f
+            JOIN feed_places fp ON fp.feed_id = f.id
+            JOIN places p       ON p.id = fp.place_id
+            WHERE f.deleted_at IS NULL
+              AND f.hidden_at IS NULL
+              AND f.visibility = 'PUBLIC'
+              AND f.user_id IN (
+                  SELECT fw.followee_id FROM follows fw WHERE fw.follower_id = :userId
+              )
+            ORDER BY f.created_at DESC
+            LIMIT 500
+            """, nativeQuery = true)
+    List<FeedPlaceRow> findFollowingFeedPlaces(@Param("userId") Long userId);
 }

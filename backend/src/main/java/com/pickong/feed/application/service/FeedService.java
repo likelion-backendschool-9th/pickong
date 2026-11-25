@@ -3,12 +3,16 @@ package com.pickong.feed.application.service;
 import com.pickong.common.error.BusinessException;
 import com.pickong.feed.application.dto.CreateFeedCommand;
 import com.pickong.feed.application.dto.FeedPage;
+import com.pickong.feed.application.dto.FeedPlaceGroup;
+import com.pickong.feed.application.dto.FeedPlaceSummary;
 import com.pickong.feed.application.dto.UpdateFeedCommand;
 import com.pickong.feed.application.port.in.FeedUseCase;
 import com.pickong.feed.application.port.out.FeedRepository;
 import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.feed.domain.model.Feed;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -73,6 +77,35 @@ public class FeedService implements FeedUseCase {
             throw new BusinessException(FeedErrorCode.FEED_NOT_OWNER);
         }
         feedRepository.deleteById(feedId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<FeedPlaceGroup> getFeedPlaces(String tab, Long userId) {
+        // tab 값 검증: recommended·following 외 값은 400 반환
+        if (!tab.equals("recommended") && !tab.equals("following")) {
+            throw new BusinessException(FeedErrorCode.INVALID_TAB);
+        }
+
+        // 탭별로 피드-장소 조인 행 목록 조회
+        List<FeedPlaceSummary> rows = tab.equals("following")
+                ? feedRepository.findFollowingFeedPlaces(userId)
+                : feedRepository.findRecommendedFeedPlaces();
+
+        // placeId 기준으로 그룹핑 → 장소별 피드 ID 목록 생성
+        Map<Long, List<FeedPlaceSummary>> grouped = rows.stream()
+                .collect(Collectors.groupingBy(FeedPlaceSummary::getPlaceId));
+
+        return grouped.entrySet().stream()
+                .map(entry -> {
+                    List<FeedPlaceSummary> group = entry.getValue();
+                    List<Long> feedIds = group.stream()
+                            .map(FeedPlaceSummary::getFeedId)
+                            .distinct()
+                            .toList();
+                    return new FeedPlaceGroup(group.getFirst(), feedIds);
+                })
+                .toList();
     }
 
     // limit+1개 조회 결과로 FeedPage 생성 (hasNext, nextCursor 계산)

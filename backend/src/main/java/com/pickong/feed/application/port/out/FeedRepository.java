@@ -1,5 +1,6 @@
 package com.pickong.feed.application.port.out;
 
+import com.pickong.feed.application.dto.FeedPlaceSummary;
 import com.pickong.feed.domain.model.Feed;
 import java.util.List;
 
@@ -22,4 +23,8 @@ public interface FeedRepository {
     // 북마크 수 증가 · 감소
     void incrementBookmarkCount(Long feedId);
     void decrementBookmarkCount(Long feedId);
+
+    // 피드 지도용: 탭 조건에 맞는 피드에 연결된 장소 목록 (최대 500개 피드 기준)
+    List<FeedPlaceSummary> findRecommendedFeedPlaces();
+    List<FeedPlaceSummary> findFollowingFeedPlaces(Long userId);
 }
