@@ -2,7 +2,7 @@
 
 import { MapPinPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePlacesInBounds, type Place } from "@/entities/place";
 import { CustomPlaceFlow } from "@/features/create-custom-place";
 import { PlaceSearchPanel } from "@/features/place-search";
@@ -33,6 +33,8 @@ export function NewPlaceScreen() {
   const { data: nearby = [] } = usePlacesInBounds(bounds);
   /** 지도에서 고른 위치 → 이름 · 설명 입력 단계 */
   const [custom, setCustom] = useState<LatLng | null>(null);
+  /** 제보를 마쳤으면 화면이 숨겨질 때 입력 단계를 닫아, 다시 열 때 지도부터 시작합니다. (작성 중이면 유지) */
+  const submittedRef = useRef(false);
 
   /**
    * cacheComponents(Activity)는 화면을 숨겨도 state를 유지하므로, 숨길 때 비우고 다시 열 때 새로 읽습니다.
@@ -41,11 +43,18 @@ export function NewPlaceScreen() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- SSR에 없는 sessionStorage를 화면이 열릴 때마다 읽어야 합니다.
     setCamera(readMapCamera() ?? { center: DEFAULT_CENTER });
-    return () => setCamera(null);
+    return () => {
+      setCamera(null);
+      if (submittedRef.current) {
+        submittedRef.current = false;
+        setCustom(null);
+      }
+    };
   }, []);
 
   const submitReport = () => {
     sessionStorage.setItem("pickong:place-reported", "1");
+    submittedRef.current = true;
     router.replace(routes.map());
   };
 
