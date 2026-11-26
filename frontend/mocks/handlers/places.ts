@@ -14,6 +14,8 @@ import {
   savedPlaceDto,
 } from "../db.ts";
 import type { SavedPlaceRow } from "../fixtures/types.ts";
+import { clusterPlaces, inBounds, listPlaces } from "../lib/placeMap.ts";
+import { searchPlaces } from "../lib/placeSearch.ts";
 import { HttpError, notFound, type Route } from "../router.ts";
 
 const placeOr404 = (id: string) => {
@@ -65,22 +67,24 @@ export const placeRoutes: Route[] = [
   {
     /**
      * 지도 범위 안의 장소 (일반 지도처럼 주변 장소 표시용). bbox=서,남,동,북 · category(선택)
-     * mock은 장소가 적어 묶지 않습니다 (clusters는 항상 비어 있음).
-     * 실제로는 카카오 장소 데이터(카테고리 · 영역 검색)로 바뀝니다.
+     * 좌표가 많으면 백엔드처럼 격자로 묶어 clusters로 돌려줍니다 (mocks/lib/placeMap.ts).
+     * cluster=false면 묶지 않은 목록(이름순 최대 500곳)을 places로만 돌려줍니다.
      */
     method: "GET",
     path: "/api/v1/places",
     handler: ({ query }) => {
       const [west, south, east, north] = (query.get("bbox") ?? "").split(",").map(Number);
       if ([west, south, east, north].some((n) => !Number.isFinite(n))) throw new HttpError(400, "BAD_BBOX", "지도 범위를 확인해 주세요.");
+      if (south > north || west > east) throw new HttpError(400, "BAD_BBOX", "지도 범위를 확인해 주세요.");
+      const bounds = { west, south, east, north };
       const category = query.get("category");
-      const places = db.places
-        .filter((p) => canView(p.ownerId ?? "", p.visibility))
-        .filter((p) => p.lat >= south && p.lat <= north && p.lng >= west && p.lng <= east)
+      const inView = db.places
+        .filter((p) => inBounds(p, bounds))
         .filter((p) => !category || p.category === category)
-        .slice(0, 80)
-        .map(placeDto);
-      return { places, clusters: [] };
+        .filter((p) => canView(p.ownerId ?? "", p.visibility));
+      if (query.get("cluster") === "false") return { places: listPlaces(inView).map(placeDto), clusters: [] };
+      const { places, clusters } = clusterPlaces(inView, bounds);
+      return { places: places.map(placeDto), clusters };
     },
   },
   {
@@ -90,12 +94,10 @@ export const placeRoutes: Route[] = [
     handler: ({ query }) => {
       const q = (query.get("q") ?? "").trim().replace(/\s+/g, "");
       if (!q) return [];
-      return db.places
+      const candidates = db.places
         .filter((p) => p.category !== "STATION" || q.includes("역"))
-        .filter((p) => canView(p.ownerId ?? "", p.visibility))
-        .filter((p) => (p.name + p.region + p.address).replace(/\s+/g, "").includes(q))
-        .slice(0, 20)
-        .map(placeDto);
+        .filter((p) => canView(p.ownerId ?? "", p.visibility));
+      return searchPlaces(candidates, q, 20).map(placeDto);
     },
   },
   {

@@ -7,6 +7,7 @@ import { conversations, messages } from "./fixtures/messages.ts";
 import { places } from "./fixtures/places.ts";
 import { notifications, plans } from "./fixtures/plans.ts";
 import { comments, posts } from "./fixtures/posts.ts";
+import { storePlaces } from "./fixtures/storePlaces.ts";
 import type {
   CollectionRow,
   PurchaseRow,
@@ -23,7 +24,8 @@ const clone = <T>(value: T): T => structuredClone(value);
 export const db = {
   users: clone(users),
   follows: clone(follows),
-  places: clone(places),
+  // 게시물 · 저장 장소가 참조하는 예시 장소 뒤에 실제 상가 정보를 붙입니다.
+  places: [...clone(places), ...storePlaces],
   posts: clone(posts),
   comments: clone(comments),
   savedPlaces: clone(savedPlaces),

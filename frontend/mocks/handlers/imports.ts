@@ -1,4 +1,5 @@
 import { db, findPlace, ME_ID, nextId, placeDto } from "../db.ts";
+import { isStorePlace } from "../fixtures/storePlaces.ts";
 import { HttpError, notFound, type Route } from "../router.ts";
 
 /**
@@ -53,8 +54,9 @@ function buildCandidates(job: Job) {
   }
 
   const text = job.source.value.replace(/\s+/g, "");
+  // 실제 상가 정보(storePlaces)는 "다미"처럼 짧은 상호가 많아 본문 아무 곳에나 걸리므로, 예시 장소에서만 찾습니다.
   const found = db.places
-    .filter((p) => !p.isCustom && p.category !== "STATION")
+    .filter((p) => !p.isCustom && p.category !== "STATION" && !isStorePlace(p.id))
     .filter((p) => text.includes(p.name.replace(/\s+/g, "")))
     .map((p) => candidate(p.name, `${p.region} · 지도 위치 확인됨`, p.id, { confidence: 0.9 }));
   if (text.includes("전망대") && !found.some((c) => c.matchedPlace?.category === "PHOTO_SPOT")) {
