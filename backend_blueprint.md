@@ -1632,7 +1632,7 @@ class ArchitectureTest {
 | 7 | `payments.status` · `refunds` 외 상태 값 목록, 결제 준비 만료 시각 없음 | 상태 값 확정 (APPROVING 포함 여부), READY 만료 처리 |
 | 8 | `collection_places` → `saved_places` FK 삭제 정책 | 앱에서 동기 이벤트로 먼저 정리 (6.4). DB는 `RESTRICT` 유지 |
 | 9 | `conversations.last_message_id` ↔ `messages.conversation_id` 상호 참조 | 메시지 저장 후 대화방 갱신 순서 고정 |
-| 10 | `follows`, `user_blocks` 자기 자신 금지가 주석에만 있음 | CHECK 제약 |
+| 10 | `follows`, `user_blocks` 자기 자신 금지가 주석에만 있음 | CHECK 제약. `follows`는 V20에서 `ck_follows_not_self`로 반영함. `user_blocks`는 테이블 마이그레이션이 아직 없음 |
 
 ### 8.5 서로 충돌하는 규칙
 
