@@ -32,3 +32,10 @@ export interface FeedPlaceDto {
   postIds: string[];
   postCount: number;
 }
+
+/** 피드 목록 커서 페이지. 백엔드 FeedPageResponse 계약: feeds, nextCursor(Long), hasNext */
+export interface FeedPageDto {
+  feeds: PostDto[];
+  nextCursor: number | null;
+  hasNext: boolean;
+}

@@ -3,8 +3,9 @@
 import { Bell, List, Map as MapIcon, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
-import { useFeed, type FeedTab } from "@/entities/post";
+import { useEffect, useRef, useState } from "react";
+import { useFeed, postKeys, type FeedTab } from "@/entities/post";
+import { useQueryClient } from "@tanstack/react-query";
 import { PostCard } from "@/widgets/post-card";
 import { errorMessage } from "@/shared/api/errors";
 import { routes } from "@/shared/config/routes";
@@ -99,8 +100,40 @@ export function FeedScreen() {
 
 function FeedList({ tab, region }: { tab: FeedTab; region?: string }) {
   const regionParam = region || undefined;
-  const { data: posts, isPending, isError, error, refetch } = useFeed(tab, regionParam);
+  const qc = useQueryClient();
+  const {
+    data,
+    isPending,
+    isError,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useFeed(tab, regionParam);
   const [refreshSignal, setRefreshSignal] = useState(0);
+
+  // 페이지들을 하나의 배열로 합침
+  const posts = data?.pages.flatMap((p) => p.items) ?? [];
+
+  // 맨 아래 감지용 ref — 이 div가 화면에 보이면 다음 페이지 요청
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  // IntersectionObserver: bottomRef가 뷰포트에 들어오면 fetchNextPage 호출
+  useEffect(() => {
+    const el = bottomRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // 보이고 + 다음 페이지 있고 + 현재 로딩 중 아닐 때만 요청
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { threshold: 0.1 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
   // 피드에서 홈 버튼을 다시 누르면: 맨 위로 올라간 뒤 당겨서 새로고침한 것처럼 새로고침
   useEffect(() => {
@@ -117,6 +150,11 @@ function FeedList({ tab, region }: { tab: FeedTab; region?: string }) {
     return () => window.removeEventListener(HOME_RESELECT_EVENT, onReselect);
   }, []);
 
+  // pull-to-refresh: 캐시를 초기화하고 1페이지부터 다시 불러옴
+  // resetQueries는 Promise를 반환해 스피너가 데이터 로드 완료까지 유지됨
+  const handleRefresh = () =>
+    qc.resetQueries({ queryKey: postKeys.feed(tab, regionParam), exact: true });
+
   if (isPending) {
     return (
       <div className="space-y-3 py-3">
@@ -129,11 +167,11 @@ function FeedList({ tab, region }: { tab: FeedTab; region?: string }) {
       </div>
     );
   }
-  // 위에서 당겼다 놓으면 피드를 다시 불러옵니다 (오류 · 빈 화면에서도 가능)
+
   return (
-    <PullToRefresh onRefresh={() => refetch()} refreshSignal={refreshSignal}>
+    <PullToRefresh onRefresh={handleRefresh} refreshSignal={refreshSignal}>
       {isError ? (
-        <ErrorState message={errorMessage(error)} onRetry={() => refetch()} />
+        <ErrorState message={errorMessage(error)} onRetry={handleRefresh} />
       ) : posts.length === 0 ? (
         <EmptyState title="아직 볼 게시물이 없어요" description="추천 탭에서 마음에 드는 사람을 팔로우해 보세요.">
           <ButtonLink href={routes.search()} variant="secondary" block>
@@ -141,11 +179,21 @@ function FeedList({ tab, region }: { tab: FeedTab; region?: string }) {
           </ButtonLink>
         </EmptyState>
       ) : (
-        <div className="divide-y divide-line">
-          {posts.map((post, i) => (
-            <PostCard key={post.id} post={post} priority={i === 0} />
-          ))}
-        </div>
+        <>
+          <div className="divide-y divide-line">
+            {posts.map((post, i) => (
+              <PostCard key={post.id} post={post} priority={i === 0} />
+            ))}
+          </div>
+          {/* 다음 페이지 로딩 스피너 */}
+          {isFetchingNextPage && (
+            <div className="space-y-3 py-3">
+              <Skeleton className="aspect-[13/10] w-full rounded-none" />
+            </div>
+          )}
+          {/* 이 div가 화면에 들어오면 IntersectionObserver가 다음 페이지 요청 */}
+          <div ref={bottomRef} className="h-1" />
+        </>
       )}
     </PullToRefresh>
   );

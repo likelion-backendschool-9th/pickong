@@ -19,7 +19,9 @@ const TAB_LABEL: Record<FeedTab, string> = { following: "팔로잉", recommended
 export function FeedMap({ tab, region }: { tab: FeedTab; region?: string }) {
   const regionParam = region || undefined;
   const { data: places, isPending: placesPending } = useFeedPlaces(tab, regionParam);
-  const { data: posts, isPending: postsPending } = useFeed(tab, regionParam);
+  const { data: postsData, isPending: postsPending } = useFeed(tab, regionParam);
+  // useInfiniteQuery 캐시는 pages 배열이므로 하나의 배열로 합침
+  const posts = postsData?.pages.flatMap((p) => p.items);
   const [bounds, setBounds] = useState<LatLngBounds | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 

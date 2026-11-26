@@ -96,7 +96,7 @@ export const userRoutes: Route[] = [
   },
   {
     method: "GET",
-    path: "/api/v1/users/:username/posts",
+    path: "/api/v1/users/:username/feeds",
     handler: ({ params }) => {
       const user = userOr404(params.username);
       return db.posts
