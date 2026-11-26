@@ -7,4 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ReportJpaRepository extends JpaRepository<ReportJpaEntity, Long> {
 
     List<ReportJpaEntity> findByStatusOrderByCreatedAtDescIdDesc(String status);
+
+    boolean existsByReporterIdAndTargetTypeAndTargetIdAndStatus(
+            Long reporterId, String targetType, Long targetId, String status);
 }

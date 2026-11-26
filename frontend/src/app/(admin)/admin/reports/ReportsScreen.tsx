@@ -14,6 +14,7 @@ import { useToast } from "@/shared/ui/Toast";
 import { useReports, useResolveReport, type Report, type ReportAction, type SanctionType } from "../_api/adminApi";
 import { ReasonSheet } from "../_components/ReasonSheet";
 import { REPORT_ACTION, REPORT_TARGET, SANCTION_TYPES, reportReasonLabel, reportVisibilityLabel } from "../_lib/labels";
+import { ReportChangeNote } from "./_components/ReportChangeNote";
 
 export function ReportsScreen() {
   const [status, setStatus] = useState<Report["status"]>("PENDING");
@@ -59,10 +60,8 @@ export function ReportsScreen() {
               <div className="mt-3 flex gap-3">
                 {r.target.imageUrl && <Thumb src={r.target.imageUrl} alt="" className="size-14" />}
                 <div className="min-w-0 flex-1">
-                  <p className="line-clamp-2 text-[14px] font-bold">{r.target.text}</p>
-                  {r.target.modified && r.target.current?.text && (
-                    <p className="mt-1 line-clamp-2 text-[12px] text-ink-sub">현재: {r.target.current.text}</p>
-                  )}
+                  <p className="line-clamp-2 break-words text-[14px] font-bold">{r.target.text}</p>
+                  <ReportChangeNote report={r} />
                   <p className="mt-0.5 text-[12px] text-ink-sub">
                     작성자 {r.reportedUser?.nickname ?? "알 수 없음"} · 신고자 {r.reporter?.nickname ?? "알 수 없음"}
                   </p>

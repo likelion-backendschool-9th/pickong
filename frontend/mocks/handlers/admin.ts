@@ -1,3 +1,5 @@
+import { buildReportTarget, resolveMockVisibility, type ReportSnapshotSource, type ReportVisibility } from "../../src/app/(admin)/admin/reports/_lib/reportTargetPreview.ts";
+import { excerpt } from "../../src/app/(admin)/admin/reports/_lib/reportContentComparison.ts";
 import { collectionDto, db, findUser, postDto } from "../db.ts";
 import { HttpError, notFound, type Route } from "../router.ts";
 import { accountDto, creatorState, reviewApplication } from "./creator.ts";
@@ -25,11 +27,13 @@ interface ReportRow {
   createdAt: string;
   status: "PENDING" | "RESOLVED";
   resolution: { action: ReportAction; memo: string; resolvedAt: string } | null;
-  snapshot?: { text: string; imageUrl: string | null } | null;
-  visibility?: "LIVE" | "HIDDEN" | "DELETED" | "UNAVAILABLE";
+  /** textScope는 비교에만 쓰고 응답에는 넣지 않습니다. currentBody가 있으면 대상 본문 대신 씁니다. */
+  snapshot?: ReportSnapshotSource | null;
+  currentBody?: string | null;
+  visibility?: ReportVisibility;
 }
 
-let reports: ReportRow[] = [
+const reports: ReportRow[] = [
   {
     id: "rp-1",
     targetType: "POST",
@@ -58,6 +62,92 @@ let reports: ReportRow[] = [
   },
   { id: "rp-3", targetType: "USER", targetId: "u-walker", reportedUserId: "u-walker", reporterId: "u-jimin", reason: "IMPERSONATION", detail: "다른 크리에이터를 사칭하는 것 같아요.", createdAt: ago(1), status: "PENDING", resolution: null },
   { id: "rp-4", targetType: "COLLECTION", targetId: "c-jimin-photo", reportedUserId: "u-jimin", reporterId: "u-minsu", reason: "COPYRIGHT", detail: "제 블로그 사진을 그대로 썼어요.", createdAt: ago(3), status: "RESOLVED", resolution: { action: "DISMISS", memo: "직접 촬영한 사진으로 확인", resolvedAt: ago(2) } },
+  {
+    id: "rp-5",
+    targetType: "POST",
+    targetId: "post-report-full",
+    reportedUserId: "u-walker",
+    reporterId: "u-haeun",
+    reason: "ABUSE",
+    detail: "첫 줄은 같고 뒷줄만 바뀌었어요.",
+    createdAt: ago(0.15),
+    status: "PENDING",
+    resolution: null,
+    snapshot: { text: "안녕하세요.\n부적절한 내용입니다.", imageUrl: null, textScope: "FULL" },
+    currentBody: "안녕하세요.\n수정된 내용입니다.",
+  },
+  {
+    id: "rp-6",
+    targetType: "COMMENT",
+    targetId: "comment-report-full",
+    reportedUserId: "u-minsu",
+    reporterId: "u-yujin",
+    reason: "ABUSE",
+    detail: "",
+    createdAt: ago(0.35),
+    status: "PENDING",
+    resolution: null,
+    snapshot: { text: "첫 줄입니다.\n가운데입니다.\n신고 당시 마지막", imageUrl: null, textScope: "FULL" },
+    currentBody: "첫 줄입니다.\n가운데입니다.\n수정된 마지막",
+  },
+  {
+    id: "rp-7",
+    targetType: "POST",
+    targetId: "post-report-legacy",
+    reportedUserId: "u-walker",
+    reporterId: "u-jimin",
+    reason: "ETC",
+    detail: "",
+    createdAt: ago(0.8),
+    status: "PENDING",
+    resolution: null,
+    snapshot: { text: "같은 첫 줄\n신고 당시 둘째", imageUrl: null },
+    currentBody: "같은 첫 줄\n현재 둘째",
+  },
+  {
+    id: "rp-8",
+    targetType: "POST",
+    targetId: "post-report-same",
+    reportedUserId: "u-seoyeon",
+    reporterId: "u-haeun",
+    reason: "SPAM",
+    detail: "",
+    createdAt: ago(1.4),
+    status: "PENDING",
+    resolution: null,
+    snapshot: { text: "동일한 본문\n둘째 줄", imageUrl: null, textScope: "FULL" },
+    currentBody: "동일한 본문\n둘째 줄",
+  },
+  {
+    id: "rp-9",
+    targetType: "POST",
+    targetId: "post-report-deleted",
+    reportedUserId: "u-walker",
+    reporterId: "u-minsu",
+    reason: "SPAM",
+    detail: "",
+    createdAt: ago(1.8),
+    status: "PENDING",
+    resolution: null,
+    visibility: "DELETED",
+    snapshot: { text: "삭제 전 본문", imageUrl: null, textScope: "FULL" },
+    currentBody: "지운 뒤의 본문",
+  },
+  {
+    id: "rp-10",
+    targetType: "COMMENT",
+    targetId: "comment-report-hidden",
+    reportedUserId: "u-jimin",
+    reporterId: "u-haeun",
+    reason: "ABUSE",
+    detail: "",
+    createdAt: ago(2.2),
+    status: "PENDING",
+    resolution: null,
+    visibility: "HIDDEN",
+    snapshot: { text: "숨김 첫 줄\n신고 당시", imageUrl: null, textScope: "FULL" },
+    currentBody: "숨김 첫 줄\n현재 본문",
+  },
 ];
 
 /** 숨김 처리한 콘텐츠 ("POST:post-5" 형태). mock은 표시만 하고 피드에서 빼지는 않습니다. */
@@ -75,56 +165,73 @@ const userSummary = (id: string) => {
 };
 
 function targetPreview(r: ReportRow) {
-  const visible = visibleTarget(r);
-  const visibility = r.visibility ?? visible.visibility;
-  const readable = visibility === "LIVE" || visibility === "HIDDEN";
-  const snapshot = r.snapshot ?? null;
-  const snapshotLine = firstLine(snapshot?.text);
-  const currentLine = readable ? firstLine(visible.text) : null;
-  return {
-    text: snapshotLine ?? visible.text,
-    imageUrl: snapshot?.imageUrl ?? null,
-    link: visibility === "LIVE" ? visible.link : null,
-    snapshot,
-    current: readable ? { text: currentLine, imageUrl: null } : null,
-    modified: snapshotLine && currentLine ? snapshotLine !== currentLine : null,
+  const source = visibleTarget(r);
+  const hasCurrent = Object.hasOwn(r, "currentBody");
+  const visibility = resolveMockVisibility(r.visibility, source.visibility, hasCurrent);
+  const body = hasCurrent ? (r.currentBody ?? null) : source.body;
+  return buildReportTarget({
+    targetType: r.targetType,
     visibility,
-  };
-}
-
-function firstLine(text: string | null | undefined) {
-  const line = text?.split("\n")[0]?.trim();
-  return line ? line : null;
+    snapshot: r.snapshot ?? null,
+    currentBody: body,
+    link: source.link,
+    liveFallback: excerpt(body) ?? source.blankTitle,
+    deletedText: source.deletedText,
+    unavailableText: source.unavailableText,
+  });
 }
 
 function visibleTarget(r: ReportRow): {
-  text: string;
-  imageUrl: string | null;
+  body: string | null;
   link: string | null;
-  visibility: "LIVE" | "HIDDEN" | "DELETED" | "UNAVAILABLE";
+  visibility: ReportVisibility;
+  blankTitle: string;
+  deletedText: string;
+  unavailableText: string;
 } {
   if (r.targetType === "POST") {
     const p = db.posts.find((x) => x.id === r.targetId);
-    return p
-      ? { text: p.content.split("\n")[0] ?? "게시물", imageUrl: p.photos[0]?.url ?? null, link: `/posts/${r.targetId}`, visibility: "LIVE" }
-      : { text: "확인할 수 없는 게시물", imageUrl: null, link: null, visibility: "UNAVAILABLE" };
+    return {
+      body: p ? p.content : null,
+      link: p ? `/posts/${r.targetId}` : null,
+      visibility: p ? "LIVE" : "UNAVAILABLE",
+      blankTitle: "게시물",
+      deletedText: "삭제된 게시물",
+      unavailableText: "확인할 수 없는 게시물",
+    };
   }
   if (r.targetType === "COMMENT") {
     const c = db.comments.find((x) => x.id === r.targetId);
-    return c
-      ? { text: c.content, imageUrl: null, link: `/posts/${c.postId}`, visibility: "LIVE" }
-      : { text: "확인할 수 없는 댓글", imageUrl: null, link: null, visibility: "UNAVAILABLE" };
+    return {
+      body: c ? c.content : null,
+      link: c ? `/posts/${c.postId}` : null,
+      visibility: c ? "LIVE" : "UNAVAILABLE",
+      blankTitle: "댓글",
+      deletedText: "삭제된 댓글",
+      unavailableText: "확인할 수 없는 댓글",
+    };
   }
   if (r.targetType === "COLLECTION") {
     const c = db.collections.find((x) => x.id === r.targetId);
-    return c
-      ? { text: c.title, imageUrl: collectionDto(c).coverImageUrl, link: `/collections/${r.targetId}`, visibility: "LIVE" }
-      : { text: "확인할 수 없는 컬렉션", imageUrl: null, link: null, visibility: "UNAVAILABLE" };
+    return {
+      body: c ? c.title : null,
+      link: c ? `/collections/${r.targetId}` : null,
+      visibility: c ? "LIVE" : "UNAVAILABLE",
+      blankTitle: "컬렉션",
+      deletedText: "확인할 수 없는 컬렉션",
+      unavailableText: "확인할 수 없는 컬렉션",
+    };
   }
   const u = findUser(r.targetId);
-  return u
-    ? { text: `${u.nickname} (@${u.username})`, imageUrl: u.profileImageUrl, link: `/users/${u.username}`, visibility: "LIVE" }
-    : { text: "확인할 수 없는 사용자", imageUrl: null, link: null, visibility: "UNAVAILABLE" };
+  const label = u ? `${u.nickname} (@${u.username})` : null;
+  return {
+    body: label,
+    link: u ? `/users/${u.username}` : null,
+    visibility: u ? "LIVE" : "UNAVAILABLE",
+    blankTitle: label ?? "사용자",
+    deletedText: "탈퇴한 사용자",
+    unavailableText: "확인할 수 없는 사용자",
+  };
 }
 
 const reportDto = (r: ReportRow) => ({

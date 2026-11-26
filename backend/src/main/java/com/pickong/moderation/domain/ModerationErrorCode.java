@@ -10,6 +10,15 @@ public enum ModerationErrorCode implements ErrorCode {
     REPORT_NOT_FOUND(404, "신고를 찾을 수 없어요."),
     /** 대기 상태가 아닌 신고를 다시 처리함 */
     ALREADY_RESOLVED(409, "이미 처리한 신고예요."),
+    /** 같은 회원이 같은 대상을 이미 대기로 신고함 */
+    DUPLICATE_REPORT(409, "이미 대기 중인 신고가 있어요."),
+    INVALID_REPORT_REASON(400, "신고 사유를 골라 주세요."),
+    INVALID_REPORT_TARGET(400, "게시물이나 댓글만 신고할 수 있어요."),
+    REPORT_DETAIL_REQUIRED(400, "신고 내용을 입력해 주세요."),
+    REPORT_DETAIL_TOO_LONG(400, "신고 내용은 500자까지 쓸 수 있어요."),
+    SELF_REPORT(400, "내가 쓴 글은 신고할 수 없어요."),
+    /** 없거나 볼 수 없는 대상. 두 경우를 나누지 않습니다. */
+    REPORT_TARGET_NOT_FOUND(404, "신고할 대상을 찾을 수 없어요."),
     INVALID_REPORT_STATUS(400, "신고 상태를 확인해 주세요."),
     INVALID_REPORT_ACTION(400, "처리 방법을 골라 주세요."),
     RESOLUTION_MEMO_REQUIRED(400, "처리 사유를 입력해 주세요."),
