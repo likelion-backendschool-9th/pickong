@@ -65,6 +65,7 @@ export const placeRoutes: Route[] = [
   {
     /**
      * 지도 범위 안의 장소 (일반 지도처럼 주변 장소 표시용). bbox=서,남,동,북 · category(선택)
+     * mock은 장소가 적어 묶지 않습니다 (clusters는 항상 비어 있음).
      * 실제로는 카카오 장소 데이터(카테고리 · 영역 검색)로 바뀝니다.
      */
     method: "GET",
@@ -73,12 +74,13 @@ export const placeRoutes: Route[] = [
       const [west, south, east, north] = (query.get("bbox") ?? "").split(",").map(Number);
       if ([west, south, east, north].some((n) => !Number.isFinite(n))) throw new HttpError(400, "BAD_BBOX", "지도 범위를 확인해 주세요.");
       const category = query.get("category");
-      return db.places
+      const places = db.places
         .filter((p) => canView(p.ownerId ?? "", p.visibility))
         .filter((p) => p.lat >= south && p.lat <= north && p.lng >= west && p.lng <= east)
         .filter((p) => !category || p.category === category)
         .slice(0, 80)
         .map(placeDto);
+      return { places, clusters: [] };
     },
   },
   {

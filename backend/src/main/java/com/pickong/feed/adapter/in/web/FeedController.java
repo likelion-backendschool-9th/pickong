@@ -2,6 +2,7 @@ package com.pickong.feed.adapter.in.web;
 
 import com.pickong.feed.application.port.in.FeedUseCase;
 
+import java.util.List;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -27,6 +28,7 @@ import org.springframework.security.core.Authentication;
 import com.pickong.feed.adapter.in.web.request.CreateFeedRequest;
 import com.pickong.feed.adapter.in.web.request.UpdateFeedRequest;
 import com.pickong.feed.adapter.in.web.response.FeedPageResponse;
+import com.pickong.feed.adapter.in.web.response.FeedPlaceResponse;
 import com.pickong.feed.adapter.in.web.response.FeedResponse;
 import com.pickong.feed.application.dto.FeedPage;
 import com.pickong.feed.domain.FeedErrorCode;
@@ -77,11 +79,17 @@ public class FeedController {
                 page.isHasNext());
     }
 
-    // 피드 지도 장소 목록 조회 — 장소 조회 UseCase 구현 전까지 미구현 상태
-    // TODO: 피드 장소 조회 UseCase 구현 후 연결 필요
+    // 피드 지도 장소 목록 조회
+    // tab=recommended(추천) | tab=following(팔로잉)
+    // 비로그인 시 recommended만 허용, following은 빈 목록 반환
     @GetMapping("/places")
-    public FeedPageResponse getFeedPlaces() {
-        throw new UnsupportedOperationException("피드 장소 조회는 아직 구현되지 않았습니다");
+    public List<FeedPlaceResponse> getFeedPlaces(
+            @RequestParam @NotNull String tab,
+            @CurrentUser(required = false) LoginUser user) {
+        Long userId = user != null ? user.userId() : null;
+        return feedUseCase.getFeedPlaces(tab, userId).stream()
+                .map(FeedPlaceResponse::from)
+                .toList();
     }
 
     // 피드 생성 — 로그인 필수
@@ -108,5 +116,6 @@ public class FeedController {
             @CurrentUser LoginUser user) {
         feedUseCase.deleteFeed(feedId, user.userId());
     }
+
 
 }

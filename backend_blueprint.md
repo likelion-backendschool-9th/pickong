@@ -335,11 +335,13 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | GET | `/admin/place-submissions/{id}` | `PlaceSubmissionUseCase.get` | 구현됨. `{id}`는 DB id 문자열. 승인된 `placeId`는 장소 `public_id` |
 | POST | `/admin/place-submissions/{id}/approve` | `PlaceSubmissionUseCase.approve` | 구현됨. 본문 없음. 심사자 id는 인증된 관리자 주체 |
 | POST | `/admin/place-submissions/{id}/reject` | `PlaceSubmissionUseCase.reject` | 구현됨. 본문 `{ "reason" }`. 공백만 있으면 거절 |
-| GET | `/places`, `/places?bbox=` | `PlaceQueryUseCase.findPublic` / `findInBounds` | 구현됨. `places` 행만. bbox는 서경,남위,동경,북위. 대기 · 반려 제보는 없음 |
+| GET | `/places?bbox=&category=&cluster=` | `PlaceQueryUseCase.findMap` / `findInBounds` | 구현됨. `places` 행만. bbox(서경,남위,동경,북위)는 필수이고, 없으면 400. 대기 · 반려 제보는 없음. 응답은 `{ places, clusters }`. 아래 '지도 장소 묶기' 참고 |
 | POST | `/places` | `PlaceCommandUseCase.createCustomPlace` | 이후 설계. 컨트롤러 없음. 제보 접수가 아님 |
 | GET | `/places/{placeId}` | `PlaceQueryUseCase.getDetail` | 이후 설계. 영업시간 포함. 클래스 없음 |
 | GET | `/places/{placeId}/summary` | `PlaceQueryUseCase.getSummary` | 이후 설계. 클래스 없음 |
 | GET | `/places/search` | `PlaceSearchUseCase.search` | 이후 설계. 클래스 없음 |
+
+**지도 장소 묶기:** `bbox`가 있으면 혼자 있는 장소는 `places`, 묶은 장소는 `clusters`(`lat` · `lng` · `count` · `bounds`)로 나눠 돌려줍니다. 범위 안의 서로 다른 좌표가 200개 이하면 같은 좌표끼리만 묶고, 넘으면 격자로 묶습니다(칸 크기는 `MapGridPolicy`). 지도마다 줌 값이 뜻하는 범위가 달라 줌이 아니라 좌표 수로 정합니다. `category`를 주면 그 카테고리만 셉니다. `cluster=false`는 묶지 않은 목록(이름순, 최대 500곳)이고 `clusters`는 비어 있습니다. `bbox`가 없으면 전체 장소를 한 번에 돌려주지 않도록 400(`INVALID_INPUT`)이고, 가로나 세로 한 변이 16km를 넘으면 400(`BOUNDS_TOO_LARGE`)입니다(`MapBoundsPolicy`. 프론트는 15km를 넘으면 요청하지 않고, 범위를 바깥쪽으로 약 100m씩 넓혀 보내므로 여유를 둡니다). 범위 조회는 `places`의 `location::geometry` GiST 인덱스(V18)를 씁니다. 묶음 개수에는 회원이 이미 저장한 장소도 포함됩니다. SQL은 `PlaceMapQueryAdapter`에 있습니다.
 
 제보 상태 전이는 대기 → 승인 또는 대기 → 반려만입니다. 승인하면 `places` 행을 만들고 `place_submissions.place_id`를 같은 트랜잭션에서 연결합니다. 반려는 사유 · 심사자 · 처리 시각만 남기고 장소는 만들지 않습니다. 이미 처리한 제보의 재심사는 409입니다. 관리자 API는 비로그인 401, 회원 403입니다. 관리자 로그인과 `admin_action_logs` 기록은 만들지 않았고, 심사자 id는 제보 행의 `reviewer_admin_id`에 남습니다. 승인된 장소에는 `visibility` · `owner_id`를 두지 않습니다. 이 두 컬럼의 일반 규칙은 8.3에 그대로 열려 있습니다.
 

@@ -19,6 +19,13 @@ export function fromNaverBounds(b: naver.maps.LatLngBounds): LatLngBounds {
   };
 }
 
+export function toNaverBounds(b: LatLngBounds): naver.maps.LatLngBounds {
+  return new naver.maps.LatLngBounds(
+    new naver.maps.LatLng(b.south, b.west),
+    new naver.maps.LatLng(b.north, b.east),
+  );
+}
+
 /** 래스터 6~21, GL 벡터맵 5~20 */
 export function clampNaverZoom(zoom: number, gl: boolean): number {
   const min = 5;

@@ -772,7 +772,7 @@ export async function getFeed(id: Id): Promise<Feed> {
 
 - `mocks/`의 핸들러가 **DTO 형태의 응답**을 돌려줍니다. 따라서 mapper까지 실제와 같은 경로로 실행됩니다.
 - 개발 시 mock 서버(localhost:4000)를 띄우고, rewrites 대상과 `API_INTERNAL_URL`을 mock 서버로 지정합니다.
-- 백엔드에 일부 API만 있는 동안은 `BACKEND_URL`을 정합니다. `next.config.ts`의 `BACKEND_PATHS`에 있는 경로만 백엔드로 가고 나머지는 mock으로 갑니다. 백엔드에 API가 생기면 이 목록에 경로를 추가합니다. 장소 제보 화면은 관리자 로그인이 없어 mock에 둡니다. 목록은 배열입니다. `GET /api/v1/places`도 백엔드 응답에 지도 화면이 쓰는 필드가 없어 mock에 둡니다.
+- 백엔드에 일부 API만 있는 동안은 `BACKEND_URL`을 정합니다. `next.config.ts`의 `BACKEND_PATHS`에 있는 경로만 백엔드로 가고 나머지는 mock으로 갑니다. 백엔드에 API가 생기면 이 목록에 경로를 추가합니다. 장소 제보 화면은 관리자 로그인이 없어 mock에 둡니다. 목록은 배열입니다. `GET /api/v1/places`도 백엔드 응답에 지도 화면이 쓰는 필드가 없어 mock에 둡니다. 응답 형태는 백엔드와 같은 `{ places, clusters }`이고, mock은 장소가 적어 묶지 않으므로 `clusters`가 비어 있습니다.
 - 쓰기 요청(POST · PUT · PATCH · DELETE)은 `http.ts`가 `XSRF-TOKEN` 쿠키 값을 `X-XSRF-TOKEN` 헤더로 보냅니다. 403 `INVALID_CSRF_TOKEN`이면 쿠키를 다시 읽어 한 번만 재시도합니다.
 - **전환은 환경변수만 바꿉니다.** API 코드와 컴포넌트는 수정하지 않습니다. 기존 `USE_MOCK` 분기는 없앱니다.
 - 같은 핸들러를 Vitest 컴포넌트 테스트에서도 재사용합니다.

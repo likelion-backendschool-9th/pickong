@@ -30,4 +30,7 @@ public interface FeedRepository {
     // 북마크 수 증가 · 감소
     void incrementBookmarkCount(Long feedId);
     void decrementBookmarkCount(Long feedId);
+
+    // 특정 사용자의 피드 목록 (isOwner=true면 모든 visibility, false면 PUBLIC만)
+    List<Feed> findByOwner(Long ownerUserId, boolean isOwner, Long cursor, int limit);
 }

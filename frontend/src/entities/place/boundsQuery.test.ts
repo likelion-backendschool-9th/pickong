@@ -24,7 +24,23 @@ const cityWide = {
 };
 
 describe("quantizePlaceBounds", () => {
-  it("소수 셋째 자리로 반올림한다", () => {
+  it("크게 확대해도 화면을 모두 덮고 크기가 0이 되지 않는다", () => {
+    const view = { north: 37.49792, south: 37.4978, east: 127.02762, west: 127.02751 };
+    const q = quantizePlaceBounds(view);
+    expect(q.west).toBeLessThanOrEqual(view.west);
+    expect(q.south).toBeLessThanOrEqual(view.south);
+    expect(q.east).toBeGreaterThanOrEqual(view.east);
+    expect(q.north).toBeGreaterThanOrEqual(view.north);
+    expect(q.east).toBeGreaterThan(q.west);
+    expect(q.north).toBeGreaterThan(q.south);
+  });
+
+  it("이미 셋째 자리인 값은 더 넓히지 않는다", () => {
+    const b = { north: 37.545, south: 37.54, east: 127.056, west: 127.04 };
+    expect(quantizePlaceBounds(b)).toEqual(b);
+  });
+
+  it("소수 셋째 자리로 바깥쪽으로 넓힌다", () => {
     expect(
       quantizePlaceBounds({
         north: 37.54461,
