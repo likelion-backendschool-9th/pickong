@@ -21,7 +21,9 @@ export interface CommentDto {
   postId: string;
   parentId: string | null;
   author: UserDto;
-  content: string;
+  content: string | null;
+  // 소프트 삭제된 댓글 여부 — true면 대댓글이 남아있어 목록에 보이는 상태
+  deleted: boolean;
   createdAt: string;
 }
 

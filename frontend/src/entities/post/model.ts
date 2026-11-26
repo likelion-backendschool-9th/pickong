@@ -28,7 +28,9 @@ export interface PostComment {
   postId: string;
   parentId: string | null;
   author: User;
-  content: string;
+  content: string | null;
+  // 소프트 삭제 여부 — true면 대댓글이 남아있어 "삭제된 댓글입니다"로 표시
+  deleted: boolean;
   createdAt: string;
 }
 
