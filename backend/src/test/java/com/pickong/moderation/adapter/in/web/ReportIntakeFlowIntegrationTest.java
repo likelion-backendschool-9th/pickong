@@ -13,6 +13,7 @@ import com.pickong.common.security.LoginUser;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,8 +46,15 @@ class ReportIntakeFlowIntegrationTest {
     @Autowired
     JdbcTemplate jdbc;
 
+    @BeforeEach
+    void actualAdminForAudit() {
+        jdbc.update("INSERT INTO admins(id,username,password_hash,role,status) VALUES (7,'flow-it-admin-7','test-only','OPERATOR','ACTIVE') ON CONFLICT(id) DO NOTHING");
+        assertThat(jdbc.queryForObject("SELECT username FROM admins WHERE id=7", String.class)).isEqualTo("flow-it-admin-7");
+    }
+
     @AfterEach
     void deleteRows() {
+        jdbc.update("DELETE FROM admin_action_logs WHERE admin_id=7");
         jdbc.update("DELETE FROM reports");
         jdbc.update("DELETE FROM comments WHERE content LIKE 'flow-it-%'");
         jdbc.update("DELETE FROM feeds WHERE content LIKE 'flow-it-%'");
@@ -55,6 +63,7 @@ class ReportIntakeFlowIntegrationTest {
                  WHERE user_id IN (SELECT id FROM users WHERE display_name = '접수흐름테스트')
                 """);
         jdbc.update("DELETE FROM users WHERE display_name = '접수흐름테스트'");
+        jdbc.update("DELETE FROM admins WHERE id=7 AND username='flow-it-admin-7'");
     }
 
     @Test

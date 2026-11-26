@@ -12,6 +12,9 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.context.ApplicationEventPublisher;
+import com.pickong.user.domain.event.UserSuspensionExpiryCheckEvent;
 
 /**
  * auth 모듈 전용 회원 계정 기능: 로그인 가능 여부, 신규 회원 생성.
@@ -23,16 +26,39 @@ public class UserAccountService implements UserAccountUseCase {
 
     private final UserPersistencePort userPersistencePort;
     private final Clock clock;
+    private final ApplicationEventPublisher events;
 
-    public UserAccountService(UserPersistencePort userPersistencePort, Clock clock) {
+    public UserAccountService(UserPersistencePort userPersistencePort, Clock clock, ApplicationEventPublisher events) {
         this.userPersistencePort = userPersistencePort;
         this.clock = clock;
+        this.events = events;
     }
 
     /** 회원을 찾아 로그인 가능한 상태인지 domain 규칙(User.canLogin)으로 판단합니다. 회원이 없으면 false. */
     @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = false)
     public boolean canLogin(Long userId) {
-        return userPersistencePort.findById(userId).map(User::canLogin).orElse(false);
+        if (userId == null || userId <= 0) return false;
+        return userPersistencePort.findById(userId).map(user -> {
+            if (user.hasExpiredSuspension(OffsetDateTime.now(clock))) {
+                events.publishEvent(new UserSuspensionExpiryCheckEvent(userId));
+                return userPersistencePort.findById(userId).map(User::canLogin).orElse(false);
+            }
+            return user.canLogin();
+        }).orElse(false);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY, readOnly = false)
+    public boolean canLoginForUpdate(Long userId) {
+        if (userId == null || userId <= 0) return false;
+        return userPersistencePort.findByIdForUpdate(userId).map(user -> {
+            if (user.hasExpiredSuspension(OffsetDateTime.now(clock))) {
+                events.publishEvent(new UserSuspensionExpiryCheckEvent(userId));
+                return userPersistencePort.findByIdForUpdate(userId).map(User::canLogin).orElse(false);
+            }
+            return user.canLogin();
+        }).orElse(false);
     }
 
     /**

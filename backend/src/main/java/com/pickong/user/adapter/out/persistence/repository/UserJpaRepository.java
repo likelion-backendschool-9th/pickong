@@ -1,13 +1,32 @@
 package com.pickong.user.adapter.out.persistence.repository;
 
 import com.pickong.user.adapter.out.persistence.entity.UserJpaEntity;
+import jakarta.persistence.LockModeType;
 import java.time.OffsetDateTime;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface UserJpaRepository extends JpaRepository<UserJpaEntity, Long> {
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from UserJpaEntity u where u.id = :id")
+    Optional<UserJpaEntity> findByIdForUpdate(@Param("id") Long id);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    // NULL 만료일도 같은 값으로 비교합니다. 단독 ':previousUntil is null'의 PostgreSQL 타입 추론 문제를 피합니다.
+    @Query(value = """
+            update users
+               set status = :status, suspended_until = :until, updated_at = :updatedAt
+             where id = :id and status = :previousStatus and deleted_at is null
+               and suspended_until is not distinct from :previousUntil
+            """, nativeQuery = true)
+    int updateStatusIfUnchanged(@Param("id") Long id, @Param("previousStatus") String previousStatus,
+            @Param("previousUntil") OffsetDateTime previousUntil, @Param("status") String status,
+            @Param("until") OffsetDateTime until, @Param("updatedAt") OffsetDateTime updatedAt);
 
     /** username(대소문자 무시)으로 회원을 조회합니다. */
     @Query("select u from UserJpaEntity u where lower(u.username) = lower(:username)")

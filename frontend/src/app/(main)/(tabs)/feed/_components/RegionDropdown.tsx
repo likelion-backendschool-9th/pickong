@@ -22,13 +22,19 @@ export function RegionDropdown({ value, onChange }: RegionDropdownProps) {
   const isFiltered = selected.length > 0;
 
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+    const frame = requestAnimationFrame(() => searchRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
+
+  const toggleOpen = () => {
+    if (!open) {
       setDraft(selected);
       setDrillPath([]);
       setQuery("");
-      requestAnimationFrame(() => searchRef.current?.focus());
     }
-  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+    setOpen((current) => !current);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -88,7 +94,7 @@ export function RegionDropdown({ value, onChange }: RegionDropdownProps) {
       {/* 트리거 */}
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggleOpen}
         className={[
           "flex h-7 items-center gap-1 rounded-full px-3 text-[12px] font-bold transition-colors",
           isFiltered ? "bg-primary-deep text-white" : "bg-accent-soft text-primary-deep",

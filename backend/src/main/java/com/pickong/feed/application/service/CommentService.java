@@ -28,19 +28,34 @@ public class CommentService implements CommentUseCase {
     @Override
     @Transactional(readOnly = true)
     public CommentPage getComments(Long feedId, Long cursor, int limit) {
-        List<Comment> comments = commentRepository.findByFeedId(feedId, cursor, limit + 1);
+        return getComments(feedId, cursor, limit, null, false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CommentPage getComments(Long feedId, Long cursor, int limit, Long viewerId, boolean admin) {
+        feedRepository.findById(feedId).ensureReadable(viewerId, admin);
+        List<Comment> comments = commentRepository.findByFeedId(feedId, cursor, limit + 1, viewerId, admin);
         return toPage(comments, limit);
     }
 
     @Override
     @Transactional(readOnly = true)
     public CommentPage getReplies(Long feedId, Long commentId, Long cursor, int limit) {
+        return getReplies(feedId, commentId, cursor, limit, null, false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CommentPage getReplies(Long feedId, Long commentId, Long cursor, int limit, Long viewerId, boolean admin) {
+        feedRepository.findById(feedId).ensureReadable(viewerId, admin);
         // 부모 댓글이 해당 피드에 속하는지 확인
         Comment parent = commentRepository.findById(commentId);
         if (!parent.getFeedId().equals(feedId)) {
             throw new BusinessException(FeedErrorCode.COMMENT_FEED_MISMATCH);
         }
-        List<Comment> replies = commentRepository.findRepliesByParentId(commentId, cursor, limit + 1);
+        parent.ensureReadable(viewerId, admin);
+        List<Comment> replies = commentRepository.findRepliesByParentId(commentId, cursor, limit + 1, viewerId, admin);
         return toPage(replies, limit);
     }
 
@@ -48,7 +63,7 @@ public class CommentService implements CommentUseCase {
     @Transactional
     public Comment createComment(Long feedId, CreateCommentCommand command) {
         // 존재하지 않는 feedId면 FEED_NOT_FOUND 예외 발생
-        feedRepository.findById(feedId);
+        feedRepository.findByIdForUpdate(feedId).ensureAcceptsInteraction();
 
         // 대댓글인 경우 부모 댓글 검증
         if (command.getParentId() != null) {
@@ -65,6 +80,7 @@ public class CommentService implements CommentUseCase {
             if (parent.getDeletedAt() != null) {
                 throw new BusinessException(FeedErrorCode.COMMENT_ALREADY_DELETED);
             }
+            if (parent.getHiddenAt() != null) throw new BusinessException(FeedErrorCode.COMMENT_HIDDEN);
         }
         Comment comment = Comment.create(feedId, command.getUserId(), command.getParentId(), command.getContent());
         return commentRepository.save(comment);
@@ -73,7 +89,8 @@ public class CommentService implements CommentUseCase {
     @Override
     @Transactional
     public Comment updateComment(Long feedId, Long commentId, Long userId, UpdateCommentCommand command) {
-        Comment comment = commentRepository.findById(commentId);
+        feedRepository.findByIdForUpdate(feedId);
+        Comment comment = commentRepository.findByIdForUpdate(commentId);
         // 댓글이 해당 피드에 속하는지 확인 — 잘못된 feedId로 다른 피드 댓글 수정 방지
         if (!comment.getFeedId().equals(feedId)) {
             throw new BusinessException(FeedErrorCode.COMMENT_FEED_MISMATCH);
@@ -89,7 +106,8 @@ public class CommentService implements CommentUseCase {
     @Override
     @Transactional
     public void deleteComment(Long feedId, Long commentId, Long userId) {
-        Comment comment = commentRepository.findById(commentId);
+        feedRepository.findByIdForUpdate(feedId);
+        Comment comment = commentRepository.findByIdForUpdate(commentId);
         // 댓글이 해당 피드에 속하는지 확인 — 잘못된 feedId로 다른 피드 댓글 삭제 방지
         if (!comment.getFeedId().equals(feedId)) {
             throw new BusinessException(FeedErrorCode.COMMENT_FEED_MISMATCH);

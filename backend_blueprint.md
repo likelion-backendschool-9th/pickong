@@ -192,7 +192,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 > **보안 결정 (2단계)**
 > - **Access Token:** JWT · HS256 · 15분, 쿠키 `pickong_at`. 내용은 `iss=pickong`, `sub=회원 id`, `iat`, `exp`만 (개인정보 없음). 비밀값은 환경변수 `JWT_SECRET` 또는 `backend/.env`, 기본값 없음(없으면 시작 실패).
 >   - 백엔드와 **별개인 서버**(예: 분리된 WebSocket 서버, 다른 서비스)가 토큰을 직접 검증하게 되면 비밀값을 나눠 주지 않도록 **RS256(공개키 검증)으로 바꿉니다.** Refresh Token은 DB에 있는 별개 값이라 바꿔도 사용자는 로그아웃되지 않습니다.
-> - **인증 필터:** `JwtCookieAuthenticationFilter`가 쿠키 토큰을 검증하고, 실패하면 거절하지 않고 비로그인으로 통과시킵니다. 로그인이 필요한 경로는 인가 단계가 401로 막고, 공개 경로(재발급 등)는 만료된 쿠키가 있어도 동작해야 하기 때문입니다. (Resource Server 필터는 잘못된 토큰이면 공개 경로에서도 401을 내서 쓰지 않음)
+> - **인증 필터:** `JwtCookieAuthenticationFilter`가 쿠키 서명·만료와 `UserAccountUseCase.canLogin`의 현재 ACTIVE 상태를 검사하고, 실패하면 비로그인으로 통과시킵니다. 로그인이 필요한 경로는 인가 단계가 401로 막고, 공개 경로(재발급 등)는 만료된 쿠키가 있어도 동작해야 하기 때문입니다. (Resource Server 필터는 잘못된 토큰이면 공개 경로에서도 401을 내서 쓰지 않음)
 > - **세션 없음(STATELESS)**, 폼 로그인 · Basic · 기본 로그아웃 끔. 401 · 403은 공통 오류 형식 JSON.
 > - **CSRF:** 쿠키 SameSite=Lax + Spring CSRF 토큰(SPA 방식: `XSRF-TOKEN` 쿠키 → `X-XSRF-TOKEN` 헤더). 토큰 오류는 403 `INVALID_CSRF_TOKEN`으로 권한 오류와 구분합니다. GET으로 상태를 바꾸지 않습니다.
 > - **경로 기준:** DispatcherServlet이 `/api/v1`이라 Spring Boot가 보안 경로 패턴의 basePath를 `/api/v1`로 잡습니다. 보안 설정의 경로는 `/api/v1`을 빼고 적습니다.
@@ -203,7 +203,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 > - **로테이션 · 재사용 감지:** 재발급하면 쓴 토큰을 폐기(`revoked_at`)하고 같은 family로 새 토큰 발급. 폐기된 토큰이 다시 오면 family 전체 폐기. 폐기는 조건부 UPDATE(`WHERE revoked_at IS NULL`)라 같은 토큰으로 동시에 와도 한 요청만 성공합니다. 별도 '로테이션됨' 컬럼 없이 `revoked_at` 하나로 판단합니다.
 > - 세션 폐기 후 401을 던질 때 폐기가 롤백되지 않도록 `refresh`는 `@Transactional(noRollbackFor = BusinessException.class)`.
 > - **동시 재발급:** 서버는 엄격(유예 시간 없음). 여러 탭이 같은 토큰으로 동시에 재발급하지 않도록 프론트가 Web Locks API로 줄을 세웁니다(프론트 연동 단계).
-> - **재발급 시 회원 상태 확인:** `UserAccountUseCase.canLogin`(user 모듈의 auth 전용 in-port). ACTIVE가 아니면 세션 폐기 + 401. 정지 회원 정책(8.5 #7)은 '로그인 불가'로 가정.
+> - **발급·재발급 시 회원 상태 확인:** `UserAccountUseCase.canLoginForUpdate`로 사용자 행을 먼저 잠그고 만료 정지를 정리합니다. ACTIVE가 아니면 발급을 거절하며 재발급 시 남은 모든 기기의 토큰을 폐기하고 401을 반환합니다.
 > - **로그아웃:** 이 기기(family)만 폐기. 모든 기기 로그아웃은 필요해지면 추가.
 > - **쿠키:** `pickong_at`(Path=/, Max-Age 15분), `pickong_rt`(Path=/api/v1/auth, Max-Age 14일), 모두 HttpOnly · SameSite=Lax. Secure(`COOKIE_SECURE`, 기본 true) · Domain(`COOKIE_DOMAIN`, 기본 비움)은 설정값.
 > - **만료 토큰 정리:** `auth/adapter/in/scheduler/ExpiredTokenCleanupScheduler`가 매일 04:00(한국 시간)에 `TokenUseCase.deleteExpiredTokens`를 호출해, 만료된 지 7일(`cleanup-retention`)이 지난 행을 폐기 여부와 관계없이 지웁니다. 만료 전의 폐기된 토큰은 남기므로 재사용 감지는 만료까지 동작합니다. 같은 결과가 나오는 작업이라 분산 잠금은 쓰지 않습니다. `@EnableScheduling`은 `common/config/SchedulingConfig`.
@@ -264,9 +264,9 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 >
 > **회원 탈퇴 구현 (user · auth)**
 > - **탈퇴 신청 `POST /me/withdrawal {reason, detail}`:** 컨트롤러는 auth(`WithdrawalController`)에 있습니다. 회원 상태는 user가 바꾸지만, 세션 폐기 · 쿠키 삭제는 auth가 해야 해서입니다(가입 완료와 같은 방식). 순서: `UserWithdrawalUseCase.requestWithdrawal`(사유 확인 → `WITHDRAWN_PENDING` → 사유 저장, 한 트랜잭션) → 커밋 뒤 `TokenUseCase.revokeAllSessions`(모든 기기) → 이 브라우저의 쿠키 삭제 → 204.
->   - 세션 폐기를 이벤트(`UserWithdrawalRequestedEvent`) 대신 직접 부릅니다. 같은 요청 안에서 쿠키도 지워야 해서 어차피 auth가 이어 받기 때문입니다. 폐기가 혹시 실패해도 탈퇴 중인 회원은 재발급이 거절됩니다(`canLogin`). 남은 Access Token은 최대 15분 유효합니다(정지와 같은 기존 한계).
+>   - 세션 폐기를 이벤트(`UserWithdrawalRequestedEvent`) 대신 직접 부릅니다. 같은 요청 안에서 쿠키도 지워야 해서 어차피 auth가 이어 받기 때문입니다. 폐기가 혹시 실패해도 탈퇴 중인 회원은 재발급이 거절됩니다(`canLogin`). Access Token도 매 요청 ACTIVE 여부를 검사하므로 탈퇴 중 재탈퇴 요청은 401입니다. 복구 쿠키를 이용하는 탈퇴 취소는 유지합니다.
 >   - 본문이 있는 요청이라 `DELETE /me` 대신 `POST`로 했습니다. DELETE 본문은 HTTP에서 의미가 정해져 있지 않아 버려질 수 있고, 바로 지우는 것이 아니라 '신청'이기 때문입니다.
->   - 사유: `RARELY_USED` · `MISSING_FEATURE` · `PRIVACY` · `OTHER_SERVICE` · `ETC`(대소문자 무관). ETC는 내용 필수, 내용은 300자(프론트 입력 제한과 같음). 틀리면 400 `INVALID_WITHDRAWAL_REASON`, ACTIVE가 아니면 409 `WITHDRAWAL_NOT_ALLOWED`.
+>   - 사유: `RARELY_USED` · `MISSING_FEATURE` · `PRIVACY` · `OTHER_SERVICE` · `ETC`(대소문자 무관). ETC는 내용 필수, 내용은 300자(프론트 입력 제한과 같음). 틀리면 400 `INVALID_WITHDRAWAL_REASON`, 비ACTIVE 계정의 Access Token은 인증 단계에서 401로 거절합니다. 인증 이후 요청 중 계정 상태가 바뀌면 도메인 검증에서 409 `WITHDRAWAL_NOT_ALLOWED`가 가능합니다.
 > - **탈퇴 취소:** 유예 중 회원이 소셜 로그인하면(`LoginService`) 로그인 세션 대신 **탈퇴 취소 토큰**(서명 JWT `token_type=withdrawal_restore`, 10분, 쿠키 `pickong_restore`, Path=/api/v1/auth)을 주고 `/account/restore`로 보냅니다. 탈퇴 중인 계정에 로그인 세션을 만들지 않고, 로그인 · 재발급 규칙(`canLogin`: ACTIVE만)을 바꾸지 않으려는 것입니다. 가입 토큰과 같은 방식입니다.
 >   - `GET /auth/withdrawal`(탈퇴 상태) · `POST /auth/withdrawal/cancel`(취소 → ACTIVE, 세션 발급, 취소 쿠키 삭제) · `DELETE /auth/withdrawal`(그만두기, 쿠키만 삭제). 쿠키가 없거나 만료면 401 `RESTORE_SESSION_EXPIRED`.
 >   - **30일이 지나면 익명화 전이라도 취소할 수 없습니다**(409 `WITHDRAWAL_NOT_CANCELLABLE`, 로그인은 `ACCOUNT_UNAVAILABLE`). 예약 작업이 하루 한 번이라 생기는 틈에 취소되면 정책(30일)과 어긋나기 때문입니다.
@@ -335,13 +335,13 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | GET | `/admin/place-submissions/{id}` | `PlaceSubmissionUseCase.get` | 구현됨. `{id}`는 DB id 문자열. 승인된 `placeId`는 장소 `public_id` |
 | POST | `/admin/place-submissions/{id}/approve` | `PlaceSubmissionUseCase.approve` | 구현됨. 본문 없음. 심사자 id는 인증된 관리자 주체 |
 | POST | `/admin/place-submissions/{id}/reject` | `PlaceSubmissionUseCase.reject` | 구현됨. 본문 `{ "reason" }`. 공백만 있으면 거절 |
-| GET | `/places`, `/places?bbox=&category=&cluster=` | `PlaceQueryUseCase.findPublic` / `findMap` / `findInBounds` | 구현됨. `places` 행만. bbox는 서경,남위,동경,북위. 대기 · 반려 제보는 없음. 응답은 `{ places, clusters }`. 아래 '지도 장소 묶기' 참고 |
+| GET | `/places?bbox=&category=&cluster=` | `PlaceQueryUseCase.findMap` / `findInBounds` | 구현됨. `places` 행만. bbox(서경,남위,동경,북위)는 필수이고, 없으면 400. 대기 · 반려 제보는 없음. 응답은 `{ places, clusters }`. 아래 '지도 장소 묶기' 참고 |
 | POST | `/places` | `PlaceCommandUseCase.createCustomPlace` | 이후 설계. 컨트롤러 없음. 제보 접수가 아님 |
 | GET | `/places/{placeId}` | `PlaceQueryUseCase.getDetail` | 이후 설계. 영업시간 포함. 클래스 없음 |
 | GET | `/places/{placeId}/summary` | `PlaceQueryUseCase.getSummary` | 이후 설계. 클래스 없음 |
 | GET | `/places/search` | `PlaceSearchUseCase.search` | 이후 설계. 클래스 없음 |
 
-**지도 장소 묶기:** `bbox`가 있으면 혼자 있는 장소는 `places`, 묶은 장소는 `clusters`(`lat` · `lng` · `count` · `bounds`)로 나눠 돌려줍니다. 범위 안의 서로 다른 좌표가 200개 이하면 같은 좌표끼리만 묶고, 넘으면 격자로 묶습니다(칸 크기는 `MapGridPolicy`). 지도마다 줌 값이 뜻하는 범위가 달라 줌이 아니라 좌표 수로 정합니다. `category`를 주면 그 카테고리만 셉니다. `cluster=false`는 묶지 않은 목록(이름순, 최대 500곳)이고 `clusters`는 비어 있습니다. `bbox`가 없으면 전체를 묶지 않고 돌려줍니다. 묶음 개수에는 회원이 이미 저장한 장소도 포함됩니다. SQL은 `PlaceMapQueryAdapter`에 있습니다.
+**지도 장소 묶기:** `bbox`가 있으면 혼자 있는 장소는 `places`, 묶은 장소는 `clusters`(`lat` · `lng` · `count` · `bounds`)로 나눠 돌려줍니다. 범위 안의 서로 다른 좌표가 200개 이하면 같은 좌표끼리만 묶고, 넘으면 격자로 묶습니다(칸 크기는 `MapGridPolicy`). 지도마다 줌 값이 뜻하는 범위가 달라 줌이 아니라 좌표 수로 정합니다. `category`를 주면 그 카테고리만 셉니다. `cluster=false`는 묶지 않은 목록(이름순, 최대 500곳)이고 `clusters`는 비어 있습니다. `bbox`가 없으면 전체 장소를 한 번에 돌려주지 않도록 400(`INVALID_INPUT`)이고, 가로나 세로 한 변이 16km를 넘으면 400(`BOUNDS_TOO_LARGE`)입니다(`MapBoundsPolicy`. 프론트는 15km를 넘으면 요청하지 않고, 범위를 바깥쪽으로 약 100m씩 넓혀 보내므로 여유를 둡니다). 범위 조회는 `places`의 `location::geometry` GiST 인덱스(V18)를 씁니다. 묶음 개수에는 회원이 이미 저장한 장소도 포함됩니다. SQL은 `PlaceMapQueryAdapter`에 있습니다.
 
 제보 상태 전이는 대기 → 승인 또는 대기 → 반려만입니다. 승인하면 `places` 행을 만들고 `place_submissions.place_id`를 같은 트랜잭션에서 연결합니다. 반려는 사유 · 심사자 · 처리 시각만 남기고 장소는 만들지 않습니다. 이미 처리한 제보의 재심사는 409입니다. 관리자 API는 비로그인 401, 회원 403입니다. 관리자 로그인과 `admin_action_logs` 기록은 만들지 않았고, 심사자 id는 제보 행의 `reviewer_admin_id`에 남습니다. 승인된 장소에는 `visibility` · `owner_id`를 두지 않습니다. 이 두 컬럼의 일반 규칙은 8.3에 그대로 열려 있습니다.
 
@@ -442,8 +442,11 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | POST | `/reports` | moderation | `ReportUseCase.report` (로그인 회원 접수. 게시물·댓글, 201) |
 | GET | `/admin/reports` | moderation | `ReportAdminUseCase.list` |
 | POST | `/admin/reports/{reportId}/resolve` | moderation | `ReportAdminUseCase.resolve` |
-| POST | `/admin/users/{userId}/sanctions` | moderation | `SanctionUseCase.sanction` → user 상태 변경 (아직 없음) |
-| DELETE | `/admin/users/{userId}/sanctions/{sanctionId}` | moderation | `SanctionUseCase.revoke` (아직 없음) |
+| GET | `/admin/users` | moderation | `UserAdminQueryUseCase.list` (`q`, `filter`, 배열 응답) |
+| POST | `/admin/users/{userId}/sanctions` | moderation | `SanctionUseCase.sanction` → `UserStatusUseCase`, 201 |
+| DELETE | `/admin/users/{userId}/sanctions/{sanctionId}` | moderation | `SanctionUseCase.revoke`, 204 |
+| GET | `/admin/feeds` | feed | `FeedAdminQueryUseCase.list` (`q`, 배열 응답) |
+| PATCH | `/admin/feeds/{feedId}` | feed | `FeedModerationUseCase.setHidden`, UUID, 200 |
 | POST | `/creators/apply` | creator | `CreatorUseCase.apply` |
 | GET | `/me/creator` | creator | `CreatorUseCase.myStatus` |
 | GET · PUT | `/me/creator/payout-account` | creator | `PayoutAccountUseCase.get / register` |
@@ -456,11 +459,24 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | POST | `/payments/confirm` | payment | `PaymentUseCase.confirm` |
 | GET | `/me/payments` | payment | `PaymentQueryUseCase.myPayments` |
 
-관리자 로그인 API는 명세서에 없습니다 (8.1 #8). 관리자 API는 모두 `admin`의 필터 체인과 역할 검사를 거칩니다.
+관리자 로그인 API와 세션 발급은 아직 별도 범위입니다 (8.1 #8). 현재 관리자 API는 `auth/adapter/in/security/SecurityConfig`의 공통 체인에서 `ROLE_ADMIN`을 검사합니다. `common/security/AdminAccountStatusFilter`는 `AdminAccessVerifier` SPI를 통해 `admin/adapter/out/persistence/AdminAccessVerifierAdapter`가 확인한 ACTIVE 관리자만 허용합니다. 회원 JWT는 `ROLE_USER`만 부여하며 관리자 계정으로 전환하지 않습니다. 실제 관리자 ID는 `@CurrentAdmin AdminPrincipal`에서 읽고, 테스트에서만 인증 주체를 주입합니다.
 
-신고 목록은 `?status=PENDING|RESOLVED`이고 응답은 배열입니다. 공통 목록 규칙의 `page · size`는 이 화면에 페이지가 생기기 전까지 쓰지 않습니다. 정렬은 접수 시각 내림차순, 같으면 id 내림차순입니다. 저장 상태와 처리 액션은 분리합니다. 상태는 `PENDING · RESOLVED`, 액션은 `DISMISS · HIDE_CONTENT · SANCTION_USER`입니다. 도메인의 게시물 대상은 `FEED`이고 관리자 응답에서만 `POST`로 바꿉니다. 지금은 기각만 저장합니다. 기각은 선택한 신고만 `SELECT … FOR UPDATE`로 잠그고, 그 행이 아직 `PENDING`일 때만 `RESOLVED`로 바꿉니다. 같은 대상의 다른 대기 신고, 이미 완료된 행, 처리 중에 새로 들어온 신고는 바꾸지 않습니다. 같은 신고를 동시에 기각하면 한쪽만 성공하고 다른 쪽은 409 `ALREADY_RESOLVED`입니다. 숨김과 제재는 501 `REPORT_ACTION_NOT_SUPPORTED`이며 행은 대기로 남습니다. mock도 어떤 액션이든 선택한 신고만 닫습니다. 대상 미리보기는 신고 id마다 따로 만듭니다. 같은 대상이라도 신고마다 저장된 `snapshot`을 유지하고, 현재 글을 읽을 때는 대상 종류별로 한 번씩 조회합니다. `target.text`는 스냅샷 첫 줄이고, 스냅샷이 없으면 현재 첫 줄, 그것도 없으면 상태별 안내입니다. `target.imageUrl`은 스냅샷에 저장된 이미지만 쓰고 현재 내용으로 채우지 않습니다. `target.link`는 `visibility`가 `LIVE`일 때만 둡니다. `target.snapshot`은 저장된 원문 `{text, imageUrl}`이고 비어 있으면 null입니다. 현재 글을 복사해 채우지 않습니다. 컬럼은 기존 `snapshot TEXT`입니다. 회원 접수가 저장하는 전체 본문 스냅샷은 `{text, imageUrl: null, reportedUserId, textScope:"FULL"}`입니다. `text`가 null이면 본문 누락이고 빈 문자열은 빈 본문입니다. 이미지는 넣지 않고 비교하지 않습니다. 저장한 스냅샷은 글이 바뀌거나 신고를 기각해도 고치지 않습니다. 응답 `reportedUser.id`는 게시물·댓글 행이 있으면 그 `user_id`이고 숨김·소프트 삭제도 같습니다. 행이 없으면 스냅샷의 `reportedUserId`를 쓰며, 대상 id를 작성자 id로 쓰지 않습니다. `textScope`는 관리자 응답과 접수 응답 어디에도 넣지 않습니다. `target.current`는 `LIVE`·`HIDDEN`일 때만 `{text, imageUrl: null}`이고, `DELETED`·`UNAVAILABLE`이면 null입니다. 게시물·댓글의 `current.text`는 현재 본문 전체이고, 회원은 `닉네임 (@username)`입니다. 값은 비교용으로 자른 문자열이 아니라 조회한 원문입니다. `target.modified`는 `true`·`false`·`null`입니다. 게시물·댓글에서 `textScope`가 정확히 `"FULL"`이면 본문 전체를 비교합니다. 평문 스냅샷, `textScope`가 없는 스냅샷, null, `"FULL"`이 아닌 값은 첫 줄만 비교합니다. 회원은 표시 이름의 첫 줄만 비교합니다. 컬렉션과 이미지는 비교하지 않아 null입니다. 스냅샷이 없거나 본문이 누락됐거나 현재 본문을 읽을 수 없거나 스냅샷을 해석할 수 없으면 null입니다. 양쪽이 빈 문자열이면 false이고, 한쪽만 빈 문자열이면 true입니다. 비교 전에 CRLF와 단독 CR을 LF로 맞추고 본문 양끝 공백만 제거합니다. 중간 공백, 빈 줄, 대소문자, HTML, Markdown은 유지합니다. `false`는 그 범위의 글이 지금과 같다는 뜻입니다. `target.visibility`는 `LIVE · HIDDEN · DELETED · UNAVAILABLE`입니다. `deleted_at`이 있으면 `DELETED`이고 현재 글은 비웁니다. `hidden_at`만 있으면 `HIDDEN`이며 현재 글은 보여 주고 링크는 없습니다. 행이 없거나 컬렉션이면 `UNAVAILABLE`이고 "삭제됨"으로 쓰지 않습니다. 알려진 삭제 안내는 게시물·댓글 "삭제된 …", 사용자 "탈퇴한 사용자"입니다. `handled_by`는 `admins` 테이블이 없어 FK가 없습니다. `admin_action_logs`와 알림은 아직 호출하지 않습니다.
+#### 사용자 제재·콘텐츠 관리 구현 현황 (2026-11-26)
 
-회원 접수 `POST /reports`는 `ReportService`가 처리합니다. 로그인 회원(`LoginUser`)만 호출하고, 신고자 id는 요청 본문이 아니라 인증 주체에서 읽습니다. 본문에 신고자 · 작성자 · 본문 · 이미지를 넣어도 저장하지 않습니다. 로그인하지 않으면 401이고, POST의 CSRF와 필수 약관 재동의는 기존 필터를 그대로 탑니다. 컨트롤러 경로는 `/reports`이고 서블릿 `/api/v1`과 겹치지 않아 공개 주소는 `/api/v1/reports`입니다. 요청은 `{targetType, targetId, reason, detail}`입니다. `targetType`은 `POST`와 `FEED`를 게시물로 받고 `COMMENT`만 댓글입니다. 응답 201은 `{id, targetType, targetId, reason, status, createdAt}`이고 게시물은 `POST`, 상태는 `PENDING`입니다. 스냅샷 · 상세 · 작성자는 응답에 없습니다. 접수 사유는 `SPAM · ABUSE · IMPERSONATION · COPYRIGHT · INAPPROPRIATE · ETC`만 받습니다. `reports.reason` 컬럼은 문자열이라 이 목록으로 바꾸지 않았고, 관리자 목록은 기존 다른 문자열도 그대로 보여 줍니다. 상세는 선택이고 `ETC`만 필수입니다. 공백만 있으면 빈 값이며 500자(코드 포인트)를 넘으면 400 `REPORT_DETAIL_TOO_LONG`입니다. 관리자 처리 메모 200자와는 별개입니다. 대상은 있고, 삭제 · 숨김이 아니고, 현재 회원이 볼 수 있어야 합니다. 다른 회원 글은 `PUBLIC`만 신고할 수 있습니다. 작성자 본인 글은 공개 범위와 관계없이 조회한 뒤 400 `SELF_REPORT`로 거절합니다. 없거나 볼 수 없으면 둘 다 404 `REPORT_TARGET_NOT_FOUND`이고 작성자 · 본문을 알려 주지 않습니다. 댓글은 부모 게시물도 같은 조건으로 볼 수 있어야 하고, 자기 신고 여부는 댓글 작성자 id로 판단합니다. 상위 게시물 작성자는 타인의 댓글을 신고할 수 있습니다. 알 수 없는 공개 범위는 아무도 신고할 수 없습니다. `FOLLOWERS`도 다른 회원에게는 열지 않습니다. 피드 목록은 PUBLIC만 반환하고 `follows` 마이그레이션이 없으므로, 피드 상세 조회가 공개 범위를 검사하지 않아도 신고 제한은 유지합니다 (8.7 #7). 팔로우 · 차단 테이블은 조회하지 않습니다. 회원 · 컬렉션은 400 `INVALID_REPORT_TARGET`입니다. 같은 신고자 · 대상 · `PENDING`이 있으면 사유가 달라도 409 `DUPLICATE_REPORT`입니다. 앱의 `existsPending`과 부분 유니크 인덱스 `ux_reports_pending_reporter_target`(V13, `reporter_id, target_type, target_id`, `status = 'PENDING'`)가 같이 막고, 그 인덱스 위반(`SQLState 23505`)만 중복으로 바꿉니다. V7과 약관 V12는 수정하지 않습니다. 같은 신고자·대상의 `PENDING`이 이미 둘 이상이면 V13 적용은 실패하고, 기존 행·스냅샷·처리 이력은 지우거나 바꾸지 않습니다. 그 데이터가 확인되면 배포를 보류합니다. `RESOLVED` 뒤에는 같은 대상을 새 행으로 다시 신고할 수 있고, 이전 행과 스냅샷은 다시 열지 않습니다. 대상 조회는 `ReportTargetLookupPort`를 JDBC로 구현하고 feed · social 엔티티를 주입하지 않습니다. 스냅샷은 `ReportSnapshot.full`로 만든 뒤 `ReportSnapshotWriter`가 저장 트랜잭션 안에서 JSON으로 씁니다. 관리자 미리보기는 그 `snapshot` 컬럼을 신고 id마다 읽고, `textScope`가 정확히 `"FULL"`인 게시물 · 댓글만 전체 본문을 비교합니다. 숨김 · 제재 API와 회원 신고 화면은 아직 없습니다.
+아래 내용과 공통 청사진 5.8은 실제 코드와 이번 작업의 구현 기준을 기록합니다. 팀 전체 정책 합의나 외부 API 명세 공유가 완료되었다는 뜻은 아닙니다.
+
+- `moderation`은 제재 이력을, `user`는 계정 상태와 정지 만료일을 관리합니다. 상태 변경은 공개 Input Port로 요청하며, `feed`의 게시물·댓글 숨김도 공개 `FeedModerationUseCase`로 처리합니다. `admin`은 작업 로그를 담당합니다.
+- 프론트 유형 `WARNING · SUSPEND_7 · SUSPEND_30 · BAN`을 명령 경계에서 도메인 `WARNING · SUSPEND · BAN`과 168/720시간으로 변환합니다. WARNING은 계정을 바꾸지 않고, 기간 정지는 SUSPENDED와 만료일, 영구 정지는 BANNED와 NULL 만료일을 저장합니다. 탈퇴 진행·완료 계정에는 신규 제재를 허용하지 않습니다.
+- 반복 경고는 별도 이력으로 보존합니다. 유효한 기간 정지 중 추가 기간 정지와 유효한 BAN 중 추가 이용 제한은 409입니다. BAN 전환은 기존 기간 정지를 `SUPERSEDED_BY_BAN`으로 종료하고 원래 만료일·사유를 보존합니다. 특정 제재 해제는 `REVOKED`, 자동 만료는 `EXPIRED`로 구분합니다. 다른 유효한 이용 제한이 있으면 ACTIVE로 복구하지 않습니다.
+- 로그인·Access Token 인증·토큰 발급 및 재발급에서 현재 계정을 확인합니다. 만료된 기간 정지는 `UserSuspensionExpiryCheckEvent`의 동기 리스너가 `SanctionUseCase.expireDue`로 확인합니다. `user → moderation` 직접 의존이나 별도 만료 스케줄러는 추가하지 않았습니다. 토큰 쓰기는 사용자 행을 먼저 잠그며, 제재 시 모든 Refresh Token 폐기는 `UserStatusChangedEvent`의 AFTER_COMMIT 리스너가 별도 트랜잭션에서 수행합니다.
+- 게시물은 삭제되지 않은 모든 공개 범위와 숨김 상태를 관리자 목록에 포함합니다. 숨김·복구는 기존 `visibility`를 바꾸지 않고 `hidden_at`만 변경합니다. 작성자·관리자는 숨김 콘텐츠를 조회할 수 있고, 다른 사용자와 비회원에게는 404입니다. 숨긴 게시물의 신규 댓글·좋아요·북마크와 숨긴 댓글의 신규 답글·좋아요를 막고 기존 데이터는 보존합니다.
+- 업무 변경·신고 처리 결과·관리자 작업 로그는 같은 트랜잭션입니다. 직접 처리로 신고를 자동 종료하지 않으며, 신고 처리에서는 선택한 신고만 종료합니다. 멱등 숨김·복구에는 작업 로그를 중복 기록하지 않습니다. 제재·숨김 사유는 필수, 해제·복구 사유는 선택이며 각각 최대 200 Unicode 코드 포인트입니다.
+- V14는 `admins`, `admin_action_logs`, V15는 `user_sanctions`, V16은 users의 BANNED CHECK 확장을 담당합니다. 원인 신고는 신규 테이블의 nullable 참조로 보존하고, 제재의 원인 신고 UNIQUE는 해제 후에도 유지합니다. 미종료 이용 제한 UNIQUE는 `ended_at IS NULL`이며 현재 시각을 인덱스 조건으로 사용하지 않습니다. 기존 V1~V13과 신고 스냅샷·V13 부분 UNIQUE는 변경하지 않았습니다.
+- 컬렉션, 관리자 로그인 전체, 경고 알림, 사용자 상세·제재 이력 전용 화면, 페이지네이션과 기간 연장은 후속 범위입니다.
+
+신고 목록은 `?status=PENDING|RESOLVED`이고 응답은 배열입니다. 공통 목록 규칙의 `page · size`는 이 화면에 페이지가 생기기 전까지 쓰지 않습니다. 정렬은 접수 시각 내림차순, 같으면 id 내림차순입니다. 저장 상태와 처리 액션은 분리합니다. 상태는 `PENDING · RESOLVED`, 액션은 `DISMISS · HIDE_CONTENT · SANCTION_USER`입니다. 도메인의 게시물 대상은 `FEED`이고 관리자 응답에서만 `POST`로 바꿉니다. 기각·사용자 제재·게시물 및 댓글 숨김을 저장합니다. 기각은 선택한 신고만 `SELECT … FOR UPDATE`로 잠그고, 그 행이 아직 `PENDING`일 때만 `RESOLVED`로 바꿉니다. 같은 대상의 다른 대기 신고, 이미 완료된 행, 처리 중에 새로 들어온 신고는 바꾸지 않습니다. 같은 신고를 동시에 기각하면 한쪽만 성공하고 다른 쪽은 409 `ALREADY_RESOLVED`입니다. 사용자 제재는 `SanctionUseCase`, 게시물·댓글 숨김은 `FeedModerationUseCase`를 재사용합니다. 컬렉션 숨김·제재만 501 `REPORT_ACTION_NOT_SUPPORTED`로 대기에 남습니다. mock도 어떤 액션이든 선택한 신고만 닫습니다. 대상 미리보기는 신고 id마다 따로 만듭니다. 같은 대상이라도 신고마다 저장된 `snapshot`을 유지하고, 현재 글을 읽을 때는 대상 종류별로 한 번씩 조회합니다. `target.text`는 스냅샷 첫 줄이고, 스냅샷이 없으면 현재 첫 줄, 그것도 없으면 상태별 안내입니다. `target.imageUrl`은 스냅샷에 저장된 이미지만 쓰고 현재 내용으로 채우지 않습니다. `target.link`는 `visibility`가 `LIVE`일 때만 둡니다. `target.snapshot`은 저장된 원문 `{text, imageUrl}`이고 비어 있으면 null입니다. 현재 글을 복사해 채우지 않습니다. 컬럼은 기존 `snapshot TEXT`입니다. 회원 접수가 저장하는 전체 본문 스냅샷은 `{text, imageUrl: null, reportedUserId, textScope:"FULL"}`입니다. `text`가 null이면 본문 누락이고 빈 문자열은 빈 본문입니다. 이미지는 넣지 않고 비교하지 않습니다. 저장한 스냅샷은 글이 바뀌거나 신고를 기각해도 고치지 않습니다. 응답 `reportedUser.id`는 게시물·댓글 행이 있으면 그 `user_id`이고 숨김·소프트 삭제도 같습니다. 행이 없으면 스냅샷의 `reportedUserId`를 쓰며, 대상 id를 작성자 id로 쓰지 않습니다. `textScope`는 관리자 응답과 접수 응답 어디에도 넣지 않습니다. `target.current`는 `LIVE`·`HIDDEN`일 때만 `{text, imageUrl: null}`이고, `DELETED`·`UNAVAILABLE`이면 null입니다. 게시물·댓글의 `current.text`는 현재 본문 전체이고, 회원은 `닉네임 (@username)`입니다. 값은 비교용으로 자른 문자열이 아니라 조회한 원문입니다. `target.modified`는 `true`·`false`·`null`입니다. 게시물·댓글에서 `textScope`가 정확히 `"FULL"`이면 본문 전체를 비교합니다. 평문 스냅샷, `textScope`가 없는 스냅샷, null, `"FULL"`이 아닌 값은 첫 줄만 비교합니다. 회원은 표시 이름의 첫 줄만 비교합니다. 컬렉션과 이미지는 비교하지 않아 null입니다. 스냅샷이 없거나 본문이 누락됐거나 현재 본문을 읽을 수 없거나 스냅샷을 해석할 수 없으면 null입니다. 양쪽이 빈 문자열이면 false이고, 한쪽만 빈 문자열이면 true입니다. 비교 전에 CRLF와 단독 CR을 LF로 맞추고 본문 양끝 공백만 제거합니다. 중간 공백, 빈 줄, 대소문자, HTML, Markdown은 유지합니다. `false`는 그 범위의 글이 지금과 같다는 뜻입니다. `target.visibility`는 `LIVE · HIDDEN · DELETED · UNAVAILABLE`입니다. `deleted_at`이 있으면 `DELETED`이고 현재 글은 비웁니다. `hidden_at`만 있으면 `HIDDEN`이며 현재 글은 보여 주고 링크는 없습니다. 행이 없거나 컬렉션이면 `UNAVAILABLE`이고 "삭제됨"으로 쓰지 않습니다. 알려진 삭제 안내는 게시물·댓글 "삭제된 …", 사용자 "탈퇴한 사용자"입니다. `handled_by`에는 과거 데이터 검증 없는 FK를 추가하지 않았습니다. 신고 결과·제재·숨김·관리자 작업 로그는 같은 트랜잭션으로 저장하고, 알림 발송은 구현하지 않았습니다.
+
+회원 접수 `POST /reports`는 `ReportService`가 처리합니다. 로그인 회원(`LoginUser`)만 호출하고, 신고자 id는 요청 본문이 아니라 인증 주체에서 읽습니다. 본문에 신고자 · 작성자 · 본문 · 이미지를 넣어도 저장하지 않습니다. 로그인하지 않으면 401이고, POST의 CSRF와 필수 약관 재동의는 기존 필터를 그대로 탑니다. 컨트롤러 경로는 `/reports`이고 서블릿 `/api/v1`과 겹치지 않아 공개 주소는 `/api/v1/reports`입니다. 요청은 `{targetType, targetId, reason, detail}`입니다. `targetType`은 `POST`와 `FEED`를 게시물로 받고 `COMMENT`만 댓글입니다. 응답 201은 `{id, targetType, targetId, reason, status, createdAt}`이고 게시물은 `POST`, 상태는 `PENDING`입니다. 스냅샷 · 상세 · 작성자는 응답에 없습니다. 접수 사유는 `SPAM · ABUSE · IMPERSONATION · COPYRIGHT · INAPPROPRIATE · ETC`만 받습니다. `reports.reason` 컬럼은 문자열이라 이 목록으로 바꾸지 않았고, 관리자 목록은 기존 다른 문자열도 그대로 보여 줍니다. 상세는 선택이고 `ETC`만 필수입니다. 공백만 있으면 빈 값이며 500자(코드 포인트)를 넘으면 400 `REPORT_DETAIL_TOO_LONG`입니다. 관리자 처리 메모 200자와는 별개입니다. 대상은 있고, 삭제 · 숨김이 아니고, 현재 회원이 볼 수 있어야 합니다. 다른 회원 글은 `PUBLIC`만 신고할 수 있습니다. 작성자 본인 글은 공개 범위와 관계없이 조회한 뒤 400 `SELF_REPORT`로 거절합니다. 없거나 볼 수 없으면 둘 다 404 `REPORT_TARGET_NOT_FOUND`이고 작성자 · 본문을 알려 주지 않습니다. 댓글은 부모 게시물도 같은 조건으로 볼 수 있어야 하고, 자기 신고 여부는 댓글 작성자 id로 판단합니다. 상위 게시물 작성자는 타인의 댓글을 신고할 수 있습니다. 알 수 없는 공개 범위는 아무도 신고할 수 없습니다. `FOLLOWERS`도 다른 회원에게는 열지 않습니다. 피드 목록은 PUBLIC만 반환하고 `follows` 마이그레이션이 없으므로, 피드 상세 조회도 공개 범위와 관리자 숨김을 검사하며 신고 제한을 유지합니다. 팔로우 · 차단 테이블은 조회하지 않습니다. 회원 · 컬렉션은 400 `INVALID_REPORT_TARGET`입니다. 같은 신고자 · 대상 · `PENDING`이 있으면 사유가 달라도 409 `DUPLICATE_REPORT`입니다. 앱의 `existsPending`과 부분 유니크 인덱스 `ux_reports_pending_reporter_target`(V13, `reporter_id, target_type, target_id`, `status = 'PENDING'`)가 같이 막고, 그 인덱스 위반(`SQLState 23505`)만 중복으로 바꿉니다. V7과 약관 V12는 수정하지 않습니다. 같은 신고자·대상의 `PENDING`이 이미 둘 이상이면 V13 적용은 실패하고, 기존 행·스냅샷·처리 이력은 지우거나 바꾸지 않습니다. 그 데이터가 확인되면 배포를 보류합니다. `RESOLVED` 뒤에는 같은 대상을 새 행으로 다시 신고할 수 있고, 이전 행과 스냅샷은 다시 열지 않습니다. 대상 조회는 `ReportTargetLookupPort`를 JDBC로 구현하고 feed · social 엔티티를 주입하지 않습니다. 스냅샷은 `ReportSnapshot.full`로 만든 뒤 `ReportSnapshotWriter`가 저장 트랜잭션 안에서 JSON으로 씁니다. 관리자 미리보기는 그 `snapshot` 컬럼을 신고 id마다 읽고, `textScope`가 정확히 `"FULL"`인 게시물 · 댓글만 전체 본문을 비교합니다. 관리자 숨김·제재 API는 구현되어 있으며 회원 신고 화면은 아직 없습니다.
 
 ---
 
@@ -665,22 +681,22 @@ backend/src/main/java/com/pickong/
 │       └── in/event/                         # SocialNotificationListener, FeedNotificationListener,
 │                                             # CollectionNotificationListener, CreatorNotificationListener
 │
-├── moderation/                               # 회원 접수와 관리자 조회·기각까지 구현. 숨김·제재 UseCase는 없음
+├── moderation/                               # 회원 접수·신고 처리·사용자 조회·제재·해제 구현
 │   ├── domain/
 │   │   ├── ModerationErrorCode.java · ReportRules.java · ReportContentComparison.java
 │   │   ├── model/                            # Report, ReportSnapshot(FULL · imageUrl null), Sanction
 │   │   └── vo/                               # ReportTargetType, ReportStatus, ReportAction, ReportReason, SanctionType
 │   ├── application/
 │   │   ├── ReportSnapshots.java              # 조회 결과 → 전체 본문 스냅샷. 회원·컬렉션은 거절
-│   │   ├── port/in/                          # ReportUseCase.report, ReportAdminUseCase. SanctionUseCase는 아직 없음
-│   │   ├── port/out/                         # ReportPersistencePort(save · existsPending · 기각),
+│   │   ├── port/in/                          # ReportUseCase, ReportAdminUseCase, SanctionUseCase, UserAdminQueryUseCase
+│   │   ├── port/out/                         # ReportPersistencePort(접수·조회·잠금·처리), SanctionPersistencePort, AdminUserQueryPort,
 │   │   │                                     # ReportSnapshotWriter, ReportTargetLookupPort,
 │   │   │                                     # ReportTargetPreviewPort, ReportPartyLookupPort
-│   │   ├── service/                          # ReportService(접수), ReportAdminService(목록·기각)
+│   │   ├── service/                          # ReportService, ReportAdminService, SanctionService, UserAdminQueryService
 │   │   └── dto/                              # ReportCommand, ReportReceipt, ReportTargetLookup, ReportView
 │   └── adapter/
 │       ├── in/web/ReportController.java      # POST /reports. request/CreateReportRequest, response/CreateReportResponse
-│       ├── in/web/admin/AdminReportController.java
+│       ├── in/web/admin/AdminReportController.java · AdminUserController.java
 │       └── out/
 │           ├── persistence/                  # ReportPersistenceAdapter, ReportJpaEntity, ReportJpaRepository
 │           │   └── query/                    # ReportTargetLookupAdapter · ReportTargetPreviewAdapter (JDBC)
@@ -707,10 +723,10 @@ backend/src/main/java/com/pickong/
 └── admin/
     ├── domain/model/Admin.java               # SUPER_ADMIN · OPERATOR · CS, ACTIVE · DISABLED
     ├── application/
-    │   ├── port/in/                          # AdminAuthUseCase(로그인, API 미정), AdminActionLogUseCase(다른 모듈이 기록)
-    │   └── port/out/                         # AdminPersistencePort, AdminActionLogPersistencePort
+    │   ├── port/in/                          # AdminActionLogUseCase 구현. 관리자 로그인 포트·API는 후속 범위
+    │   └── port/out/                         # AdminActionLogPersistencePort. 계정 로그인 저장 포트는 후속 범위
     └── adapter/
-        ├── in/security/AdminSecurityConfig.java   # /api/v1/admin/** 체인, 역할 → @PreAuthorize
+        ├── out/persistence/AdminAccessVerifierAdapter.java # common 보안 SPI 구현, ACTIVE 관리자 확인
         └── out/persistence/
 
 backend/src/main/resources/
@@ -1356,7 +1372,7 @@ common       ◀── 모든 모듈 (common은 어떤 모듈에도 의존하지
 | 이벤트 | 소유(발행) | 발행 시점 | 구독 | 방식 |
 | --- | --- | --- | --- | --- |
 | `UserWithdrawnEvent` | user | 익명화 저장 직전 (30일 뒤 예약 작업) | auth (소셜 연결 · 토큰 삭제), feed (게시물 삭제), 회원 개인 데이터를 가진 모듈 (삭제) | **동기, 같은 트랜잭션** (하나라도 실패하면 익명화도 되돌아가 다음 날 다시 처리) |
-| `UserStatusChangedEvent` | user | 정지 · 영구 정지 · 해제 저장 후 | auth (영구 정지 시 토큰 폐기), notification | 커밋 후 |
+| `UserStatusChangedEvent` | user | 정지 · 영구 정지 · 해제 저장 후 | auth (기간·영구 정지 시 전체 Refresh Token 폐기), notification | 커밋 후 |
 | `UserFollowedEvent` | social | 팔로우 저장 후 | notification | 커밋 후 |
 | `FeedLikedEvent`, `CommentCreatedEvent`, `CommentLikedEvent` | feed | 저장 후 | notification | 커밋 후 |
 | `SavedPlaceDeletingEvent` | savedplace | **삭제 직전** (FK 때문에 구성 장소를 먼저 지움) | collection | 동기, 같은 트랜잭션 |

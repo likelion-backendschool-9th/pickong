@@ -2,6 +2,9 @@ package com.pickong.auth.adapter.in.security;
 
 import com.pickong.auth.adapter.out.external.jwt.JwtProperties;
 import com.pickong.common.security.AccessTokenVerifier;
+import com.pickong.common.security.AdminAccessVerifier;
+import com.pickong.common.security.AdminAccountStatusFilter;
+import com.pickong.user.application.port.in.UserAccountUseCase;
 import com.pickong.terms.application.port.in.TermsUseCase;
 import jakarta.servlet.DispatcherType;
 import java.util.List;
@@ -82,7 +85,8 @@ public class SecurityConfig {
             SignedCookieAuthorizationRequestRepository authorizationRequestRepository,
             LinkAwareAuthorizationRequestResolver authorizationRequestResolver,
             OAuth2LoginSuccessHandler oauth2SuccessHandler, OAuth2LoginFailureHandler oauth2FailureHandler,
-            TermsUseCase termsUseCase, ErrorResponseWriter errorWriter, PathPatternRequestMatcher.Builder matchers) {
+            TermsUseCase termsUseCase, ErrorResponseWriter errorWriter, PathPatternRequestMatcher.Builder matchers,
+            UserAccountUseCase accounts, AdminAccessVerifier admins) {
         http
                 // ① CSRF: SPA용 설정(spa) + SameSite=Lax 쿠키 저장소. POST · PUT · PATCH · DELETE에 X-XSRF-TOKEN 헤더가 필요해집니다.
                 .csrf(csrf -> csrf.spa().csrfTokenRepository(csrfTokenRepository()))
@@ -95,7 +99,8 @@ public class SecurityConfig {
                 // 인증 실패 후 원래 요청을 세션에 저장하는 기능. 세션을 쓰지 않으므로 끕니다.
                 .requestCache(AbstractHttpConfigurer::disable)
                 // ③ 쿠키 토큰 검증 필터. '비로그인 사용자' 표시를 붙이는 필터(Anonymous)보다 먼저 실행되어야 합니다.
-                .addFilterBefore(new JwtCookieAuthenticationFilter(verifier), AnonymousAuthenticationFilter.class)
+                .addFilterBefore(new JwtCookieAuthenticationFilter(verifier, accounts), AnonymousAuthenticationFilter.class)
+                .addFilterBefore(new AdminAccountStatusFilter(admins), AuthorizationFilter.class)
                 // ③-2 카카오 · Google 소셜 로그인 (OAuth2). 시작 → 제공자 동의 화면 → 콜백 → 성공 · 실패 처리
                 .oauth2Login(oauth2 -> oauth2
                         // 시작 주소 + 중간 상태(state)를 세션 대신 서명된 쿠키에 보관 (로그인 CSRF 방어)
@@ -130,8 +135,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/terms/**").permitAll()
                         // 피드 단건 조회(공유 링크 미리보기) — 비로그인도 볼 수 있음
                         // 피드 목록·댓글·대댓글 조회·좋아요·북마크·댓글 작성·수정·삭제는 로그인 필요 (anyRequest 규칙 적용)
-                        // 주의: /feeds/* 는 /feeds/places 도 허용하지만, places 엔드포인트는 미구현(UnsupportedOperationException)
+                        // /feeds/* 는 /feeds/places 도 허용 (비로그인 가능)
                         .requestMatchers(HttpMethod.GET, "/feeds/*").permitAll()
+                        // 프로필 피드 목록: 비로그인 시 PUBLIC만 반환하므로 열어 둠
+                        .requestMatchers(HttpMethod.GET, "/users/*/feeds").permitAll()
                         // 관리자 API. 회원(ROLE_USER)은 403, 비로그인은 401. 공개로 열지 않습니다.
                         // 관리자 로그인 필터는 아직 없고, 인증된 AdminPrincipal(ROLE_ADMIN)만 통과합니다.
                         // POST의 CSRF 검사는 이 규칙보다 먼저라, 토큰이 없으면 403 INVALID_CSRF_TOKEN입니다.

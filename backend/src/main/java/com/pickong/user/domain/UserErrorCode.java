@@ -27,6 +27,10 @@ public enum UserErrorCode implements ErrorCode {
     WITHDRAWAL_NOT_ALLOWED(409, "지금은 탈퇴를 신청할 수 없는 계정이에요."),
     /** 탈퇴 중이 아니거나 30일이 지나 탈퇴를 취소할 수 없음 */
     WITHDRAWAL_NOT_CANCELLABLE(409, "탈퇴를 취소할 수 있는 기간이 지났어요."),
+    INVALID_SUSPENSION_PERIOD(400, "정지 종료 시각을 확인해 주세요."),
+    USER_SANCTION_NOT_ALLOWED(409, "제재할 수 없는 계정 상태예요."),
+    USER_ALREADY_RESTRICTED(409, "이미 이용이 제한된 계정이에요."),
+    USER_STATUS_CONFLICT(409, "계정 상태가 변경되었어요. 다시 확인해 주세요."),
     /** 사용자를 찾을 수 없음 */
     USER_NOT_FOUND(404, "사용자를 찾을 수 없습니다");
 

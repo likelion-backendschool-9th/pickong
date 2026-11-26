@@ -8,6 +8,9 @@ import lombok.Getter;
 public enum FeedErrorCode implements ErrorCode {
 
     FEED_NOT_FOUND(404, "피드를 찾을 수 없습니다"),
+    FEED_HIDE_REASON_REQUIRED(400, "숨김 사유를 입력해 주세요."),
+    FEED_MODERATION_REASON_TOO_LONG(400, "사유는 200자까지 쓸 수 있어요."),
+    FEED_STATE_CONFLICT(409, "게시물 상태가 변경되었어요. 다시 확인해 주세요."),
     INVALID_TAB(400, "tab은 recommended 또는 following만 허용됩니다"),
     COMMENT_NOT_FOUND(404, "댓글을 찾을 수 없습니다"),
     COMMENT_REPLY_DEPTH_EXCEEDED(400, "대댓글에는 답글을 달 수 없습니다"),

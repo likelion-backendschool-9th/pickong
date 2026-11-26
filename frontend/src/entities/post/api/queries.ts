@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import type { Post } from "../model";
+import type { Post, PostComment } from "../model";
+import { removeComment } from "../commentUtils";
 import { postApi, type FeedTab } from "./postApi";
 
 export const postKeys = {
@@ -53,6 +54,33 @@ export function useAddComment(postId: string) {
     onSuccess: (comment) => {
       qc.setQueryData(postKeys.comments(postId), (prev: unknown[] | undefined) => [...(prev ?? []), comment]);
       patchPostInCache(qc, postId, (p) => ({ ...p, commentCount: p.commentCount + 1 }));
+    },
+  });
+}
+
+export function useUpdateComment(postId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ commentId, content }: { commentId: string; content: string }) =>
+      postApi.updateComment(postId, commentId, content),
+    onSuccess: (updated) => {
+      qc.setQueryData(postKeys.comments(postId), (prev: PostComment[] | undefined) =>
+        prev?.map((c) => (c.id === updated.id ? updated : c)) ?? [],
+      );
+    },
+  });
+}
+
+export function useDeleteComment(postId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (commentId: string) => postApi.deleteComment(postId, commentId),
+    onSuccess: (_, commentId) => {
+      // 현재 캐시에서 결과 계산 후 두 캐시를 각각 갱신 (setQueryData updater는 순수하게 유지)
+      const prev = qc.getQueryData<PostComment[]>(postKeys.comments(postId));
+      const { next, removedCount } = removeComment(prev ?? [], commentId);
+      qc.setQueryData(postKeys.comments(postId), next);
+      patchPostInCache(qc, postId, (p) => ({ ...p, commentCount: Math.max(0, p.commentCount - removedCount) }));
     },
   });
 }

@@ -10,6 +10,15 @@ public interface UserPersistencePort {
 
     Optional<User> findById(Long userId);
 
+    /** 호출자의 트랜잭션에서 회원 행을 잠그고 최신 상태를 읽습니다. 다른 모듈은 이 포트를 직접 사용하지 않습니다. */
+    Optional<User> findByIdForUpdate(Long userId);
+
+    /**
+     * 기존 상태·정지 만료일이 일치할 때만 status/suspended_until/updated_at을 갱신합니다.
+     * 프로필·집계·탈퇴 필드는 보존합니다. 호출자의 트랜잭션이 필요하며 불일치·없는 회원이면 false.
+     */
+    boolean updateStatusIfUnchanged(User previous, User updated);
+
     /** username(대소문자 무시)으로 회원을 조회합니다. */
     Optional<User> findByUsername(String username);
 

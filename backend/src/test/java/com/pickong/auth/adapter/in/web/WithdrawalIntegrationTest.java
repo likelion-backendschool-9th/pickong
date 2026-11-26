@@ -138,13 +138,13 @@ class WithdrawalIntegrationTest {
     }
 
     @Test
-    @DisplayName("탈퇴 신청: 이미 탈퇴 중이면 409 WITHDRAWAL_NOT_ALLOWED (남은 Access Token으로 다시 보내도)")
+    @DisplayName("탈퇴 신청: 탈퇴 중인 계정의 남은 Access Token은 즉시 401로 거절한다")
     void alreadyPending() throws Exception {
         withdraw("{\"reason\":\"RARELY_USED\"}").andExpect(status().isNoContent());
 
         withdraw("{\"reason\":\"RARELY_USED\"}")
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("WITHDRAWAL_NOT_ALLOWED"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM withdrawal_reasons", Integer.class)).isEqualTo(1);
     }
 

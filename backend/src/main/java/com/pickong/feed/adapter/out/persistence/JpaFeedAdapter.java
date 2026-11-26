@@ -19,9 +19,16 @@ import java.util.stream.Collectors;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import java.time.OffsetDateTime;
+import java.util.UUID;
 
 @Repository
 public class JpaFeedAdapter implements FeedRepository {
+    @PersistenceContext
+    private EntityManager entityManager;
     private final FeedJpaRepository feedJpaRepository;
     private final FeedPhotoJpaRepository feedPhotoJpaRepository;
     private final FeedPlaceJpaRepository feedPlaceJpaRepository;
@@ -42,6 +49,8 @@ public class JpaFeedAdapter implements FeedRepository {
 
         feedPhotoJpaRepository.deleteAllByFeedId(feedId);
         feedPlaceJpaRepository.deleteAllByFeedId(feedId);
+        // IDENTITY 삽입보다 기존 관계 삭제를 먼저 반영해 같은 장소 재등록의 UNIQUE 충돌을 막습니다.
+        feedJpaRepository.flush();
         List<FeedPhoto> photos = feedPhotoJpaRepository.saveAll(feed.getPhotos().stream()
                 .map(photo -> FeedPhotoJpaEntity.of(feedId, photo))
                 .toList())
@@ -81,6 +90,32 @@ public class JpaFeedAdapter implements FeedRepository {
     }
 
     @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Feed findByIdForUpdate(Long feedId) {
+        return locked(feedJpaRepository.findByIdForUpdate(feedId)
+                .orElseThrow(() -> new BusinessException(FeedErrorCode.FEED_NOT_FOUND)));
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Feed findByPublicIdForUpdate(UUID publicId) {
+        return locked(feedJpaRepository.findByPublicIdForUpdate(publicId)
+                .orElseThrow(() -> new BusinessException(FeedErrorCode.FEED_NOT_FOUND)));
+    }
+
+    private Feed locked(FeedJpaEntity entity) {
+        // 같은 트랜잭션에서 이미 읽은 행도 잠금 이후의 최신 상태로 판단합니다.
+        entityManager.refresh(entity);
+        return toDomain(List.of(entity)).getFirst();
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean updateHiddenAt(long feedId, OffsetDateTime previous, OffsetDateTime hiddenAt, OffsetDateTime now) {
+        return feedJpaRepository.updateHiddenAt(feedId, previous, hiddenAt, now) == 1;
+    }
+
+    @Override
     @Transactional
     public void deleteById(Long feedId) {
         // 존재하지 않는 feedId 삭제 시 404 반환
@@ -110,6 +145,15 @@ public class JpaFeedAdapter implements FeedRepository {
     @Override
     public void decrementBookmarkCount(Long feedId) {
         feedJpaRepository.decrementBookmarkCount(feedId);
+    }
+
+    @Override
+    public List<Feed> findByOwner(Long ownerUserId, boolean isOwner, Long cursor, int limit) {
+        // 본인이면 모든 visibility, 타인이면 PUBLIC만 조회
+        List<FeedJpaEntity> entities = isOwner
+                ? feedJpaRepository.findAllByOwner(ownerUserId, cursor, PageRequest.of(0, limit))
+                : feedJpaRepository.findPublicByOwner(ownerUserId, cursor, PageRequest.of(0, limit));
+        return toDomain(entities);
     }
 
     /** 사진 · 태그 장소를 게시물 id 묶음으로 한 번에 읽어 N+1 조회를 피합니다. */

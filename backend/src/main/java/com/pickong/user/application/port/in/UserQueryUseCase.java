@@ -14,4 +14,12 @@ public interface UserQueryUseCase {
      * @throws com.pickong.common.error.BusinessException 400 INVALID_USERNAME — 형식이 맞지 않을 때
      */
     boolean isUsernameAvailable(String username);
+
+    /**
+     * username으로 사용자 id를 조회함. 대소문자 무시.
+     * 다른 모듈이 username → userId 변환에 사용하는 메서드.
+     *
+     * @throws com.pickong.common.error.BusinessException 404 USER_NOT_FOUND — 없는 username일 때
+     */
+    Long findIdByUsername(String username);
 }

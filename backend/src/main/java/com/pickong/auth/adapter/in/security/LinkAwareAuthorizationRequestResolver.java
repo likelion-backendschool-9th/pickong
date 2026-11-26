@@ -3,6 +3,7 @@ package com.pickong.auth.adapter.in.security;
 import com.pickong.auth.application.port.in.SocialAccountUseCase;
 import com.pickong.auth.domain.vo.SocialProvider;
 import com.pickong.common.security.AccessTokenVerifier;
+import com.pickong.user.application.port.in.UserAccountUseCase;
 import com.pickong.common.security.LoginUser;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -37,19 +38,21 @@ public class LinkAwareAuthorizationRequestResolver implements OAuth2Authorizatio
     private final DefaultOAuth2AuthorizationRequestResolver linkResolver;
     private final AccessTokenVerifier accessTokenVerifier;
     private final SocialAccountUseCase socialAccountUseCase;
+    private final UserAccountUseCase accounts;
 
     /**
      * 기본 resolver를 두 개 만듭니다. 연결용은 계정 선택 화면 파라미터를 더합니다.
      * (기본 resolver 안에서 붙여야 제공자로 가는 주소에 반영됩니다)
      */
     public LinkAwareAuthorizationRequestResolver(ClientRegistrationRepository clientRegistrations,
-            AccessTokenVerifier accessTokenVerifier, SocialAccountUseCase socialAccountUseCase) {
+            AccessTokenVerifier accessTokenVerifier, SocialAccountUseCase socialAccountUseCase, UserAccountUseCase accounts) {
         this.loginResolver = new DefaultOAuth2AuthorizationRequestResolver(clientRegistrations, SecurityConfig.OAUTH2_AUTHORIZATION_BASE_URI);
         this.linkResolver = new DefaultOAuth2AuthorizationRequestResolver(clientRegistrations, SecurityConfig.OAUTH2_AUTHORIZATION_BASE_URI);
         this.linkResolver.setAuthorizationRequestCustomizer(builder ->
                 builder.additionalParameters(params -> params.put("prompt", "select_account")));
         this.accessTokenVerifier = accessTokenVerifier;
         this.socialAccountUseCase = socialAccountUseCase;
+        this.accounts = accounts;
     }
 
     /** 요청 주소에서 제공자를 읽습니다. 시작 주소가 아니면 null(다음 필터로 넘어감) */
@@ -99,7 +102,8 @@ public class LinkAwareAuthorizationRequestResolver implements OAuth2Authorizatio
         }
         for (Cookie cookie : cookies) {
             if (AuthCookies.ACCESS_TOKEN.equals(cookie.getName())) {
-                return accessTokenVerifier.verify(cookie.getValue()).map(LoginUser::userId).orElse(null);
+                return accessTokenVerifier.verify(cookie.getValue()).filter(user -> accounts.canLogin(user.userId()))
+                        .map(LoginUser::userId).orElse(null);
             }
         }
         return null;

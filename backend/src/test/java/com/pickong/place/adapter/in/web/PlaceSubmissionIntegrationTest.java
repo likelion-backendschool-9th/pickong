@@ -29,6 +29,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -57,11 +58,22 @@ class PlaceSubmissionIntegrationTest {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
+    /** submit()이 보내는 좌표(37.5628, 126.9254)를 감싸는 지도 범위. /places는 bbox가 필수입니다. */
+    private static final String AROUND_SUBMISSION = "126.92,37.56,126.93,37.57";
+
     @Autowired
     MockMvc mvc;
 
     @Autowired
     JdbcTemplate jdbc;
+
+    private long adminId;
+
+    @BeforeEach
+    void activeAdminFixture() {
+        adminId = jdbc.queryForObject("INSERT INTO admins(username,password_hash,role,status) VALUES (?,'test-only','OPERATOR','ACTIVE') RETURNING id",
+                Long.class, "place-security-" + UUID.randomUUID());
+    }
 
     @Autowired
     TokenUseCase tokenUseCase;
@@ -72,6 +84,7 @@ class PlaceSubmissionIntegrationTest {
     /** 이 클래스는 커밋합니다. 남은 제보가 있으면 다른 테스트의 회원 삭제가 외래 키에 막힙니다. */
     @AfterEach
     void deleteCommittedRows() {
+        jdbc.update("DELETE FROM admins WHERE id=?", adminId);
         jdbc.update("DELETE FROM place_submissions");
         jdbc.update("DELETE FROM places");
     }
@@ -85,7 +98,7 @@ class PlaceSubmissionIntegrationTest {
 
         String id = submit(member, name);
         assertThat(placesNamed(name)).isZero();
-        mvc.perform(api(get("/api/v1/places")).cookie(member))
+        mvc.perform(api(get("/api/v1/places")).param("bbox", AROUND_SUBMISSION).param("cluster", "false").cookie(member))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(name))));
 
@@ -101,7 +114,7 @@ class PlaceSubmissionIntegrationTest {
         assertThat(placesNamed(name)).isEqualTo(1);
         String linked = jdbc.queryForObject("SELECT place_id::text FROM place_submissions WHERE id = ?", String.class, Long.valueOf(id));
         assertThat(linked).isNotBlank();
-        mvc.perform(api(get("/api/v1/places")).cookie(member))
+        mvc.perform(api(get("/api/v1/places")).param("bbox", AROUND_SUBMISSION).param("cluster", "false").cookie(member))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString(placeId)));
     }
@@ -310,8 +323,8 @@ class PlaceSubmissionIntegrationTest {
         return builder.servletPath("/api/v1");
     }
 
-    private static UsernamePasswordAuthenticationToken admin() {
+    private UsernamePasswordAuthenticationToken admin() {
         return UsernamePasswordAuthenticationToken.authenticated(
-                new AdminPrincipal(7L), null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+                new AdminPrincipal(adminId), null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
     }
 }

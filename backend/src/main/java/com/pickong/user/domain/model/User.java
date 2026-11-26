@@ -13,7 +13,7 @@ import lombok.Builder;
 import lombok.Getter;
 
 /**
- * 회원 애그리거트. ACTIVE · SUSPENDED · WITHDRAWN_PENDING · WITHDRAWN 전이와 탈퇴 익명화.
+ * 회원 애그리거트. ACTIVE · SUSPENDED · BANNED · WITHDRAWN_PENDING · WITHDRAWN 전이와 탈퇴 익명화.
  * <p>email · passwordHash는 소셜 전용 계정이면 없습니다.
  */
 @Getter
@@ -199,10 +199,63 @@ public class User {
                 .build();
     }
 
+    /** 경고를 포함한 신규 제재 전에 확인합니다. 탈퇴 상태나 익명화된 계정은 제재하지 않습니다. */
+    public void ensureSanctionAllowed() {
+        if (deletedAt != null || (status != UserStatus.ACTIVE
+                && status != UserStatus.SUSPENDED && status != UserStatus.BANNED)) {
+            throw new BusinessException(UserErrorCode.USER_SANCTION_NOT_ALLOWED);
+        }
+    }
+
+    /** 기간 정지. 만료 이력 정리와 중복 제재 검사는 호출 UseCase의 같은 트랜잭션에서 함께 처리합니다. */
+    public User suspend(OffsetDateTime until, OffsetDateTime now) {
+        requireStatusChangeTime(now);
+        ensureSanctionAllowed();
+        if (until == null || !until.isAfter(now)) {
+            throw new BusinessException(UserErrorCode.INVALID_SUSPENSION_PERIOD);
+        }
+        if (status == UserStatus.BANNED || (status == UserStatus.SUSPENDED && !hasExpiredSuspension(now))) {
+            throw new BusinessException(UserErrorCode.USER_ALREADY_RESTRICTED);
+        }
+        return toBuilder().status(UserStatus.SUSPENDED).suspendedUntil(until).updatedAt(now).build();
+    }
+
+    /** 영구 정지. 기존 기간 정지 이력의 종료는 moderation이 담당하며 계정에는 만료일을 남기지 않습니다. */
+    public User ban(OffsetDateTime now) {
+        requireStatusChangeTime(now);
+        ensureSanctionAllowed();
+        if (status == UserStatus.BANNED) {
+            throw new BusinessException(UserErrorCode.USER_ALREADY_RESTRICTED);
+        }
+        return toBuilder().status(UserStatus.BANNED).suspendedUntil(null).updatedAt(now).build();
+    }
+
     /**
-     * 로그인(토큰 재발급 포함)을 허용하는 상태인지. 지금은 ACTIVE만 허용합니다.
-     * (정지 회원이 무엇을 할 수 있는지는 blueprint 8.5 #7에서 정해지면 바꿉니다)
+     * 호출 UseCase가 잠금 안에서 남은 유효 이용 제한을 확인한 뒤 호출합니다.
+     * 경고는 hasRemainingRestriction에 포함하지 않습니다. 탈퇴 상태는 제재 해제로 복구하지 않습니다.
      */
+    public User lift(boolean hasRemainingRestriction, OffsetDateTime now) {
+        requireStatusChangeTime(now);
+        if (hasRemainingRestriction || deletedAt != null
+                || (status != UserStatus.SUSPENDED && status != UserStatus.BANNED)) {
+            return this;
+        }
+        return toBuilder().status(UserStatus.ACTIVE).suspendedUntil(null).updatedAt(now).build();
+    }
+
+    /** 정확히 만료 시각부터 true. 만료일이 없는 기존 SUSPENDED 데이터는 자동 복구하지 않습니다. */
+    public boolean hasExpiredSuspension(OffsetDateTime now) {
+        requireStatusChangeTime(now);
+        return status == UserStatus.SUSPENDED && suspendedUntil != null && !now.isBefore(suspendedUntil);
+    }
+
+    private static void requireStatusChangeTime(OffsetDateTime now) {
+        if (now == null) {
+            throw new IllegalArgumentException("상태 변경 기준 시각이 필요합니다.");
+        }
+    }
+
+    /** 로그인·재발급은 ACTIVE만 허용합니다. 만료된 정지는 후속 UseCase가 이력과 계정 상태를 먼저 정리합니다. */
     public boolean canLogin() {
         return status == UserStatus.ACTIVE;
     }

@@ -50,7 +50,7 @@ public class UserWithdrawalService implements UserWithdrawalUseCase {
         String normalizedDetail = normalizeDetail(parsed, detail);
 
         OffsetDateTime now = OffsetDateTime.now(clock);
-        User user = users.findById(userId).orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+        User user = users.findByIdForUpdate(userId).orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         users.updateWithdrawal(user.requestWithdrawal(now));
         reasons.save(parsed, normalizedDetail, LocalDate.now(clock.withZone(KOREA)));
     }
@@ -67,7 +67,7 @@ public class UserWithdrawalService implements UserWithdrawalUseCase {
     @Override
     @Transactional
     public String cancelWithdrawal(Long userId) {
-        User user = users.findById(userId).orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+        User user = users.findByIdForUpdate(userId).orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
         User cancelled = user.cancelWithdrawal(OffsetDateTime.now(clock));
         users.updateWithdrawal(cancelled);
         return cancelled.getUsername();
@@ -87,7 +87,7 @@ public class UserWithdrawalService implements UserWithdrawalUseCase {
     @Transactional
     public boolean anonymize(Long userId) {
         OffsetDateTime now = OffsetDateTime.now(clock);
-        Optional<User> user = users.findById(userId).filter(found -> found.isDueForAnonymization(now));
+        Optional<User> user = users.findByIdForUpdate(userId).filter(found -> found.isDueForAnonymization(now));
         if (user.isEmpty()) {
             return false;
         }

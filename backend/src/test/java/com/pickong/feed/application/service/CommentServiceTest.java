@@ -55,7 +55,7 @@ class CommentServiceTest {
     void createComment_성공() {
         // given
         CreateCommentCommand command = new CreateCommentCommand(1L, null, "테스트 댓글");
-        given(feedRepository.findById(10L)).willReturn(sampleFeed());
+        given(feedRepository.findByIdForUpdate(10L)).willReturn(sampleFeed());
         given(commentRepository.save(any(Comment.class))).willReturn(sampleComment());
 
         // when
@@ -69,8 +69,9 @@ class CommentServiceTest {
 
     @Test
     void getComments_성공() {
+        given(feedRepository.findById(10L)).willReturn(sampleFeed());
         // given: 댓글 2개 반환 (hasNext = false)
-        given(commentRepository.findByFeedId(10L, null, 11))
+        given(commentRepository.findByFeedId(10L, null, 11, null, false))
                 .willReturn(List.of(sampleComment(), sampleComment()));
 
         // when
@@ -83,8 +84,9 @@ class CommentServiceTest {
 
     @Test
     void updateComment_존재하지않는id_예외발생() {
+        given(feedRepository.findByIdForUpdate(10L)).willReturn(sampleFeed());
         // given
-        given(commentRepository.findById(999L))
+        given(commentRepository.findByIdForUpdate(999L))
                 .willThrow(new BusinessException(FeedErrorCode.COMMENT_NOT_FOUND));
 
         // when & then
@@ -96,6 +98,7 @@ class CommentServiceTest {
 
     @Test
     void updateComment_다른피드댓글_수정시_예외발생() {
+        given(feedRepository.findByIdForUpdate(10L)).willReturn(sampleFeed());
         // given: feedId=10인데 댓글은 feedId=99에 속함
         Comment wrongFeedComment = Comment.builder()
                 .id(1L)
@@ -104,7 +107,7 @@ class CommentServiceTest {
                 .content("다른 피드 댓글")
                 .likeCount(0)
                 .build();
-        given(commentRepository.findById(1L)).willReturn(wrongFeedComment);
+        given(commentRepository.findByIdForUpdate(1L)).willReturn(wrongFeedComment);
 
         // when & then
         assertThatThrownBy(() -> commentService.updateComment(10L, 1L, 1L,
@@ -115,6 +118,7 @@ class CommentServiceTest {
 
     @Test
     void updateComment_타인댓글_수정시_예외발생() {
+        given(feedRepository.findByIdForUpdate(10L)).willReturn(sampleFeed());
         // given: 댓글 작성자는 userId=2, 요청자는 userId=99
         Comment otherUsersComment = Comment.builder()
                 .id(1L)
@@ -123,7 +127,7 @@ class CommentServiceTest {
                 .content("타인의 댓글")
                 .likeCount(0)
                 .build();
-        given(commentRepository.findById(1L)).willReturn(otherUsersComment);
+        given(commentRepository.findByIdForUpdate(1L)).willReturn(otherUsersComment);
 
         // when & then
         assertThatThrownBy(() -> commentService.updateComment(10L, 1L, 99L,
@@ -134,8 +138,9 @@ class CommentServiceTest {
 
     @Test
     void deleteComment_존재하지않는id_예외발생() {
+        given(feedRepository.findByIdForUpdate(10L)).willReturn(sampleFeed());
         // given
-        given(commentRepository.findById(999L))
+        given(commentRepository.findByIdForUpdate(999L))
                 .willThrow(new BusinessException(FeedErrorCode.COMMENT_NOT_FOUND));
 
         // when & then
@@ -145,6 +150,7 @@ class CommentServiceTest {
 
     @Test
     void deleteComment_다른피드댓글_삭제시_예외발생() {
+        given(feedRepository.findByIdForUpdate(10L)).willReturn(sampleFeed());
         // given: feedId=10인데 댓글은 feedId=99에 속함
         Comment wrongFeedComment = Comment.builder()
                 .id(1L)
@@ -153,7 +159,7 @@ class CommentServiceTest {
                 .content("다른 피드 댓글")
                 .likeCount(0)
                 .build();
-        given(commentRepository.findById(1L)).willReturn(wrongFeedComment);
+        given(commentRepository.findByIdForUpdate(1L)).willReturn(wrongFeedComment);
 
         // when & then
         assertThatThrownBy(() -> commentService.deleteComment(10L, 1L, 1L))
@@ -163,6 +169,7 @@ class CommentServiceTest {
 
     @Test
     void deleteComment_타인댓글_삭제시_예외발생() {
+        given(feedRepository.findByIdForUpdate(10L)).willReturn(sampleFeed());
         // given: 댓글 작성자는 userId=2, 요청자는 userId=99
         Comment otherUsersComment = Comment.builder()
                 .id(1L)
@@ -171,7 +178,7 @@ class CommentServiceTest {
                 .content("타인의 댓글")
                 .likeCount(0)
                 .build();
-        given(commentRepository.findById(1L)).willReturn(otherUsersComment);
+        given(commentRepository.findByIdForUpdate(1L)).willReturn(otherUsersComment);
 
         // when & then
         assertThatThrownBy(() -> commentService.deleteComment(10L, 1L, 99L))
@@ -182,7 +189,7 @@ class CommentServiceTest {
     @Test
     void createComment_존재하지않는_feedId_예외발생() {
         // given: 없는 feedId → FEED_NOT_FOUND
-        given(feedRepository.findById(999L))
+        given(feedRepository.findByIdForUpdate(999L))
                 .willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND));
 
         CreateCommentCommand command = new CreateCommentCommand(1L, null, "댓글");
@@ -204,7 +211,7 @@ class CommentServiceTest {
                 .content("대댓글")
                 .likeCount(0)
                 .build();
-        given(feedRepository.findById(10L)).willReturn(sampleFeed());
+        given(feedRepository.findByIdForUpdate(10L)).willReturn(sampleFeed());
         given(commentRepository.findById(2L)).willReturn(replyComment);
 
         CreateCommentCommand command = new CreateCommentCommand(1L, 2L, "대댓글의 대댓글");
@@ -233,7 +240,7 @@ class CommentServiceTest {
                 .content("대댓글")
                 .likeCount(0)
                 .build();
-        given(feedRepository.findById(10L)).willReturn(sampleFeed());
+        given(feedRepository.findByIdForUpdate(10L)).willReturn(sampleFeed());
         given(commentRepository.findById(1L)).willReturn(topLevelComment);
         given(commentRepository.save(any(Comment.class))).willReturn(savedReply);
 

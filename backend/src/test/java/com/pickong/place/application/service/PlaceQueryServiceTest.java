@@ -103,6 +103,14 @@ class PlaceQueryServiceTest {
     }
 
     @Test
+    @DisplayName("한 변이 너무 긴 범위는 묶음 · 목록 모두 조회하지 않고 거절한다")
+    void tooLargeBounds() {
+        // 서울 전체 정도의 범위
+        assertRejected(new PlaceMapQuery(126.76, 37.41, 127.18, 37.70, null), PlaceErrorCode.BOUNDS_TOO_LARGE);
+        verifyNoInteractions(placeMap);
+    }
+
+    @Test
     @DisplayName("빈 카테고리는 전체로 본다")
     void blankCategory() {
         assertThat(new PlaceMapQuery(127, 37, 128, 38, " ").category()).isNull();

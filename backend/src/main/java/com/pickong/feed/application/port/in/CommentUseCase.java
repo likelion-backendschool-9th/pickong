@@ -10,7 +10,11 @@ public interface CommentUseCase {
     // cursor: 마지막으로 조회한 commentId (첫 요청 시 null)
     CommentPage getComments(Long feedId, Long cursor, int limit);
 
+    CommentPage getComments(Long feedId, Long cursor, int limit, Long viewerId, boolean admin);
+
     CommentPage getReplies(Long feedId, Long commentId, Long cursor, int limit);
+
+    CommentPage getReplies(Long feedId, Long commentId, Long cursor, int limit, Long viewerId, boolean admin);
 
     Comment createComment(Long feedId, CreateCommentCommand command);
 

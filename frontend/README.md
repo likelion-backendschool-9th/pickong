@@ -72,7 +72,7 @@ Docker Desktop에서 호스트의 mock 서버에 연결하려면 빌드할 때
 
 - 화면은 항상 `/api/v1/*`로 요청하고, `next.config.ts`의 rewrites가 `API_BASE_URL`(기본 `http://localhost:4000`, mock)로 전달합니다.
 - **백엔드에 있는 API만 백엔드로 보내기:** `.env.local`에 `BACKEND_URL=http://localhost:8080`을 넣고 `npm run dev`로 실행합니다 (`.env.local.example` 참고).
-  - `next.config.ts`의 `BACKEND_PATHS`(지금은 `/api/v1/auth/**` · `/api/v1/me` · `/api/v1/me/social-accounts/**` · `/api/v1/terms/**` · `/api/v1/me/agreements/**` · `/api/v1/me/withdrawal`)만 백엔드로 가고, 나머지는 mock으로 갑니다.
+  - `next.config.ts`의 `BACKEND_PATHS`에 있는 회원 인증·약관 API와 `/api/v1/admin/users/**` · `/api/v1/admin/feeds/**` · `/api/v1/admin/reports/**`가 백엔드로 가고, 나머지는 mock으로 갑니다.
   - 백엔드에 새 API가 생기면 `BACKEND_PATHS`에 경로를 추가합니다.
 - 재동의 화면(`/terms/consent`)을 mock으로 보려면 `MOCK_RECONSENT=PRIVACY,MARKETING npm run dev`처럼 실행합니다. 지정한 약관이 재동의가 필요한 다음 버전(예: 1.1 → 1.2)으로 바뀐 것으로 나옵니다. 서버의 403 차단은 mock이 흉내 내지 않으므로, 차단 · 이동까지 보려면 백엔드에 `requires_reconsent = true`인 새 버전 행을 넣고 확인합니다.
   - 백엔드 실행 방법은 [`../backend/README.md`](../backend/README.md)를 봅니다. 백엔드의 `FRONTEND_BASE_URL`은 `http://localhost:3000`(기본값)이어야 로그인 후 이 화면으로 돌아옵니다.
@@ -81,6 +81,15 @@ Docker Desktop에서 호스트의 mock 서버에 연결하려면 빌드할 때
 - mock 데이터는 `mocks/fixtures/`, 응답 규칙은 `mocks/handlers/`에 있습니다. 메모리에만 저장되므로 mock 서버를 다시 시작하면 초기 상태로 돌아갑니다.
 - 지도의 주변 장소에는 예시 장소 외에 실제 상가 정보(홍대 · 명동 · 잠실 · 강남 · 성수의 카페 · 음식점 · 소품샵류 약 2만 4천 곳)가 들어 있습니다. 소상공인시장진흥공단 상가(상권)정보를 `npm run mock:stores`로 변환한 것이고, 업종 기준은 저장소 루트의 `place_category_mapping.md`를 따릅니다. 장소가 많으면 mock도 백엔드처럼 묶음(`clusters`)으로 응답합니다.
 - 응답 형태가 바뀌면 `src/entities/<엔티티>/api/mapper.ts`에서 흡수합니다. 화면 코드는 도메인 모델만 사용합니다.
+
+### 관리자 사용자·콘텐츠·신고 관리 연동
+
+- `BACKEND_URL`을 설정한 뒤 Next 서버를 다시 시작하면 `/admin/users`, `/admin/contents`의 게시물 탭, `/admin/reports`가 실제 관리자 API를 사용합니다. `/admin/contents` 화면 경로는 그대로이며 게시물 API는 `/api/v1/admin/feeds`입니다.
+- 관리자 로그인 전체 구현은 별도 작업입니다. 일반 회원의 소셜 로그인 쿠키로는 403이며, 관리자 인증이 없으면 401을 화면에 표시합니다. 이 401로 회원 Refresh Token을 사용하거나 회원 로그인 화면으로 이동하지 않습니다. 운영용 임시 관리자나 인증 우회는 제공하지 않습니다.
+- `BACKEND_URL` 없이 mock으로 화면 흐름을 확인할 수 있습니다. mock은 관리자 인증을 검증하지 않으므로 실제 관리자 로그인 검증을 대신하지 않습니다.
+- 사용자 응답의 `isCreator: null`은 확인 불가로 표시하며, 탈퇴 상태도 그대로 표시합니다. 유효한 제재마다 `sanctionId`를 사용해 개별 해제합니다. 경고 알림은 발송하지 않습니다.
+- 게시물의 `link: null`이면 상세 링크를 만들지 않습니다. 컬렉션 탭은 연동 준비 안내를 표시하며 API를 호출하지 않습니다. 컬렉션 신고는 기각만 가능합니다.
+- 처리 성공 및 상태 충돌 시 관리자 목록·신고·게시물·댓글 캐시를 다시 조회합니다. 미구현 대시보드 요약·크리에이터·장소 제보 API 등은 부분 연동 환경에서 계속 mock을 사용합니다. 회원용 피드 API의 전환은 이번 관리자 연동 범위에 포함하지 않습니다.
 
 ### 확인해 볼 만한 예시 상황
 

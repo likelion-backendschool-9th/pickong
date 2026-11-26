@@ -19,6 +19,8 @@ import com.pickong.auth.adapter.in.security.RestAuthenticationEntryPoint;
 import com.pickong.auth.adapter.in.security.SecurityConfig;
 import com.pickong.auth.adapter.in.security.SignedCookieAuthorizationRequestRepository;
 import com.pickong.common.security.AccessTokenVerifier;
+import com.pickong.common.security.AdminAccessVerifier;
+import com.pickong.user.application.port.in.UserAccountUseCase;
 import com.pickong.common.security.AdminPrincipal;
 import com.pickong.common.security.LoginUser;
 import com.pickong.common.web.WebMvcConfig;
@@ -28,6 +30,7 @@ import jakarta.servlet.http.Cookie;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -67,6 +70,18 @@ class AdminReportSecurityTest {
 
     @MockitoBean
     AccessTokenVerifier accessTokenVerifier;
+
+    @MockitoBean
+    UserAccountUseCase accounts;
+
+    @MockitoBean
+    AdminAccessVerifier admins;
+
+    @BeforeEach
+    void activeTestPrincipals() {
+        org.mockito.BDDMockito.given(accounts.canLogin(org.mockito.ArgumentMatchers.anyLong())).willReturn(true);
+        org.mockito.BDDMockito.given(admins.isActive(org.mockito.ArgumentMatchers.anyLong())).willReturn(true);
+    }
 
     @MockitoBean
     SignedCookieAuthorizationRequestRepository authorizationRequestRepository;

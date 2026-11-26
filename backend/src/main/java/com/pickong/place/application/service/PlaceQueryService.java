@@ -13,6 +13,7 @@ import com.pickong.place.application.port.out.PlaceMapQueryPort;
 import com.pickong.place.application.port.out.PlacePersistencePort;
 import com.pickong.place.domain.PlaceErrorCode;
 import com.pickong.place.domain.model.Place;
+import com.pickong.place.domain.policy.MapBoundsPolicy;
 import com.pickong.place.domain.policy.MapGridPolicy;
 import java.util.ArrayList;
 import java.util.List;
@@ -81,6 +82,10 @@ public class PlaceQueryService implements PlaceQueryUseCase {
         }
         if (query.south() > query.north() || query.west() > query.east()) {
             throw new BusinessException(CommonErrorCode.INVALID_INPUT);
+        }
+        // 광역 범위는 묶어도 많은 행을 읽고, 목록(cluster=false)은 범위 전체를 정렬하므로 막습니다.
+        if (MapBoundsPolicy.isTooLarge(query.west(), query.south(), query.east(), query.north())) {
+            throw new BusinessException(PlaceErrorCode.BOUNDS_TOO_LARGE);
         }
     }
 }

@@ -115,7 +115,7 @@ class FeedControllerTest {
     @Test
     void getFeed_단건조회_200반환() throws Exception {
         // given
-        given(feedUseCase.getFeed(1L)).willReturn(sampleFeed());
+        given(feedUseCase.getFeed(1L, 1L, false)).willReturn(sampleFeed());
 
         // when & then
         mockMvc.perform(get("/feeds/1"))
@@ -126,7 +126,7 @@ class FeedControllerTest {
     @Test
     void getFeed_존재하지않는id_404반환() throws Exception {
         // given: 없는 id → BusinessException → GlobalExceptionHandler가 404로 변환
-        given(feedUseCase.getFeed(999L))
+        given(feedUseCase.getFeed(999L, 1L, false))
                 .willThrow(new BusinessException(FeedErrorCode.FEED_NOT_FOUND));
 
         // when & then
