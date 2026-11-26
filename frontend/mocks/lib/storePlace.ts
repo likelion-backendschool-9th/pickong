@@ -1,7 +1,7 @@
 /**
  * 소상공인시장진흥공단 상가(상권)정보 CSV 한 행을 mock 장소로 바꾸는 규칙.
  * 업종 코드는 저장소 루트의 place_category_mapping.md(소분류코드 기준)를 따릅니다.
- * mock에는 카페 · 음식점 전체와, 소품샵에 가까운 소매 업종만 넣습니다.
+ * mock에는 카페 · 음식점 전체, 소품샵에 가까운 소매 업종, 갤러리 · 화랑(EXHIBITION)만 넣습니다.
  */
 import type { PlaceCategory } from "../fixtures/types.ts";
 
@@ -33,15 +33,18 @@ const SHOP_CODES = [
   "G20910", // 신발
   "G20911", // 가방
   "G21302", // 문구/회화용품
-  "G21801", // 예술품
   "G21802", // 기념품점
   "G21901", // 꽃집
 ];
+
+/** 예술품 소매업. 갤러리 · 화랑이 대부분 이 코드로 등록되어 있어 SHOP이 아니라 EXHIBITION입니다 (변환표 6장). */
+const EXHIBITION_CODES = ["G21801"];
 
 const CATEGORY_BY_CODE = new Map<string, PlaceCategory>([
   ...CAFE_CODES.map((code) => [code, "CAFE"] as const),
   ...RESTAURANT_CODES.map((code) => [code, "RESTAURANT"] as const),
   ...SHOP_CODES.map((code) => [code, "SHOP"] as const),
+  ...EXHIBITION_CODES.map((code) => [code, "EXHIBITION"] as const),
 ]);
 
 /** 상권업종소분류코드 → 장소 카테고리. 넣지 않는 업종이면 null */

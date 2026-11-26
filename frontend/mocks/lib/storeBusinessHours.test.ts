@@ -14,6 +14,7 @@ const samples: [PlaceCategory, string][] = [
   ["RESTAURANT", "백반/한정식"],
   ["RESTAURANT", "요리 주점"],
   ["SHOP", "꽃집"],
+  ["EXHIBITION", "예술품 소매업"],
 ];
 
 describe("storeBusinessHours", () => {
@@ -38,7 +39,7 @@ describe("storeBusinessHours", () => {
     expect(storeBusinessHours("s-MA0001", "CAFE", "카페")).toEqual(storeBusinessHours("s-MA0001", "CAFE", "카페"));
   });
 
-  it("업종에 맞는 범위: 카페는 07~11시 오픈, 주점은 16~18시 오픈", () => {
+  it("업종에 맞는 범위: 카페는 07~11시 오픈, 주점은 16~18시 오픈, 갤러리는 10~19시 안", () => {
     for (let i = 0; i < 200; i++) {
       const cafe = minutes(storeBusinessHours(`s-${i}`, "CAFE", "카페").open);
       expect(cafe).toBeGreaterThanOrEqual(7 * 60);
@@ -46,6 +47,9 @@ describe("storeBusinessHours", () => {
       const bar = minutes(storeBusinessHours(`s-${i}`, "RESTAURANT", "요리 주점").open);
       expect(bar).toBeGreaterThanOrEqual(16 * 60);
       expect(bar).toBeLessThanOrEqual(18 * 60);
+      const gallery = storeBusinessHours(`s-${i}`, "EXHIBITION", "예술품 소매업");
+      expect(minutes(gallery.open)).toBeGreaterThanOrEqual(10 * 60);
+      expect(minutes(gallery.close)).toBeLessThanOrEqual(19 * 60);
     }
   });
 

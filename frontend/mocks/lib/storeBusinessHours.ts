@@ -22,6 +22,8 @@ const RANGES = {
   /** 요리 주점 · 생맥주 전문 */
   BAR: { open: [h(16), h(18)], close: [h(23), h(24)] },
   SHOP: { open: [h(10), h(12)], close: [h(19), h(22)] },
+  /** 갤러리 · 화랑 */
+  EXHIBITION: { open: [h(10), h(11)], close: [h(18), h(19)] },
 } satisfies Record<string, HoursRange>;
 
 const BAR_DESCRIPTIONS = new Set(["요리 주점", "생맥주 전문"]);
@@ -61,7 +63,7 @@ export function storeBusinessHours(id: string, category: PlaceCategory, descript
   const range =
     category === "RESTAURANT" && BAR_DESCRIPTIONS.has(description)
       ? RANGES.BAR
-      : category === "CAFE" || category === "SHOP"
+      : category === "CAFE" || category === "SHOP" || category === "EXHIBITION"
         ? RANGES[category]
         : RANGES.RESTAURANT;
   const next = random(seedOf(id));

@@ -22,6 +22,7 @@ describe("storeCategory", () => {
     expect(storeCategory("I20101")).toBe("RESTAURANT");
     expect(storeCategory("I21104")).toBe("RESTAURANT");
     expect(storeCategory("G21901")).toBe("SHOP");
+    expect(storeCategory("G21801")).toBe("EXHIBITION");
   });
 
   it("넣지 않는 업종은 null (편의점 · 약국 · 유흥 주점 · 구내식당 · 부동산)", () => {

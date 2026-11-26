@@ -17,7 +17,7 @@ npm run dev        # mock API(localhost:4000) + Next.js(localhost:3000)를 함�
 | --- | --- |
 | `npm run dev` | mock 서버 + Next 개발 서버 |
 | `npm run mock` | mock 서버만 실행 (Node 24의 TypeScript 실행 기능 사용) |
-| `npm run mock:stores` | 상가 정보 CSV로 mock 주변 장소(`mocks/fixtures/storePlaces.json`)를 다시 만듦 |
+| `npm run mock:stores` | 상가 정보 CSV로 mock 주변 장소(`mocks/fixtures/storePlaces.json`)를 다시 만듦. 실행 중인 mock은 다시 시작해야 반영됨 |
 | `npm run test` | 순수 로직 단위 테스트 (Vitest) |
 | `npm run lint` | ESLint + 계층 import 규칙 |
 | `npm run typecheck` | TypeScript 검사 |
@@ -79,7 +79,7 @@ Docker Desktop에서 호스트의 mock 서버에 연결하려면 빌드할 때
 - **전부 백엔드로 보내기:** `API_BASE_URL=http://localhost:8080`을 넣고 `npm run next`로 Next만 실행합니다. 백엔드에 없는 화면은 404가 납니다.
 - 쓰기 요청(POST · PUT · PATCH · DELETE)은 `http.ts`가 `XSRF-TOKEN` 쿠키 값을 `X-XSRF-TOKEN` 헤더로 자동으로 붙입니다. mock은 CSRF를 확인하지 않습니다.
 - mock 데이터는 `mocks/fixtures/`, 응답 규칙은 `mocks/handlers/`에 있습니다. 메모리에만 저장되므로 mock 서버를 다시 시작하면 초기 상태로 돌아갑니다.
-- 지도의 주변 장소에는 예시 장소 외에 실제 상가 정보(홍대 · 명동 · 잠실 · 강남 · 성수의 카페 · 음식점 · 소품샵류 약 2만 4천 곳)가 들어 있습니다. 소상공인시장진흥공단 상가(상권)정보를 `npm run mock:stores`로 변환한 것이고, 업종 기준은 저장소 루트의 `place_category_mapping.md`를 따릅니다. 장소가 많으면 mock도 백엔드처럼 묶음(`clusters`)으로 응답합니다. 성수동 상가 장소에는 화면 확인용 예시 영업시간(24시간 표기, 자정을 넘기지 않음)이 붙어 있습니다.
+- 지도의 주변 장소에는 예시 장소 외에 실제 상가 정보(홍대 · 명동 · 잠실 · 강남 · 성수의 카페 · 음식점 · 소품샵류 · 갤러리 약 2만 4천 곳)가 들어 있습니다. 소상공인시장진흥공단 상가(상권)정보를 `npm run mock:stores`로 변환한 것이고, 업종 기준은 저장소 루트의 `place_category_mapping.md`를 따릅니다. 장소가 많으면 mock도 백엔드처럼 묶음(`clusters`)으로 응답합니다. 성수동 상가 장소에는 화면 확인용 예시 영업시간(24시간 표기, 자정을 넘기지 않음)이 붙어 있습니다.
 - 응답 형태가 바뀌면 `src/entities/<엔티티>/api/mapper.ts`에서 흡수합니다. 화면 코드는 도메인 모델만 사용합니다.
 
 ### 관리자 사용자·콘텐츠·신고 관리 연동

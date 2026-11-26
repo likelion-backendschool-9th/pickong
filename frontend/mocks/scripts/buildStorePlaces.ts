@@ -58,3 +58,5 @@ console.log(
     .map(([c, list]) => `${c} ${list?.length ?? 0}`)
     .join(", ")})${skippedLines ? `, 열 수가 맞지 않아 건너뛴 행 ${skippedLines}` : ""}`,
 );
+// mock 서버의 --watch는 import한 파일만 지켜보므로, readFileSync로 읽는 JSON이 바뀌어도 다시 시작되지 않습니다.
+console.log("[mock:stores] 실행 중인 mock 서버는 다시 시작해야 반영됩니다 (npm run dev 재실행 또는 docker compose restart mock).");
