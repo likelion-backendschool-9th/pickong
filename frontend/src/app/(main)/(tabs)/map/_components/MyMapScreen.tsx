@@ -148,7 +148,7 @@ export function MyMapScreen() {
       ) : isError ? (
         <ErrorState message={errorMessage(error)} onRetry={() => refetch()} />
       ) : view === "map" ? (
-        <MyMapView saved={filtered} savedPlaceIds={savedPlaceIds} category={filter.category} focus={picked} />
+        <MyMapView saved={filtered} savedPlaceIds={savedPlaceIds} category={filter.category} focus={picked} savedOnly={savedOnly} />
       ) : (
         <SavedListView saved={filtered} total={saved.length} filter={effective} onFilter={set} />
       )}

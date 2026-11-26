@@ -36,6 +36,7 @@ import {
   type MapCamera,
   type MapSessionState,
 } from "../../../_lib/mapSession";
+import { nearbyToShow } from "../_lib/nearbyToShow";
 
 const POI = "poi:";
 
@@ -43,6 +44,7 @@ type FocusRequest = { key: string; position: LatLng; keepZoom?: boolean; bounds?
 
 /**
  * 내 지도 (지도 우선형): 주변 장소는 작은 점(많으면 숫자 원으로 묶음), 내가 저장한 곳은 초록 핀.
+ * ‘저장한 곳만 보기’를 켜면 주변 장소를 조회하지 않고 저장한 곳만 그립니다.
  * 세션 최초 진입 때만 GPS로 중심을 잡고, 이후 재진입은 마지막 카메라(중심·줌)를 복원합니다.
  * 장소를 누르면 지도가 그 핀으로 옮겨지고(카드에 가리지 않게), 아래에 작은 요약 카드가 뜹니다.
  */
@@ -51,6 +53,7 @@ export function MyMapView({
   savedPlaceIds,
   category,
   focus,
+  savedOnly,
 }: {
   /** 필터를 거친 저장 장소 */
   saved: SavedPlace[];
@@ -60,10 +63,13 @@ export function MyMapView({
   category: PlaceCategory | "ALL";
   /** 검색에서 고른 장소: 그곳으로 이동하고 선택 */
   focus: Place | null;
+  /** ‘저장한 곳만 보기’: 주변 장소 · 묶음을 숨기고 조회도 하지 않음 */
+  savedOnly: boolean;
 }) {
   const toast = useToast();
   const [bounds, setBounds] = useState<LatLngBounds | null>(null);
-  const { data: nearby } = usePlacesInBounds(bounds, category);
+  // 저장한 곳만 볼 때는 범위를 넘기지 않아 주변 장소를 조회하지 않습니다.
+  const { data: nearbyInBounds } = usePlacesInBounds(savedOnly ? null : bounds, category);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   /** 고른 주변 장소. 지도를 옮기거나 축소해 묶음에 들어가도 선택을 유지합니다. */
   const [pickedPoi, setPickedPoi] = useState<Place | null>(null);
@@ -160,14 +166,11 @@ export function MyMapView({
     setMapFocus({ key: `pick:${focus.id}`, position: focus.location });
   }
 
-  const pois = useMemo(() => {
-    const matches = (p: Place) => !savedPlaceIds.has(p.id) && (category === "ALL" || p.category === category);
-    const list = nearby.places.filter(matches);
-    const has = (p: Place) => list.some((x) => x.id === p.id);
-    if (pickedPoi && matches(pickedPoi) && !has(pickedPoi)) list.push(pickedPoi);
-    if (focus && !savedPlaceIds.has(focus.id) && !has(focus)) list.push(focus);
-    return list;
-  }, [nearby.places, savedPlaceIds, category, pickedPoi, focus]);
+  const nearby = useMemo(
+    () => nearbyToShow(nearbyInBounds, { savedOnly, savedPlaceIds, category, picked: pickedPoi, focus }),
+    [nearbyInBounds, savedOnly, savedPlaceIds, category, pickedPoi, focus],
+  );
+  const pois = nearby.places;
 
   // 렌더링마다 배열이 새로 생기면 지도가 매번 모든 마커를 비교하므로, 내용이 바뀔 때만 만듭니다.
   const markers = useMemo<MapMarker[]>(
