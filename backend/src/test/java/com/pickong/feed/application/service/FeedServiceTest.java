@@ -30,6 +30,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willDoNothing;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -230,9 +231,11 @@ class FeedServiceTest {
 
     @Test
     void getFeedPlaces_following_비로그인_빈목록() {
-        // userId null이면 팔로잉 조회 없이 빈 목록 반환
+        // userId null이면 쿼리 호출 없이 바로 빈 목록 반환
         List<FeedPlaceGroup> result = feedService.getFeedPlaces("following", null);
         assertThat(result).isEmpty();
+        // DB 쿼리가 아예 나가지 않아야 함
+        verify(feedPlaceQueryPort, never()).findFollowingFeedPlaces(any());
     }
 
     @Test

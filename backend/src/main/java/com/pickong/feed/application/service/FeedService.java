@@ -96,6 +96,11 @@ public class FeedService implements FeedUseCase {
             throw new BusinessException(FeedErrorCode.INVALID_TAB);
         }
 
+        // 비로그인(userId=null) + following 탭: 팔로우 목록이 없으므로 쿼리 없이 빈 목록 반환
+        if (tab.equals("following") && userId == null) {
+            return List.of();
+        }
+
         // 탭별로 피드-장소 조인 행 목록 조회 (크로스모듈 쿼리 → FeedPlaceQueryPort 경유)
         List<FeedPlaceSummary> rows = tab.equals("following")
                 ? feedPlaceQueryPort.findFollowingFeedPlaces(userId)

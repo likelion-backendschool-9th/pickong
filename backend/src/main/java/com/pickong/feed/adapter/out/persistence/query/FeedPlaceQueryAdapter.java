@@ -36,6 +36,7 @@ public class FeedPlaceQueryAdapter implements FeedPlaceQueryPort {
               AND f.visibility = 'PUBLIC'
               AND p.deleted_at IS NULL
               AND p.visibility = 'PUBLIC'
+              AND p.location IS NOT NULL
             ORDER BY f.created_at DESC
             LIMIT 500
             """;
@@ -59,6 +60,7 @@ public class FeedPlaceQueryAdapter implements FeedPlaceQueryPort {
               AND f.visibility = 'PUBLIC'
               AND p.deleted_at IS NULL
               AND p.visibility = 'PUBLIC'
+              AND p.location IS NOT NULL
               AND f.user_id IN (
                   SELECT fw.followee_id FROM follows fw WHERE fw.follower_id = :userId
               )
@@ -74,19 +76,12 @@ public class FeedPlaceQueryAdapter implements FeedPlaceQueryPort {
 
     @Override
     public List<FeedPlaceSummary> findRecommendedFeedPlaces() {
-        return jdbc.query(RECOMMENDED_SQL, new MapSqlParameterSource(), rowMapper())
-                .stream().filter(this::hasValidCoordinate).toList();
+        return jdbc.query(RECOMMENDED_SQL, new MapSqlParameterSource(), rowMapper());
     }
 
     @Override
     public List<FeedPlaceSummary> findFollowingFeedPlaces(Long userId) {
-        return jdbc.query(FOLLOWING_SQL, new MapSqlParameterSource("userId", userId), rowMapper())
-                .stream().filter(this::hasValidCoordinate).toList();
-    }
-
-    // 좌표가 null(0.0으로 반환)인 행은 지도에 (0,0) 마커가 찍이므로 제외
-    private boolean hasValidCoordinate(FeedPlaceSummary row) {
-        return row.getLat() != 0.0 || row.getLng() != 0.0;
+        return jdbc.query(FOLLOWING_SQL, new MapSqlParameterSource("userId", userId), rowMapper());
     }
 
     private RowMapper<FeedPlaceSummary> rowMapper() {
