@@ -6,6 +6,7 @@
     "dev": "concurrently -k -n mock,next -c green,blue \"npm:mock\" \"npm:next\"",
     "next": "next dev",
     "mock": "node --watch --disable-warning=ExperimentalWarning mocks/server.ts",
+    "mock:stores": "node --disable-warning=ExperimentalWarning mocks/scripts/buildStorePlaces.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
