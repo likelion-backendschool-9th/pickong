@@ -280,7 +280,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | GET | `/auth/username-availability` | `UserQueryUseCase.isUsernameAvailable` | 경로는 auth지만 데이터는 user. 대소문자 무시, 예약어는 사용 중 |
 | GET | `/me` | `UserQueryUseCase.getMe` | 프론트 UserDto 모양 + `usernameChangeableAt` |
 | PATCH | `/me` | `UserCommandUseCase.updateProfile` | 보낸 항목만 변경 (아이디 · 이름 · 소개 · 활동 지역) |
-| GET | `/users/{username}` | `UserQueryUseCase.getProfile` | |
+| GET | `/users/{username}` | `UserQueryUseCase.getProfile` | 프론트 UserDto 모양(`usernameChangeableAt` 없음). 대소문자 무시, ACTIVE 회원만(그 외 404 `USER_NOT_FOUND`). `isFollowing`은 `follows` 마이그레이션 전까지 false. 지금은 로그인 필요: 공개로 열면 Access Token이 만료된 채 내 프로필을 열 때 401(재발급)이 오지 않고 `isMe=false`로 보임 |
 | GET | `/users/search` | `UserQueryUseCase.search` | 차단 관계 제외 |
 | GET · PUT | `/me/settings` | `UserSettingsUseCase.get / update` | |
 | GET · PUT | `/me/map-categories` | `UserSettingsUseCase.getMapCategories / replaceMapCategories` | 설정과 같은 포트 |
