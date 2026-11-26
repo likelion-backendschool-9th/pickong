@@ -29,4 +29,8 @@ export const postApi = {
   comments: async (id: string) => (await http.get<CommentDto[]>(`/posts/${id}/comments`)).map(toComment),
   addComment: async (id: string, input: { content: string; parentId: string | null }) =>
     toComment(await http.post<CommentDto>(`/posts/${id}/comments`, input)),
+  updateComment: async (postId: string, commentId: string, content: string) =>
+    toComment(await http.put<CommentDto>(`/posts/${postId}/comments/${commentId}`, { content })),
+  deleteComment: async (postId: string, commentId: string) =>
+    http.delete<void>(`/posts/${postId}/comments/${commentId}`),
 };
