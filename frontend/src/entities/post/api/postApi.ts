@@ -17,7 +17,7 @@ export const postApi = {
     const query: Record<string, string> = { tab };
     if (cursor) query.cursor = cursor;
     if (region) query.region = region;
-    const page = await http.get<FeedPageDto>("/feed", { query });
+    const page = await http.get<FeedPageDto>("/feeds", { query });
     return { items: page.items.map(toPost), nextCursor: page.nextCursor };
   },
   feedPlaces: async (tab: FeedTab, region?: string) =>

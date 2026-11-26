@@ -43,7 +43,7 @@ export const useComments = (id: string, enabled = true) =>
  * 두 형태 모두 처리함.
  */
 export function patchPostInCache(qc: QueryClient, id: string, patch: (post: Post) => Post) {
-  // 무한 스크롤 피드 캐시: { pages: [{ items: Post[], nextCursor }, ...], pageParams: [...] }
+  // 1. 무한 스크롤 피드 캐시: { pages: [{ items: Post[], nextCursor }, ...], pageParams: [...] }
   qc.setQueriesData<InfiniteData<{ items: Post[]; nextCursor: string | null }>>(
     { queryKey: postKeys.all },
     (data) => {
@@ -58,7 +58,13 @@ export function patchPostInCache(qc: QueryClient, id: string, patch: (post: Post
     },
   );
 
-  // 단건 조회 캐시: Post 객체
+  // 2. Post[] 목록 캐시 (useUserPosts 등) — 프로필 탭에서도 좋아요·북마크 반영
+  qc.setQueriesData<Post[]>({ queryKey: postKeys.all }, (data) => {
+    if (!Array.isArray(data)) return data;
+    return data.map((p) => (p.id === id ? patch(p) : p));
+  });
+
+  // 3. 단건 조회 캐시 (usePost)
   qc.setQueriesData<Post>({ queryKey: postKeys.detail(id) }, (data) => {
     if (!data) return data;
     return patch(data);

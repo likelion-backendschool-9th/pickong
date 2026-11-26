@@ -41,7 +41,7 @@ const feedPosts = (tab: string, region?: string | null) => {
 export const postRoutes: Route[] = [
   {
     method: "GET",
-    path: "/api/v1/feed",
+    path: "/api/v1/feeds",
     delay: 300,
     handler: ({ query }) => {
       const SIZE = 10;

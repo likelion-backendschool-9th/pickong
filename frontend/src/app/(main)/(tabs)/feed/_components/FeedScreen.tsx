@@ -151,10 +151,9 @@ function FeedList({ tab, region }: { tab: FeedTab; region?: string }) {
   }, []);
 
   // pull-to-refresh: 캐시를 초기화하고 1페이지부터 다시 불러옴
-  // refetch()는 로드된 페이지 수만큼 API를 다시 호출하므로 사용하지 않음
-  const handleRefresh = async () => {
-    await qc.removeQueries({ queryKey: postKeys.feed(tab, regionParam) });
-  };
+  // resetQueries는 Promise를 반환해 스피너가 데이터 로드 완료까지 유지됨
+  const handleRefresh = () =>
+    qc.resetQueries({ queryKey: postKeys.feed(tab, regionParam), exact: true });
 
   if (isPending) {
     return (
