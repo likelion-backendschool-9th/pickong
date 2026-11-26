@@ -57,6 +57,9 @@ class PlaceSubmissionIntegrationTest {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
+    /** submit()이 보내는 좌표(37.5628, 126.9254)를 감싸는 지도 범위. /places는 bbox가 필수입니다. */
+    private static final String AROUND_SUBMISSION = "126.92,37.56,126.93,37.57";
+
     @Autowired
     MockMvc mvc;
 
@@ -85,7 +88,7 @@ class PlaceSubmissionIntegrationTest {
 
         String id = submit(member, name);
         assertThat(placesNamed(name)).isZero();
-        mvc.perform(api(get("/api/v1/places")).cookie(member))
+        mvc.perform(api(get("/api/v1/places")).param("bbox", AROUND_SUBMISSION).param("cluster", "false").cookie(member))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(name))));
 
@@ -101,7 +104,7 @@ class PlaceSubmissionIntegrationTest {
         assertThat(placesNamed(name)).isEqualTo(1);
         String linked = jdbc.queryForObject("SELECT place_id::text FROM place_submissions WHERE id = ?", String.class, Long.valueOf(id));
         assertThat(linked).isNotBlank();
-        mvc.perform(api(get("/api/v1/places")).cookie(member))
+        mvc.perform(api(get("/api/v1/places")).param("bbox", AROUND_SUBMISSION).param("cluster", "false").cookie(member))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString(placeId)));
     }

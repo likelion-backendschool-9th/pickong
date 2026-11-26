@@ -2,21 +2,17 @@ package com.pickong.place.adapter.in.web;
 
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.pickong.common.domain.GeoPoint;
 import com.pickong.common.error.GlobalExceptionHandler;
 import com.pickong.place.application.dto.PlaceCluster;
 import com.pickong.place.application.dto.PlaceMapItem;
 import com.pickong.place.application.dto.PlaceMapQuery;
 import com.pickong.place.application.dto.PlaceMapResult;
 import com.pickong.place.application.port.in.PlaceQueryUseCase;
-import com.pickong.place.domain.model.Place;
-import com.pickong.place.domain.vo.PlaceSourceType;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,20 +45,18 @@ class PlaceControllerTest {
     }
 
     @Test
-    @DisplayName("공개 목록은 places의 공개 id만 돌려준다")
-    void listsPublicPlaces() throws Exception {
-        given(places.findPublic()).willReturn(List.of(place()));
-
-        mockMvc.perform(get("/places"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.places").isArray())
-                .andExpect(jsonPath("$.places[0].id").value(PUBLIC_ID.toString()))
-                .andExpect(jsonPath("$.places[0].name").value("책방"))
-                .andExpect(jsonPath("$.places[0].lat").value(37.5628))
-                .andExpect(jsonPath("$.places[0].lng").value(126.9254))
-                .andExpect(jsonPath("$.places[0].sourceType").value("CUSTOM"))
-                .andExpect(jsonPath("$.places[0].visibility").doesNotExist())
-                .andExpect(jsonPath("$.clusters").isEmpty());
+    @DisplayName("bbox가 없으면 전체를 돌려주지 않고 400")
+    void requiresBounds() throws Exception {
+        for (String bbox : new String[] {null, " "}) {
+            var request = get("/places").param("category", "CAFE").param("cluster", "false");
+            if (bbox != null) {
+                request.param("bbox", bbox);
+            }
+            mockMvc.perform(request)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+        }
+        verifyNoInteractions(places);
     }
 
     @Test
@@ -125,20 +119,5 @@ class PlaceControllerTest {
 
     private static PlaceMapItem item() {
         return new PlaceMapItem(PUBLIC_ID, "책방", "서울", 37.5628, 126.9254, "SHOP", "CUSTOM");
-    }
-
-    private static Place place() {
-        OffsetDateTime now = OffsetDateTime.of(2026, 11, 24, 5, 0, 0, 0, ZoneOffset.UTC);
-        return Place.builder()
-                .id(9L)
-                .publicId(PUBLIC_ID)
-                .name("책방")
-                .address("서울")
-                .location(new GeoPoint(37.5628, 126.9254))
-                .category("SHOP")
-                .sourceType(PlaceSourceType.CUSTOM)
-                .createdAt(now)
-                .updatedAt(now)
-                .build();
     }
 }
