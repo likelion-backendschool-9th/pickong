@@ -130,8 +130,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/terms/**").permitAll()
                         // 피드 단건 조회(공유 링크 미리보기) — 비로그인도 볼 수 있음
                         // 피드 목록·댓글·대댓글 조회·좋아요·북마크·댓글 작성·수정·삭제는 로그인 필요 (anyRequest 규칙 적용)
-                        // 주의: /feeds/* 는 /feeds/places 도 허용하지만, places 엔드포인트는 미구현(UnsupportedOperationException)
+                        // /feeds/* 는 /feeds/places 도 허용 (비로그인 가능)
                         .requestMatchers(HttpMethod.GET, "/feeds/*").permitAll()
+                        // 프로필 피드 목록: 비로그인 시 PUBLIC만 반환하므로 열어 둠
+                        .requestMatchers(HttpMethod.GET, "/users/*/feeds").permitAll()
                         // 관리자 API. 회원(ROLE_USER)은 403, 비로그인은 401. 공개로 열지 않습니다.
                         // 관리자 로그인 필터는 아직 없고, 인증된 AdminPrincipal(ROLE_ADMIN)만 통과합니다.
                         // POST의 CSRF 검사는 이 규칙보다 먼저라, 토큰이 없으면 403 INVALID_CSRF_TOKEN입니다.

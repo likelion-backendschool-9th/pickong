@@ -52,4 +52,29 @@ public interface FeedJpaRepository extends JpaRepository<FeedJpaEntity, Long> {
     @Modifying
     @Query("UPDATE FeedJpaEntity f SET f.bookmarkCount = f.bookmarkCount - 1 WHERE f.id = :feedId AND f.bookmarkCount > 0")
     void decrementBookmarkCount(@Param("feedId") Long feedId);
+
+    // 특정 사용자의 모든 피드 최신순 조회 (본인 — visibility 제한 없음, 삭제·숨김 제외)
+    @Query("SELECT f FROM FeedJpaEntity f " +
+           "WHERE f.userId = :ownerUserId " +
+           "AND f.deletedAt IS NULL " +
+           "AND f.hiddenAt IS NULL " +
+           "AND (:cursor IS NULL OR f.id < :cursor) " +
+           "ORDER BY f.id DESC")
+    List<FeedJpaEntity> findAllByOwner(
+            @Param("ownerUserId") Long ownerUserId,
+            @Param("cursor") Long cursor,
+            Pageable pageable);
+
+    // 특정 사용자의 PUBLIC 피드 최신순 조회 (타인 — PUBLIC만, 삭제·숨김 제외)
+    @Query("SELECT f FROM FeedJpaEntity f " +
+           "WHERE f.userId = :ownerUserId " +
+           "AND f.visibility = 'PUBLIC' " +
+           "AND f.deletedAt IS NULL " +
+           "AND f.hiddenAt IS NULL " +
+           "AND (:cursor IS NULL OR f.id < :cursor) " +
+           "ORDER BY f.id DESC")
+    List<FeedJpaEntity> findPublicByOwner(
+            @Param("ownerUserId") Long ownerUserId,
+            @Param("cursor") Long cursor,
+            Pageable pageable);
 }

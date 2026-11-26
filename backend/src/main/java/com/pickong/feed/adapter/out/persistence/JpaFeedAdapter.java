@@ -112,6 +112,15 @@ public class JpaFeedAdapter implements FeedRepository {
         feedJpaRepository.decrementBookmarkCount(feedId);
     }
 
+    @Override
+    public List<Feed> findByOwner(Long ownerUserId, boolean isOwner, Long cursor, int limit) {
+        // 본인이면 모든 visibility, 타인이면 PUBLIC만 조회
+        List<FeedJpaEntity> entities = isOwner
+                ? feedJpaRepository.findAllByOwner(ownerUserId, cursor, PageRequest.of(0, limit))
+                : feedJpaRepository.findPublicByOwner(ownerUserId, cursor, PageRequest.of(0, limit));
+        return toDomain(entities);
+    }
+
     /** 사진 · 태그 장소를 게시물 id 묶음으로 한 번에 읽어 N+1 조회를 피합니다. */
     private List<Feed> toDomain(List<FeedJpaEntity> feeds) {
         if (feeds.isEmpty()) {
