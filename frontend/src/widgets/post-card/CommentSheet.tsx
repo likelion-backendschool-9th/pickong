@@ -4,7 +4,7 @@ import Link from "next/link";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useAddComment, useComments, useDeleteComment, useUpdateComment, type PostComment } from "@/entities/post";
 import { useMe } from "@/entities/user";
-import { errorMessage } from "@/shared/api/errors";
+import { ApiError, errorMessage } from "@/shared/api/errors";
 import { routes } from "@/shared/config/routes";
 import { formatRelative } from "@/shared/lib/date";
 import { BottomSheet } from "@/shared/ui/BottomSheet";
@@ -113,7 +113,7 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
               <CommentItem
                 postId={postId}
                 comment={c}
-                isMine={me?.username === c.author.username}
+                isMine={me?.id === c.author.id}
                 onReply={() => handleReply(c)}
                 onDelete={() => { if (replyTo?.id === c.id) setReplyTo(null); }}
               />
@@ -124,7 +124,7 @@ export function CommentSheet({ postId, open, onClose }: { postId: string; open: 
                       <CommentItem
                         postId={postId}
                         comment={r}
-                        isMine={me?.username === r.author.username}
+                        isMine={me?.id === r.author.id}
                         onReply={() => handleReply(r)}
                         onDelete={() => { if (replyTo?.id === r.id) setReplyTo(null); }}
                         small
@@ -202,7 +202,7 @@ function CommentItem({
         onSuccess: () => setEditing(false),
         onError: (error: unknown) => {
           // 이미 삭제된 댓글이면 편집 모드 종료
-          if ((error as { status?: number })?.status === 404) setEditing(false);
+          if (error instanceof ApiError && error.isNotFound) setEditing(false);
         },
       },
     );
