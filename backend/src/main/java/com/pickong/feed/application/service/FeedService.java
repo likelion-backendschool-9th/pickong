@@ -7,11 +7,11 @@ import com.pickong.feed.application.dto.FeedPlaceGroup;
 import com.pickong.feed.application.dto.FeedPlaceSummary;
 import com.pickong.feed.application.dto.UpdateFeedCommand;
 import com.pickong.feed.application.port.in.FeedUseCase;
+import com.pickong.feed.application.port.out.FeedPlaceQueryPort;
 import com.pickong.feed.application.port.out.FeedRepository;
 import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.feed.domain.model.Feed;
-import com.pickong.user.application.port.out.UserPersistencePort;
-import com.pickong.user.domain.UserErrorCode;
+import com.pickong.user.application.port.in.UserQueryUseCase;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -22,11 +22,15 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class FeedService implements FeedUseCase {
     private final FeedRepository feedRepository;
-    private final UserPersistencePort userPersistencePort;
+    private final FeedPlaceQueryPort feedPlaceQueryPort;
+    private final UserQueryUseCase userQueryUseCase;
 
-    public FeedService(FeedRepository feedRepository, UserPersistencePort userPersistencePort) {
+    public FeedService(FeedRepository feedRepository,
+                       FeedPlaceQueryPort feedPlaceQueryPort,
+                       UserQueryUseCase userQueryUseCase) {
         this.feedRepository = feedRepository;
-        this.userPersistencePort = userPersistencePort;
+        this.feedPlaceQueryPort = feedPlaceQueryPort;
+        this.userQueryUseCase = userQueryUseCase;
     }
 
     @Override
@@ -91,10 +95,10 @@ public class FeedService implements FeedUseCase {
             throw new BusinessException(FeedErrorCode.INVALID_TAB);
         }
 
-        // 탭별로 피드-장소 조인 행 목록 조회
+        // 탭별로 피드-장소 조인 행 목록 조회 (크로스모듈 쿼리 → FeedPlaceQueryPort 경유)
         List<FeedPlaceSummary> rows = tab.equals("following")
-                ? feedRepository.findFollowingFeedPlaces(userId)
-                : feedRepository.findRecommendedFeedPlaces();
+                ? feedPlaceQueryPort.findFollowingFeedPlaces(userId)
+                : feedPlaceQueryPort.findRecommendedFeedPlaces();
 
         // placeId 기준으로 그룹핑 → 장소별 피드 ID 목록 생성
         Map<Long, List<FeedPlaceSummary>> grouped = rows.stream()
@@ -115,10 +119,8 @@ public class FeedService implements FeedUseCase {
     @Override
     @Transactional(readOnly = true)
     public FeedPage getUserFeeds(String username, Long viewerUserId, Long cursor, int limit) {
-        // username으로 사용자 조회 — 없으면 404
-        Long ownerUserId = userPersistencePort.findByUsername(username)
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND))
-                .getId();
+        // username으로 사용자 id 조회 — 없으면 UserQueryUseCase가 404 던짐
+        Long ownerUserId = userQueryUseCase.findIdByUsername(username);
 
         // 본인이면 모든 visibility, 타인이면 PUBLIC만
         boolean isOwner = ownerUserId.equals(viewerUserId);

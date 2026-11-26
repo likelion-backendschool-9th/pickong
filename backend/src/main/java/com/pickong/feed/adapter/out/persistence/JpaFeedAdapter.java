@@ -1,8 +1,6 @@
 package com.pickong.feed.adapter.out.persistence;
 
 import com.pickong.common.error.BusinessException;
-import com.pickong.feed.application.dto.FeedPlaceSummary;
-import com.pickong.feed.adapter.out.persistence.repository.FeedPlaceRow;
 import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.feed.adapter.out.persistence.entity.FeedJpaEntity;
 import com.pickong.feed.adapter.out.persistence.entity.FeedPhotoJpaEntity;
@@ -121,37 +119,6 @@ public class JpaFeedAdapter implements FeedRepository {
                 ? feedJpaRepository.findAllByOwner(ownerUserId, cursor, PageRequest.of(0, limit))
                 : feedJpaRepository.findPublicByOwner(ownerUserId, cursor, PageRequest.of(0, limit));
         return toDomain(entities);
-    }
-
-    @Override
-    public List<FeedPlaceSummary> findRecommendedFeedPlaces() {
-        return feedJpaRepository.findRecommendedFeedPlaces().stream()
-                .map(this::toSummary)
-                .toList();
-    }
-
-    @Override
-    public List<FeedPlaceSummary> findFollowingFeedPlaces(Long userId) {
-        // userId null(비로그인)이면 빈 리스트 반환
-        if (userId == null) return List.of();
-        return feedJpaRepository.findFollowingFeedPlaces(userId).stream()
-                .map(this::toSummary)
-                .toList();
-    }
-
-    /** FeedPlaceRow 프로젝션 → FeedPlaceSummary 변환 */
-    private FeedPlaceSummary toSummary(FeedPlaceRow row) {
-        return new FeedPlaceSummary(
-                row.getPlaceId(),
-                row.getPlacePublicId(),
-                row.getPlaceName(),
-                row.getPlaceAddress(),
-                row.getLat() != null ? row.getLat() : 0.0,
-                row.getLng() != null ? row.getLng() : 0.0,
-                row.getCategory(),
-                row.getSourceType(),
-                row.getFeedId()
-        );
     }
 
     /** 사진 · 태그 장소를 게시물 id 묶음으로 한 번에 읽어 N+1 조회를 피합니다. */

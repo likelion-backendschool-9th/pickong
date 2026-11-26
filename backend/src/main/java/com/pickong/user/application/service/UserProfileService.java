@@ -47,6 +47,13 @@ public class UserProfileService implements UserQueryUseCase, UserCommandUseCase,
         return !username.isReserved() && !userPersistencePort.existsByUsername(username.value());
     }
 
+    @Override
+    public Long findIdByUsername(String username) {
+        return userPersistencePort.findByUsername(username)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND))
+                .getId();
+    }
+
     /**
      * 보낸 항목만 순서대로 바꿉니다. 하나라도 규칙에 어긋나면 아무것도 저장하지 않습니다(전부 확인한 뒤 한 번에 저장).
      * <ol>
