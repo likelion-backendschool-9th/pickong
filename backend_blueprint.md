@@ -398,8 +398,8 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 - `source_feed_id`는 `FEED`일 때만, `source_collection_id`는 `COLLECTION`일 때만 채웁니다(둘 중 최대 1개, ERD 제약 ④). 게시물 · 컬렉션 공개 id를 내부 id로 바꾸는 조회는 savedplace의 `adapter/out/persistence/query/` 아래 `*QueryAdapter`에서 `feeds` · `collections`를 읽기만 합니다(6.1의 조회 예외). 공개 id에 해당하는 게시물 · 컬렉션이 없으면 출처 id 없이 종류 · 문구만 저장합니다.
 - 응답의 `source.refId`는 게시물 · 컬렉션의 공개 id, 링크 가져오기는 원문 URL입니다. `source.label`은 저장한 `source_label`이고, 없으면 종류별 기본 문구("게시물에서 저장" 등)입니다.
 - **링크 가져오기의 `refId`:** 지금 프론트 · mock은 추출 작업 id를 보내지만, ERD에는 작업 id를 담을 칸이 없고 `source_url`(원문 주소)만 있습니다. 프론트가 원문 URL을 보내도록 바꿉니다(프론트 작업).
-- **`source_collection_id`:** `collections`는 JPA 엔티티와 도메인 모델은 있지만 테이블을 만드는 Flyway 마이그레이션이 아직 없습니다. 그래서 `source_collection_id` 컬럼과 FK는 `collections` 마이그레이션과 함께 추가합니다. 그 전에는 `COLLECTION` 출처를 종류 · 문구만 저장합니다.
-- `collectionIds`(저장하면서 컬렉션에 담기)는 이벤트로 collection에 넘깁니다(8.1 #13, `SavedPlaceCollectionsChangedEvent`). `collections` · `collection_places` 마이그레이션이 생기기 전에는 받기만 하고 저장하지 않습니다.
+- **`source_collection_id`:** `collections` · `collection_places` 테이블은 V19에서 만들었습니다. `source_collection_id` 컬럼과 FK는 savedplace의 저장 API 작업에서 추가합니다. 그 전에는 `COLLECTION` 출처를 종류 · 문구만 저장합니다.
+- `collectionIds`(저장하면서 컬렉션에 담기)는 이벤트로 collection에 넘깁니다(8.1 #13, `SavedPlaceCollectionsChangedEvent`). 테이블은 V19로 생겼지만, collection의 리스너를 만들기 전까지는 받기만 하고 저장하지 않습니다.
 
 **DB 맞추기 (구현 예정, 마이그레이션 미작성):** 지금 `V17__create_saved_places.sql`은 이전 JPA 엔티티를 기준으로 만들어 ERD와 다릅니다. 저장 · 수정 · 삭제(#145)를 구현할 때 새 마이그레이션으로 ERD에 맞춥니다.
 
@@ -407,7 +407,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | --- | --- | --- |
 | 출처 종류 | `source` VARCHAR(30), NULL 허용, CHECK 없음 | `source_type` VARCHAR(15) NOT NULL, CHECK `FEED` · `COLLECTION` · `LINK_IMPORT` · `SEARCH` · `CUSTOM` · `PLAN_VISIT` |
 | 출처 문구 · 원본 URL | 없음 | `source_label` VARCHAR(100), `source_url` TEXT 추가 |
-| 출처 컬렉션 | 없음 | `source_collection_id` (FK → collections). `collections` 마이그레이션과 함께 추가 |
+| 출처 컬렉션 | 없음 | `source_collection_id` (FK → collections). `collections`는 V19로 생겼으므로 저장 API 작업에서 추가 |
 | 출처 id 제약 | `source_feed_id`는 FEED일 때만 | + `source_collection_id`는 COLLECTION일 때만, 둘 중 최대 1개 |
 | 방문 상태 | CHECK에 `NOT_INTERESTED` 포함 | `WANT_TO_GO` · `VISITED`만 |
 | 메모 | TEXT | VARCHAR(500) |
@@ -467,7 +467,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | PUT · DELETE | `/collections/{collectionId}/items/{itemId}` | `CollectionCommandUseCase.updateItem / removeItem` | 수정할 컬럼 없음 (8.1 #6) |
 | PUT | `/collections/{collectionId}/items/reorder` | `CollectionCommandUseCase.reorderItems` | |
 | GET | `/collections/{collectionId}/versions`, `/{versionNo}` | `CollectionQueryUseCase.versions / version` | 소유자 전용(제안) |
-| GET | `/users/{username}/collections` | `CollectionQueryUseCase.publicCollectionsOf` | |
+| GET | `/users/{username}/collections` | `CollectionQueryUseCase.collectionsOf` | 구현됨. 프론트 `CollectionDto` 배열, 최신순. 본인은 모든 공개 범위, 다른 회원은 `Visibility.allows`가 허용하는 것만(`follows` 마이그레이션 전까지 PUBLIC만). 삭제 · 관리자 숨김은 본인에게도 숨김. 표지가 없으면 보는 사람이 볼 수 있는 첫 장소 사진. 소유자는 프로필과 같은 기준(ACTIVE만, 그 외 404 `USER_NOT_FOUND`), 로그인 필요(이유는 `/users/{username}`과 같음). `isPurchased`는 구매 테이블 전까지 false, `isLocked` = 유료 · 남의 것 · 미구매 |
 | GET | `/me/purchases`, `/me/purchases/{purchaseId}` | `PurchaseQueryUseCase.myPurchases / getPurchase` | |
 | GET | `/me/purchases/{purchaseId}/snapshot` | `PurchaseQueryUseCase.openSnapshot` | 첫 열람 기록 (5.2.5) |
 | POST | `/purchases/{purchaseId}/refunds` | `PurchaseRefundUseCase.requestRefund` | 판정 후 payment 호출 |
@@ -1585,8 +1585,8 @@ class ArchitectureTest {
 | 9 | **비밀번호 재설정 토큰** 저장 위치 없음 | auth | 테이블(해시 · 만료 · 사용 시각) 또는 만료 있는 캐시 |
 | 10 | DM 재전송 중복 방지 키 없음 (재연결 시 같은 메시지 두 번 저장) | conversation | `messages.client_message_id` + UNIQUE(sender_id, client_message_id) |
 | 11 | DM 안 읽은 대화 수(프론트 하단바 배지, mock `GET /conversations/unread-count`)가 명세에 없음 | conversation | 명세 추가 (`last_read_message_id`로 계산 가능) |
-| 12 | **저장 출처 컬렉션:** ERD의 `saved_places.source_collection_id`(FK → collections)는 `collections` 마이그레이션이 없어 아직 만들 수 없음. 출처 문구(`source_label`) · 원본 URL(`source_url`) · 게시물(`source_feed_id`)은 ERD에 있어 해결됨 | savedplace, collection | `collections` 마이그레이션과 함께 컬럼 · FK 추가. 그 전에는 `COLLECTION` 출처를 종류 · 문구만 저장 |
-| 13 | **저장하면서 컬렉션에 담기:** 프론트 · mock은 `POST /saved-places`의 `collectionIds`와 `PATCH /saved-places`의 `add/set/removeCollectionIds`로 컬렉션 구성까지 한 번에 바꿈. `collection_places`는 collection 모듈 소유라 savedplace가 직접 쓰거나 collection의 UseCase를 부르면 `savedplace → collection` 화살표가 생겨, 이미 있는 `collection → savedplace`와 서로 의존하게 됨(6.2 비순환 원칙). DB 관계(`collection_places`가 `collections` · `saved_places`를 FK로 잇는 다대다)에는 문제가 없음 | savedplace, collection | **결정: 이벤트 방식 (2026-11-26).** savedplace가 저장 · 수정 직후 같은 트랜잭션에서 `SavedPlaceCollectionsChangedEvent`를 발행하고, collection의 리스너가 `collection_places`를 쓰며 컬렉션 소유자를 검증함(실패하면 함께 롤백). 삭제의 `SavedPlaceDeletingEvent`와 같은 방식이고, 코드 의존은 `collection → savedplace` 한 방향뿐. `collections` · `collection_places` 마이그레이션이 생기면 구현하고, 그 전에는 필드를 받기만 하고 무시 |
+| 12 | **저장 출처 컬렉션:** ERD의 `saved_places.source_collection_id`(FK → collections)는 `collections` 마이그레이션이 없어 만들지 못했음(V19로 테이블이 생겨 이제 추가 가능). 출처 문구(`source_label`) · 원본 URL(`source_url`) · 게시물(`source_feed_id`)은 ERD에 있어 해결됨 | savedplace, collection | savedplace 저장 API 작업에서 컬럼 · FK 추가. 그 전에는 `COLLECTION` 출처를 종류 · 문구만 저장 |
+| 13 | **저장하면서 컬렉션에 담기:** 프론트 · mock은 `POST /saved-places`의 `collectionIds`와 `PATCH /saved-places`의 `add/set/removeCollectionIds`로 컬렉션 구성까지 한 번에 바꿈. `collection_places`는 collection 모듈 소유라 savedplace가 직접 쓰거나 collection의 UseCase를 부르면 `savedplace → collection` 화살표가 생겨, 이미 있는 `collection → savedplace`와 서로 의존하게 됨(6.2 비순환 원칙). DB 관계(`collection_places`가 `collections` · `saved_places`를 FK로 잇는 다대다)에는 문제가 없음 | savedplace, collection | **결정: 이벤트 방식 (2026-11-26).** savedplace가 저장 · 수정 직후 같은 트랜잭션에서 `SavedPlaceCollectionsChangedEvent`를 발행하고, collection의 리스너가 `collection_places`를 쓰며 컬렉션 소유자를 검증함(실패하면 함께 롤백). 삭제의 `SavedPlaceDeletingEvent`와 같은 방식이고, 코드 의존은 `collection → savedplace` 한 방향뿐. `collections` · `collection_places`는 V19로 생겼으므로 리스너를 구현할 수 있음. 구현 전에는 필드를 받기만 하고 무시 |
 | 12 | 개인 크리에이터 · 사업자 구분 없음 → 원천징수 3.3% "개인만" 적용 불가 | settlement, creator | `creators.business_type` 또는 정산 계좌에 사업자 정보 |
 | 13 | 일정 날씨: `plans.region`은 자유 텍스트라 좌표가 없음 | plan | 일정 장소들의 좌표(첫 장소 또는 중심점) 사용 — 스키마 변경 없이 가능 |
 
