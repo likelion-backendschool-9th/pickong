@@ -1075,7 +1075,8 @@ collection/
         ├── entity/                          # CollectionJpaEntity, CollectionPlaceJpaEntity, CollectionVersionJpaEntity,
         │                                    # CollectionVersionPlaceJpaEntity, CollectionPurchaseJpaEntity
         ├── repository/ · mapper/CollectionMapper.java · mapper/CollectionVersionMapper.java
-        └── *PersistenceAdapter.java · CollectionQueryAdapter.java
+        ├── *PersistenceAdapter.java
+        └── query/CollectionQueryAdapter.java     # places를 JOIN하는 조회 SQL (6.1)
 ```
 
 **왜 이 계층인가**

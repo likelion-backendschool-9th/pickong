@@ -1,4 +1,4 @@
-package com.pickong.collection.adapter.out.persistence;
+package com.pickong.collection.adapter.out.persistence.query;
 
 import com.pickong.collection.application.dto.CollectionSummary;
 import com.pickong.collection.application.port.out.CollectionQueryPort;
