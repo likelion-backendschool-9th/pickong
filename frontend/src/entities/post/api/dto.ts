@@ -32,3 +32,9 @@ export interface FeedPlaceDto {
   postIds: string[];
   postCount: number;
 }
+
+/** 피드 목록 커서 페이지. common_blueprint 5.1: ?cursor=&size= → { items, nextCursor } */
+export interface FeedPageDto {
+  items: PostDto[];
+  nextCursor: string | null;
+}

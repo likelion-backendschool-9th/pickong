@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData, type QueryClient } from "@tanstack/react-query";
 import type { Post, PostComment } from "../model";
 import { removeComment } from "../commentUtils";
 import { postApi, type FeedTab } from "./postApi";
@@ -14,7 +14,14 @@ export const postKeys = {
 };
 
 export const useFeed = (tab: FeedTab, region?: string) =>
-  useQuery({ queryKey: postKeys.feed(tab, region), queryFn: () => postApi.feed(tab, region) });
+  useInfiniteQuery({
+    queryKey: postKeys.feed(tab, region),
+    // pageParam: 이전 페이지의 nextCursor. 첫 요청은 undefined
+    queryFn: ({ pageParam }) => postApi.feed(tab, pageParam, region),
+    initialPageParam: undefined as string | undefined,
+    // 마지막 페이지의 nextCursor가 null이면 undefined 반환 → 더 이상 fetchNextPage 안 함
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+  });
 /** 피드 지도의 장소: 피드 탭과 같은 기준의 게시물에 연결된 장소 */
 export const useFeedPlaces = (tab: FeedTab, region?: string) =>
   useQuery({ queryKey: postKeys.feedPlaces(tab, region), queryFn: () => postApi.feedPlaces(tab, region) });
@@ -30,12 +37,31 @@ export const useComments = (id: string, enabled = true) =>
 /**
  * 캐시에 있는 같은 게시물을 모두 갱신합니다.
  * 목록을 다시 불러오지 않으므로 피드 스크롤 위치와 보고 있던 사진 번호가 그대로 유지됩니다.
+ *
+ * useFeed는 useInfiniteQuery라 캐시가 { pages: [{items:[...]}, ...] } 구조임.
+ * 단건 조회(usePost)는 Post 단일 객체 구조.
+ * 두 형태 모두 처리함.
  */
 export function patchPostInCache(qc: QueryClient, id: string, patch: (post: Post) => Post) {
-  qc.setQueriesData<Post[] | Post>({ queryKey: postKeys.all }, (data) => {
+  // 무한 스크롤 피드 캐시: { pages: [{ items: Post[], nextCursor }, ...], pageParams: [...] }
+  qc.setQueriesData<InfiniteData<{ items: Post[]; nextCursor: string | null }>>(
+    { queryKey: postKeys.all },
+    (data) => {
+      if (!data || !("pages" in data)) return data;
+      return {
+        ...data,
+        pages: data.pages.map((page) => ({
+          ...page,
+          items: page.items.map((p) => (p.id === id ? patch(p) : p)),
+        })),
+      };
+    },
+  );
+
+  // 단건 조회 캐시: Post 객체
+  qc.setQueriesData<Post>({ queryKey: postKeys.detail(id) }, (data) => {
     if (!data) return data;
-    if (Array.isArray(data)) return data.map((p) => (p?.id === id ? patch(p) : p));
-    return (data as Post).id === id ? patch(data as Post) : data;
+    return patch(data);
   });
 }
 

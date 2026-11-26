@@ -1,6 +1,6 @@
 import { http } from "@/shared/api/http";
 import type { Visibility } from "@/shared/config/visibility";
-import type { CommentDto, FeedPlaceDto, PostDto } from "./dto";
+import type { CommentDto, FeedPageDto, FeedPlaceDto, PostDto } from "./dto";
 import { toComment, toFeedPlace, toPost } from "./mapper";
 
 export type FeedTab = "following" | "recommended";
@@ -12,8 +12,14 @@ export interface CreatePostInput {
 }
 
 export const postApi = {
-  feed: async (tab: FeedTab, region?: string) =>
-    (await http.get<PostDto[]>("/feed", { query: region ? { tab, region } : { tab } })).map(toPost),
+  feed: async (tab: FeedTab, cursor?: string, region?: string) => {
+    // cursor, region은 undefined면 쿼리에 포함하지 않음
+    const query: Record<string, string> = { tab };
+    if (cursor) query.cursor = cursor;
+    if (region) query.region = region;
+    const page = await http.get<FeedPageDto>("/feed", { query });
+    return { items: page.items.map(toPost), nextCursor: page.nextCursor };
+  },
   feedPlaces: async (tab: FeedTab, region?: string) =>
     (await http.get<FeedPlaceDto[]>("/feed/places", { query: region ? { tab, region } : { tab } })).map(toFeedPlace),
   get: async (id: string) => toPost(await http.get<PostDto>(`/posts/${id}`)),

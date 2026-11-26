@@ -43,7 +43,18 @@ export const postRoutes: Route[] = [
     method: "GET",
     path: "/api/v1/feed",
     delay: 300,
-    handler: ({ query }) => feedPosts(query.get("tab") ?? "following", query.get("region")).map(postDto),
+    handler: ({ query }) => {
+      const SIZE = 10;
+      const cursor = query.get("cursor");
+      const all = feedPosts(query.get("tab") ?? "following", query.get("region")).map(postDto);
+      // cursor가 있으면 그 id 다음부터 슬라이싱
+      const startIdx = cursor ? all.findIndex((p) => p.id === cursor) + 1 : 0;
+      const items = all.slice(startIdx, startIdx + SIZE);
+      const last = items[items.length - 1];
+      // 다음 항목이 있으면 마지막 id를 nextCursor로, 없으면 null
+      const nextCursor = startIdx + SIZE < all.length ? (last?.id ?? null) : null;
+      return { items, nextCursor };
+    },
   },
   {
     /** 피드 지도: 피드 탭(팔로잉 · 추천)과 같은 기준의 게시물에 연결된 장소 (내 지도와 별개). postIds는 최신순 */

@@ -10,3 +10,4 @@
 @_local/project-summary.md
 @_local/claude-rules.md
 @_local/work-template.md
+@_local/code-review.md
