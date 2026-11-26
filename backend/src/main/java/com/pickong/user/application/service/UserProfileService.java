@@ -3,6 +3,7 @@ package com.pickong.user.application.service;
 import com.pickong.common.error.BusinessException;
 import com.pickong.user.application.dto.MyProfile;
 import com.pickong.user.application.dto.UpdateProfileCommand;
+import com.pickong.user.application.dto.UserProfile;
 import com.pickong.user.application.port.in.UserCommandUseCase;
 import com.pickong.user.application.port.in.UserCounterUseCase;
 import com.pickong.user.application.port.in.UserQueryUseCase;
@@ -10,6 +11,7 @@ import com.pickong.user.application.port.out.UserPersistencePort;
 import com.pickong.user.adapter.out.persistence.repository.UserJpaRepository;
 import com.pickong.user.domain.UserErrorCode;
 import com.pickong.user.domain.model.User;
+import com.pickong.user.domain.vo.UserStatus;
 import com.pickong.user.domain.vo.Username;
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -38,6 +40,17 @@ public class UserProfileService implements UserQueryUseCase, UserCommandUseCase,
     @Override
     public MyProfile getMe(Long userId) {
         return toMyProfile(load(userId), OffsetDateTime.now(clock));
+    }
+
+    /** 정상(ACTIVE) 회원만 보여 줍니다. 탈퇴 중인 회원의 프로필은 숨긴다는 탈퇴 정책을 따르고, 정지 · 영구 정지 회원도 같이 숨깁니다. */
+    @Override
+    public UserProfile getProfile(Long viewerId, String username) {
+        User user = userPersistencePort.findByUsername(username)
+                .filter(u -> u.getStatus() == UserStatus.ACTIVE)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+        return new UserProfile(user.getPublicId(), user.getUsername(), user.getDisplayName(), user.getProfileImageUrl(),
+                user.getBio(), user.getRegion(), user.getFeedCount(), user.getFollowerCount(), user.getFollowingCount(),
+                user.getId().equals(viewerId));
     }
 
     /** 형식이 틀리면 400, 예약어이거나 누가 쓰고 있으면 false */
