@@ -74,12 +74,19 @@ public class FeedPlaceQueryAdapter implements FeedPlaceQueryPort {
 
     @Override
     public List<FeedPlaceSummary> findRecommendedFeedPlaces() {
-        return jdbc.query(RECOMMENDED_SQL, new MapSqlParameterSource(), rowMapper());
+        return jdbc.query(RECOMMENDED_SQL, new MapSqlParameterSource(), rowMapper())
+                .stream().filter(this::hasValidCoordinate).toList();
     }
 
     @Override
     public List<FeedPlaceSummary> findFollowingFeedPlaces(Long userId) {
-        return jdbc.query(FOLLOWING_SQL, new MapSqlParameterSource("userId", userId), rowMapper());
+        return jdbc.query(FOLLOWING_SQL, new MapSqlParameterSource("userId", userId), rowMapper())
+                .stream().filter(this::hasValidCoordinate).toList();
+    }
+
+    // 좌표가 null(0.0으로 반환)인 행은 지도에 (0,0) 마커가 찍이므로 제외
+    private boolean hasValidCoordinate(FeedPlaceSummary row) {
+        return row.getLat() != 0.0 || row.getLng() != 0.0;
     }
 
     private RowMapper<FeedPlaceSummary> rowMapper() {

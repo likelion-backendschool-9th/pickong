@@ -12,6 +12,7 @@ import com.pickong.feed.application.port.out.FeedRepository;
 import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.feed.domain.model.Feed;
 import com.pickong.user.application.port.in.UserQueryUseCase;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -100,9 +101,9 @@ public class FeedService implements FeedUseCase {
                 ? feedPlaceQueryPort.findFollowingFeedPlaces(userId)
                 : feedPlaceQueryPort.findRecommendedFeedPlaces();
 
-        // placeId 기준으로 그룹핑 → 장소별 피드 ID 목록 생성
+        // placeId 기준으로 그룹핑 → 장소별 피드 ID 목록 생성 (LinkedHashMap으로 최신 피드 순서 유지)
         Map<Long, List<FeedPlaceSummary>> grouped = rows.stream()
-                .collect(Collectors.groupingBy(FeedPlaceSummary::getPlaceId));
+                .collect(Collectors.groupingBy(FeedPlaceSummary::getPlaceId, LinkedHashMap::new, Collectors.toList()));
 
         return grouped.entrySet().stream()
                 .map(entry -> {
