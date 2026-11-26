@@ -18,7 +18,7 @@ export const useFeed = (tab: FeedTab, region?: string) =>
     queryKey: postKeys.feed(tab, region),
     // pageParam: 이전 페이지의 nextCursor. 첫 요청은 undefined
     queryFn: ({ pageParam }) => postApi.feed(tab, pageParam, region),
-    initialPageParam: undefined as string | undefined,
+    initialPageParam: undefined as number | undefined,
     // 마지막 페이지의 nextCursor가 null이면 undefined 반환 → 더 이상 fetchNextPage 안 함
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });
@@ -44,7 +44,7 @@ export const useComments = (id: string, enabled = true) =>
  */
 export function patchPostInCache(qc: QueryClient, id: string, patch: (post: Post) => Post) {
   // 1. 무한 스크롤 피드 캐시: { pages: [{ items: Post[], nextCursor }, ...], pageParams: [...] }
-  qc.setQueriesData<InfiniteData<{ items: Post[]; nextCursor: string | null }>>(
+  qc.setQueriesData<InfiniteData<{ items: Post[]; nextCursor: number | null }>>(
     { queryKey: postKeys.all },
     (data) => {
       if (!data || !("pages" in data)) return data;

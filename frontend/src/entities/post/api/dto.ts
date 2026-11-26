@@ -33,8 +33,9 @@ export interface FeedPlaceDto {
   postCount: number;
 }
 
-/** 피드 목록 커서 페이지. common_blueprint 5.1: ?cursor=&size= → { items, nextCursor } */
+/** 피드 목록 커서 페이지. 백엔드 FeedPageResponse 계약: feeds, nextCursor(Long), hasNext */
 export interface FeedPageDto {
-  items: PostDto[];
-  nextCursor: string | null;
+  feeds: PostDto[];
+  nextCursor: number | null;
+  hasNext: boolean;
 }

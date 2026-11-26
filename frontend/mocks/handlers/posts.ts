@@ -44,16 +44,15 @@ export const postRoutes: Route[] = [
     path: "/api/v1/feeds",
     delay: 300,
     handler: ({ query }) => {
-      const SIZE = 10;
-      const cursor = query.get("cursor");
+      // limit: 백엔드 필수 파라미터 (1~50). cursor: 이전 페이지의 다음 시작 인덱스 (숫자)
+      const limit = Math.min(50, Math.max(1, Number(query.get("limit") ?? "10")));
+      const startIdx = query.get("cursor") ? Number(query.get("cursor")) : 0;
       const all = feedPosts(query.get("tab") ?? "following", query.get("region")).map(postDto);
-      // cursor가 있으면 그 id 다음부터 슬라이싱
-      const startIdx = cursor ? all.findIndex((p) => p.id === cursor) + 1 : 0;
-      const items = all.slice(startIdx, startIdx + SIZE);
-      const last = items[items.length - 1];
-      // 다음 항목이 있으면 마지막 id를 nextCursor로, 없으면 null
-      const nextCursor = startIdx + SIZE < all.length ? (last?.id ?? null) : null;
-      return { items, nextCursor };
+      const feeds = all.slice(startIdx, startIdx + limit);
+      const nextIdx = startIdx + limit;
+      const hasNext = nextIdx < all.length;
+      // nextCursor는 다음 페이지 시작 인덱스. 더 이상 없으면 null
+      return { feeds, nextCursor: hasNext ? nextIdx : null, hasNext };
     },
   },
   {

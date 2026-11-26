@@ -12,13 +12,13 @@ export interface CreatePostInput {
 }
 
 export const postApi = {
-  feed: async (tab: FeedTab, cursor?: string, region?: string) => {
-    // cursor, region은 undefined면 쿼리에 포함하지 않음
-    const query: Record<string, string> = { tab };
-    if (cursor) query.cursor = cursor;
+  feed: async (tab: FeedTab, cursor?: number, region?: string) => {
+    // limit은 백엔드 필수 파라미터 (1~50), cursor는 이전 페이지의 nextCursor (숫자)
+    const query: Record<string, string> = { tab, limit: "10" };
+    if (cursor != null) query.cursor = String(cursor);
     if (region) query.region = region;
     const page = await http.get<FeedPageDto>("/feeds", { query });
-    return { items: page.items.map(toPost), nextCursor: page.nextCursor };
+    return { items: page.feeds.map(toPost), nextCursor: page.nextCursor };
   },
   feedPlaces: async (tab: FeedTab, region?: string) =>
     (await http.get<FeedPlaceDto[]>("/feeds/places", { query: region ? { tab, region } : { tab } })).map(toFeedPlace),
@@ -28,10 +28,11 @@ export const postApi = {
   placesByUser: async (username: string) =>
     (await http.get<FeedPlaceDto[]>(`/users/${username}/places`)).map(toFeedPlace),
   create: async (input: CreatePostInput) => toPost(await http.post<PostDto>("/feeds", input)),
-  like: async (id: string) => toPost(await http.post<PostDto>(`/feeds/${id}/likes`)),
-  unlike: async (id: string) => toPost(await http.delete<PostDto>(`/feeds/${id}/likes`)),
-  bookmark: async (id: string) => toPost(await http.post<PostDto>(`/feeds/${id}/bookmarks`)),
-  unbookmark: async (id: string) => toPost(await http.delete<PostDto>(`/feeds/${id}/bookmarks`)),
+  // 좋아요·북마크: 백엔드가 201/204 반환 (응답 본문 없음). UI는 optimistic update로 처리
+  like: async (id: string) => http.post<void>(`/feeds/${id}/likes`),
+  unlike: async (id: string) => http.delete<void>(`/feeds/${id}/likes`),
+  bookmark: async (id: string) => http.post<void>(`/feeds/${id}/bookmarks`),
+  unbookmark: async (id: string) => http.delete<void>(`/feeds/${id}/bookmarks`),
   comments: async (id: string) => (await http.get<CommentDto[]>(`/feeds/${id}/comments`)).map(toComment),
   addComment: async (id: string, input: { content: string; parentId: string | null }) =>
     toComment(await http.post<CommentDto>(`/feeds/${id}/comments`, input)),
