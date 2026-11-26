@@ -3,7 +3,7 @@
 import { MapPinPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { usePlacesInBounds, type Place } from "@/entities/place";
+import { isStackedCluster, usePlacesInBounds, type Place, type PlaceCluster } from "@/entities/place";
 import { CustomPlaceFlow } from "@/features/create-custom-place";
 import { PlaceSearchPanel } from "@/features/place-search";
 import { SavePlaceSheet } from "@/features/save-place";
@@ -13,6 +13,8 @@ import { MapView, type LatLng } from "@/shared/map";
 import { Button } from "@/shared/ui/Button";
 import { Skeleton } from "@/shared/ui/display";
 import { Screen, TopBar } from "@/shared/ui/layout";
+import { PlaceClusterSheet } from "../../../_components/PlaceClusterSheet";
+import { findCluster, toClusterMarker } from "../../../_lib/clusterMarker";
 import { readMapCamera } from "../../../_lib/mapSession";
 
 /** 지도 탭에서 저장한 카메라가 없을 때(이 화면으로 바로 들어온 경우)의 기본 지역 */
@@ -30,7 +32,10 @@ export function NewPlaceScreen() {
   /** 가운데 핀 위치와 처음 줌. null이면 아직 세션을 읽기 전이라 지도를 만들지 않습니다. */
   const [camera, setCamera] = useState<{ center: LatLng; zoom?: number } | null>(null);
   const [bounds, setBounds] = useState<LatLngBounds | null>(null);
-  const { data: nearby = [] } = usePlacesInBounds(bounds);
+  const { data: nearby } = usePlacesInBounds(bounds);
+  /** 목록으로 열어 둔 묶음 (확대해도 나뉘지 않는 묶음) */
+  const [openCluster, setOpenCluster] = useState<PlaceCluster | null>(null);
+  const [mapFocus, setMapFocus] = useState<{ key: string; position: LatLng; bounds: LatLngBounds } | null>(null);
   /** 지도에서 고른 위치 → 이름 · 설명 입력 단계 */
   const [custom, setCustom] = useState<LatLng | null>(null);
   /** 제보를 마쳤으면 화면이 숨겨질 때 입력 단계를 닫아, 다시 열 때 지도부터 시작합니다. (작성 중이면 유지) */
@@ -51,6 +56,14 @@ export function NewPlaceScreen() {
       }
     };
   }, []);
+
+  /** 묶음은 확대하고(나뉘지 않으면 목록), 장소는 바로 저장 시트를 엽니다. */
+  const selectMarker = (id: string) => {
+    const cluster = findCluster(nearby.clusters, id);
+    if (!cluster) setPicked(nearby.places.find((p) => p.id === id) ?? null);
+    else if (isStackedCluster(cluster)) setOpenCluster(cluster);
+    else setMapFocus({ key: `cluster:${cluster.id}:${Date.now()}`, position: cluster.location, bounds: cluster.bounds });
+  };
 
   const submitReport = () => {
     sessionStorage.setItem("pickong:place-reported", "1");
@@ -88,9 +101,15 @@ export function NewPlaceScreen() {
             metersPerPixel={2.4}
             crosshair
             onCenterChange={(center) => setCamera((prev) => prev && { ...prev, center })}
+            // 묶음을 눌러 확대하는 동안에는 onCenterChange가 오지 않으므로, 이동이 끝난 중심도 반영합니다.
+            onCameraChange={({ center }) => setCamera((prev) => prev && { ...prev, center })}
             onBoundsChange={setBounds}
-            markers={nearby.map((p) => ({ id: p.id, position: p.location, title: p.name, tone: "poi" as const }))}
-            onMarkerClick={(id) => setPicked(nearby.find((p) => p.id === id) ?? null)}
+            focus={mapFocus}
+            markers={[
+              ...nearby.clusters.map(toClusterMarker),
+              ...nearby.places.map((p) => ({ id: p.id, position: p.location, title: p.name, tone: "poi" as const })),
+            ]}
+            onMarkerClick={selectMarker}
             caption="가운데 핀 위치로 제보"
           />
         ) : (
@@ -106,6 +125,15 @@ export function NewPlaceScreen() {
           이 위치로 장소 제보
         </Button>
       </div>
+
+      <PlaceClusterSheet
+        cluster={openCluster}
+        onClose={() => setOpenCluster(null)}
+        onSelect={(place) => {
+          setOpenCluster(null);
+          setPicked(place);
+        }}
+      />
 
       <SavePlaceSheet
         open={!!picked}

@@ -46,7 +46,8 @@ declare global {
       getCenter(): LatLng;
       setZoom(zoom: number, useTransition?: boolean): void;
       getZoom(): number;
-      fitBounds(bounds: LatLngBounds, margins?: number | Partial<Record<"top" | "right" | "bottom" | "left", number>>): void;
+      /** GL 지도는 margins에 숫자를 주면 오류가 나므로 객체만 허용합니다. */
+      fitBounds(bounds: LatLngBounds, margins?: Partial<Record<"top" | "right" | "bottom" | "left", number>>): void;
       getBounds(): LatLngBounds;
       panTo(latlng: LatLng, transitionOptions?: object): void;
       /** 중심·줌을 한 번에 애니메이션으로 맞춥니다. */

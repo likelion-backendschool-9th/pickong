@@ -1,5 +1,6 @@
 package com.pickong.place.adapter.in.web.response;
 
+import com.pickong.place.application.dto.PlaceMapItem;
 import com.pickong.place.domain.model.Place;
 
 /**
@@ -24,5 +25,16 @@ public record PublicPlaceResponse(
                 place.getLocation().longitude(),
                 place.getCategory(),
                 place.getSourceType().name());
+    }
+
+    public static PublicPlaceResponse from(PlaceMapItem place) {
+        return new PublicPlaceResponse(
+                place.publicId().toString(),
+                place.name(),
+                place.address(),
+                place.latitude(),
+                place.longitude(),
+                place.category(),
+                place.sourceType());
     }
 }

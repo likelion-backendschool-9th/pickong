@@ -1,5 +1,5 @@
 import type { Visibility } from "@/shared/config/visibility";
-import type { LatLng } from "@/shared/lib/geo";
+import type { LatLng, LatLngBounds } from "@/shared/lib/geo";
 
 export type PlaceCategory =
   | "CAFE"
@@ -33,6 +33,22 @@ export interface Place {
   imageUrl: string | null;
   /** 없으면 "영업시간 확인 필요" */
   businessHours: BusinessHours | null;
+}
+
+/** 지도에서 하나로 묶은 장소들 */
+export interface PlaceCluster {
+  id: string;
+  /** 묶인 장소들의 평균 위치 */
+  location: LatLng;
+  count: number;
+  /** 묶인 장소들을 모두 포함하는 범위 */
+  bounds: LatLngBounds;
+}
+
+/** 지도 범위 조회 결과: 혼자 있는 장소와 묶음 */
+export interface PlacesInBounds {
+  places: Place[];
+  clusters: PlaceCluster[];
 }
 
 export type VisitStatus = "WANT_TO_GO" | "VISITED";

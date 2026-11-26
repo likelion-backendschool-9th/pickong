@@ -16,6 +16,18 @@ export interface PlaceDto {
   businessHours: { open: string; close: string; closedDays: number[] } | null;
 }
 
+export interface PlaceClusterDto {
+  lat: number;
+  lng: number;
+  count: number;
+  bounds: { west: number; south: number; east: number; north: number };
+}
+
+export interface PlacesInBoundsDto {
+  places: PlaceDto[];
+  clusters: PlaceClusterDto[];
+}
+
 export interface SavedPlaceDto {
   id: string;
   place: PlaceDto;

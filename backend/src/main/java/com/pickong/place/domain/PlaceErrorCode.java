@@ -16,6 +16,8 @@ public enum PlaceErrorCode implements ErrorCode {
     SUBMISSION_NO_LOCATION(400, "좌표가 없어 승인할 수 없어요."),
     /** 위도 · 경도 범위 밖. GeoPoint가 거부한 값을 화면 오류로 바꿉니다. */
     INVALID_COORDINATES(400, "위치를 지정해 주세요."),
+    /** 지도 장소 조회 범위가 너무 넓음 (MapBoundsPolicy) */
+    BOUNDS_TOO_LARGE(400, "지도를 조금 더 확대해 주세요."),
     REJECT_REASON_REQUIRED(400, "반려 사유를 입력해 주세요."),
     REJECT_REASON_TOO_LONG(400, "반려 사유는 200자까지 쓸 수 있어요.");
 

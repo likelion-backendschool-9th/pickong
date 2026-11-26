@@ -3,16 +3,27 @@
 import { ChevronDown, ChevronUp, Info, Link2, LocateFixed, MapPinPlus } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
-import { categoryLabel, formatHours, usePlacesInBounds, type Place, type PlaceCategory, type SavedPlace } from "@/entities/place";
+import {
+  categoryLabel,
+  formatHours,
+  isStackedCluster,
+  usePlacesInBounds,
+  type Place,
+  type PlaceCategory,
+  type PlaceCluster,
+  type SavedPlace,
+} from "@/entities/place";
 import { SavePlaceButton } from "@/features/save-place";
 import { routes } from "@/shared/config/routes";
 import { cn } from "@/shared/lib/cn";
 import { getCurrentPosition, type LatLng, type LatLngBounds } from "@/shared/lib/geo";
-import { MapView } from "@/shared/map";
+import { MapView, type MapMarker } from "@/shared/map";
 import { BottomSheet } from "@/shared/ui/BottomSheet";
 import { Button, ButtonLink } from "@/shared/ui/Button";
 import { Badge, Skeleton, Thumb } from "@/shared/ui/display";
 import { useToast } from "@/shared/ui/Toast";
+import { PlaceClusterSheet } from "../../../_components/PlaceClusterSheet";
+import { findCluster, toClusterMarker } from "../../../_lib/clusterMarker";
 import {
   DEFAULT_MAP_ZOOM,
   hasBootstrappedMapGps,
@@ -26,10 +37,10 @@ import {
 
 const POI = "poi:";
 
-type FocusRequest = { key: string; position: LatLng; keepZoom?: boolean } | null;
+type FocusRequest = { key: string; position: LatLng; keepZoom?: boolean; bounds?: LatLngBounds } | null;
 
 /**
- * 내 지도 (지도 우선형): 주변 장소는 작은 점, 내가 저장한 곳은 초록 핀.
+ * 내 지도 (지도 우선형): 주변 장소는 작은 점(많으면 숫자 원으로 묶음), 내가 저장한 곳은 초록 핀.
  * 세션 최초 진입 때만 GPS로 중심을 잡고, 이후 재진입은 마지막 카메라(중심·줌)를 복원합니다.
  * 장소를 누르면 지도가 그 핀으로 옮겨지고(카드에 가리지 않게), 아래에 작은 요약 카드가 뜹니다.
  */
@@ -50,8 +61,12 @@ export function MyMapView({
 }) {
   const toast = useToast();
   const [bounds, setBounds] = useState<LatLngBounds | null>(null);
-  const { data: nearby = [] } = usePlacesInBounds(bounds);
+  const { data: nearby } = usePlacesInBounds(bounds, category);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  /** 고른 주변 장소. 지도를 옮기거나 축소해 묶음에 들어가도 선택을 유지합니다. */
+  const [pickedPoi, setPickedPoi] = useState<Place | null>(null);
+  /** 목록으로 열어 둔 묶음 (확대해도 나뉘지 않는 묶음) */
+  const [openCluster, setOpenCluster] = useState<PlaceCluster | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -157,30 +172,70 @@ export function MyMapView({
   }
 
   const pois = useMemo(() => {
-    const list = nearby.filter((p) => !savedPlaceIds.has(p.id) && (category === "ALL" || p.category === category));
-    if (focus && !savedPlaceIds.has(focus.id) && !list.some((p) => p.id === focus.id)) list.push(focus);
+    const matches = (p: Place) => !savedPlaceIds.has(p.id) && (category === "ALL" || p.category === category);
+    const list = nearby.places.filter(matches);
+    const has = (p: Place) => list.some((x) => x.id === p.id);
+    if (pickedPoi && matches(pickedPoi) && !has(pickedPoi)) list.push(pickedPoi);
+    if (focus && !savedPlaceIds.has(focus.id) && !has(focus)) list.push(focus);
     return list;
-  }, [nearby, savedPlaceIds, category, focus]);
+  }, [nearby.places, savedPlaceIds, category, pickedPoi, focus]);
+
+  // 렌더링마다 배열이 새로 생기면 지도가 매번 모든 마커를 비교하므로, 내용이 바뀔 때만 만듭니다.
+  const markers = useMemo<MapMarker[]>(
+    () => [
+      ...nearby.clusters.map(toClusterMarker),
+      ...pois.map((p) => ({ id: POI + p.id, position: p.location, title: p.name, tone: "poi" as const })),
+      ...saved.map((s, i) => ({
+        id: s.id,
+        position: s.place.location,
+        label: String(i + 1),
+        title: s.place.name,
+        tone: s.visitStatus === "VISITED" ? ("muted" as const) : ("primary" as const),
+      })),
+    ],
+    [nearby.clusters, pois, saved],
+  );
 
   const selectedSaved = saved.find((s) => s.id === selectedId) ?? null;
   const selectedPoi = selectedId?.startsWith(POI) ? (pois.find((p) => POI + p.id === selectedId) ?? null) : null;
 
+  /** 지도 빈 곳을 누르면 하단 장소 카드를 닫습니다. */
+  const clearSelection = () => {
+    setSelectedId(null);
+    setPickedPoi(null);
+    setExpanded(false);
+  };
+
   // 핀을 누르면 선택하고, 카드에 가리지 않도록 지도를 그 핀으로 옮깁니다 (축척은 그대로). 같은 핀을 다시 누르면 선택 해제
+  // 숫자 원(묶음)을 누르면 그 범위로 확대하고, 확대해도 나뉘지 않으면 목록을 엽니다.
   const select = (id: string) => {
+    const cluster = findCluster(nearby.clusters, id);
+    if (cluster) {
+      clearSelection();
+      if (isStackedCluster(cluster)) setOpenCluster(cluster);
+      else setMapFocus({ key: `cluster:${cluster.id}:${Date.now()}`, position: cluster.location, bounds: cluster.bounds });
+      return;
+    }
     if (id === selectedId) {
-      setSelectedId(null);
+      clearSelection();
       return;
     }
     setSelectedId(id);
     setExpanded(false);
-    const place = id.startsWith(POI) ? pois.find((p) => POI + p.id === id) : saved.find((s) => s.id === id)?.place;
+    const poi = pois.find((p) => POI + p.id === id) ?? null;
+    setPickedPoi(poi);
+    const place = poi ?? saved.find((s) => s.id === id)?.place;
     if (place) setMapFocus({ key: `tap:${id}:${Date.now()}`, position: place.location, keepZoom: true });
   };
 
-  /** 지도 빈 곳을 누르면 하단 장소 카드를 닫습니다. */
-  const clearSelection = () => {
-    setSelectedId(null);
+  /** 묶음 목록에서 장소를 고릅니다. 저장한 장소면 그 핀을 선택합니다. */
+  const selectFromCluster = (place: Place) => {
+    const mine = saved.find((s) => s.place.id === place.id);
+    setOpenCluster(null);
+    setSelectedId(mine ? mine.id : POI + place.id);
+    setPickedPoi(mine ? null : place);
     setExpanded(false);
+    setMapFocus({ key: `tap:${place.id}:${Date.now()}`, position: place.location, keepZoom: true });
   };
 
   /** 버튼을 누를 때마다 GPS를 읽고 지도 중심을 그곳으로 옮깁니다. 조회 중에는 중복 클릭을 막습니다. */
@@ -228,6 +283,10 @@ export function MyMapView({
               <span className="size-2 rounded-full bg-ink-faint" /> 주변 장소
             </p>
             <p className="flex items-center gap-1.5 text-ink-sub">
+              <span className="inline-flex size-4 items-center justify-center rounded-full bg-ink text-[9px] font-bold text-bg">9</span>
+              모여 있는 장소 수
+            </p>
+            <p className="flex items-center gap-1.5 text-ink-sub">
               <span className="size-2.5 rounded-full border border-white bg-map-me" /> 내 위치
             </p>
           </div>
@@ -237,16 +296,7 @@ export function MyMapView({
         className="h-[calc(100dvh-250px)] min-h-[360px]"
         center={bootCamera?.center}
         zoom={bootCamera?.zoom}
-        markers={[
-          ...pois.map((p) => ({ id: POI + p.id, position: p.location, title: p.name, tone: "poi" as const })),
-          ...saved.map((s, i) => ({
-            id: s.id,
-            position: s.place.location,
-            label: String(i + 1),
-            title: s.place.name,
-            tone: s.visitStatus === "VISITED" ? ("muted" as const) : ("primary" as const),
-          })),
-        ]}
+        markers={markers}
         selectedId={selectedId}
         onMarkerClick={select}
         onMapClick={clearSelection}
@@ -319,6 +369,13 @@ export function MyMapView({
           </Link>
         </PlaceCard>
       )}
+
+      <PlaceClusterSheet
+        cluster={openCluster}
+        category={category}
+        onClose={() => setOpenCluster(null)}
+        onSelect={selectFromCluster}
+      />
 
       <BottomSheet open={addOpen} onClose={() => setAddOpen(false)} title="장소 추가하기">
         <div className="space-y-2 pb-[calc(8px+env(safe-area-inset-bottom))]">
