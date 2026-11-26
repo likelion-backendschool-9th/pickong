@@ -209,15 +209,16 @@ function CommentItem({
   };
 
   // 첫 클릭: 확인 상태로 전환 (2초 후 자동 취소)
-  // 두 번째 클릭: 실제 삭제
+  // 두 번째 클릭: 실제 삭제. onDelete는 삭제 성공 후 호출 (실패 시 replyTo가 풀리지 않음)
   const handleDeleteClick = () => {
     if (!confirmDelete) {
+      // 이전 타이머가 남아있으면 먼저 정리
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
       setConfirmDelete(true);
       confirmTimerRef.current = setTimeout(() => setConfirmDelete(false), 2000);
       return;
     }
-    onDelete();
-    remove.mutate(comment.id);
+    remove.mutate(comment.id, { onSuccess: onDelete });
   };
 
   return (
@@ -231,8 +232,8 @@ function CommentItem({
             <span className="font-bold">{comment.author.username}</span>
             <span className="ml-1.5 text-[11px] text-ink-faint">{formatRelative(comment.createdAt)}</span>
           </div>
-          {/* 본인 댓글에만 수정/삭제 표시 */}
-          {isMine && !editing && (
+          {/* 본인 댓글에만 수정/삭제 표시 (삭제된 댓글은 버튼 없음) */}
+          {isMine && !editing && !comment.deleted && (
             <div className="flex items-center gap-2 text-[12px]">
               <button type="button" onClick={() => { setEditText(comment.content); setEditing(true); }} className="text-ink-faint">
                 수정
@@ -256,11 +257,14 @@ function CommentItem({
           )}
         </div>
 
-        {editing ? (
+        {comment.deleted ? (
+          // 소프트 삭제된 댓글 — 대댓글이 남아있어 목록에 보이는 상태
+          <p className="mt-0.5 text-[14px] text-ink-faint italic">삭제된 댓글입니다</p>
+        ) : editing ? (
           <div className="mt-1 space-y-1">
             <textarea
               ref={editRef}
-              value={editText}
+              value={editText ?? ""}
               onChange={(e) => setEditText(e.target.value)}
               rows={2}
               maxLength={300}
@@ -283,7 +287,7 @@ function CommentItem({
           <p className="mt-0.5 text-[14px] leading-relaxed whitespace-pre-line">{renderContent(comment.content)}</p>
         )}
 
-        {!editing && (
+        {!editing && !comment.deleted && (
           <button type="button" onClick={onReply} className="mt-1 text-[12px] font-medium text-ink-sub">
             답글 달기
           </button>

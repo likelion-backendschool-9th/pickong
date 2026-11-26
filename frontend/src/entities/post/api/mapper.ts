@@ -23,6 +23,7 @@ export const toComment = (dto: CommentDto): PostComment => ({
   parentId: dto.parentId,
   author: toUser(dto.author),
   content: dto.content,
+  deleted: dto.deleted,
   createdAt: dto.createdAt,
 });
 

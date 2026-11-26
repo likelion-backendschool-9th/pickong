@@ -143,7 +143,7 @@ export const postRoutes: Route[] = [
       return db.comments
         .filter((c) => c.postId === params.id)
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-        .map((c) => ({ ...c, author: userDto(findUser(c.authorId)!) }));
+        .map((c) => ({ ...c, deleted: c.deleted ?? false, author: userDto(findUser(c.authorId)!) }));
     },
   },
   {
@@ -159,6 +159,7 @@ export const postRoutes: Route[] = [
         authorId: ME_ID,
         parentId: body?.parentId ?? null,
         content,
+        deleted: false,
         createdAt: new Date().toISOString(),
       };
       db.comments.push(comment);
@@ -187,9 +188,15 @@ export const postRoutes: Route[] = [
       const idx = db.comments.findIndex((c) => c.id === params.commentId && c.postId === params.id);
       if (idx === -1) throw new HttpError(404, "COMMENT_NOT_FOUND", "댓글을 찾을 수 없습니다.");
       if (db.comments[idx].authorId !== ME_ID) throw new HttpError(403, "COMMENT_NOT_OWNER", "본인 댓글만 삭제할 수 있습니다.");
-      // 대댓글도 함께 삭제
       const commentId = params.commentId;
-      db.comments = db.comments.filter((c) => c.id !== commentId && c.parentId !== commentId);
+      const hasReplies = db.comments.some((c) => c.parentId === commentId && !c.deleted);
+      if (hasReplies) {
+        // 살아있는 대댓글이 있으면 소프트 삭제 (목록에 "삭제된 댓글입니다"로 남음)
+        db.comments[idx] = { ...db.comments[idx], deleted: true, content: null };
+      } else {
+        // 대댓글이 없으면 목록에서 제거
+        db.comments = db.comments.filter((c) => c.id !== commentId);
+      }
       return null;
     },
   },

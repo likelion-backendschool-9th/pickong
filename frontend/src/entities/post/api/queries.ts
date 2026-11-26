@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { Post, PostComment } from "../model";
+import { removeComment } from "../commentUtils";
 import { postApi, type FeedTab } from "./postApi";
 
 export const postKeys = {
@@ -75,12 +76,11 @@ export function useDeleteComment(postId: string) {
   return useMutation({
     mutationFn: (commentId: string) => postApi.deleteComment(postId, commentId),
     onSuccess: (_, commentId) => {
-      qc.setQueryData(postKeys.comments(postId), (prev: PostComment[] | undefined) => {
-        // 삭제될 댓글 + 그 댓글의 대댓글 수 계산 후 카운터 감소
-        const deletedCount = prev?.filter((c) => c.id === commentId || c.parentId === commentId).length ?? 1;
-        patchPostInCache(qc, postId, (p) => ({ ...p, commentCount: Math.max(0, p.commentCount - deletedCount) }));
-        return prev?.filter((c) => c.id !== commentId && c.parentId !== commentId) ?? [];
-      });
+      // 현재 캐시에서 결과 계산 후 두 캐시를 각각 갱신 (setQueryData updater는 순수하게 유지)
+      const prev = qc.getQueryData<PostComment[]>(postKeys.comments(postId));
+      const { next, removedCount } = removeComment(prev ?? [], commentId);
+      qc.setQueryData(postKeys.comments(postId), next);
+      patchPostInCache(qc, postId, (p) => ({ ...p, commentCount: Math.max(0, p.commentCount - removedCount) }));
     },
   });
 }
