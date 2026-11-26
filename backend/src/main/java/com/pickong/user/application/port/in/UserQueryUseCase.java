@@ -2,6 +2,7 @@ package com.pickong.user.application.port.in;
 
 import com.pickong.user.application.dto.MyProfile;
 import com.pickong.user.application.dto.UserProfile;
+import com.pickong.user.application.dto.UserSummary;
 
 /**
  * 회원 조회 유스케이스.
@@ -35,4 +36,12 @@ public interface UserQueryUseCase {
      * @throws com.pickong.common.error.BusinessException 404 USER_NOT_FOUND — 없는 username일 때
      */
     Long findIdByUsername(String username);
+
+    /**
+     * 아이디(대소문자 무시)로 찾은 정상(ACTIVE) 회원의 요약. 다른 모듈이 프로필 하위 목록(/users/{username}/…)을 만들 때
+     * 프로필 조회와 같은 기준으로 회원을 숨기기 위해 씁니다.
+     *
+     * @throws com.pickong.common.error.BusinessException 404 USER_NOT_FOUND — 없거나, 정상(ACTIVE) 회원이 아닐 때
+     */
+    UserSummary getActiveByUsername(String username);
 }
