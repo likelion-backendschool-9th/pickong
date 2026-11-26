@@ -17,6 +17,7 @@ import com.pickong.moderation.domain.vo.ReportTargetType;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,8 +49,17 @@ class ReportServiceIntegrationTest {
     @Autowired
     JdbcTemplate jdbc;
 
+    private long adminId;
+
+    @BeforeEach
+    void activeAdminFixture() {
+        adminId = jdbc.queryForObject("INSERT INTO admins(username,password_hash,role,status) VALUES (?,'test-only','OPERATOR','ACTIVE') RETURNING id",
+                Long.class, "report-security-" + UUID.randomUUID());
+    }
+
     @AfterEach
     void deleteRows() {
+        jdbc.update("DELETE FROM admins WHERE id=?", adminId);
         jdbc.update("DELETE FROM reports");
         jdbc.update("DELETE FROM comments WHERE content LIKE 'service-it-%'");
         jdbc.update("DELETE FROM feeds WHERE content LIKE 'service-it-%'");
@@ -197,8 +207,8 @@ class ReportServiceIntegrationTest {
         return builder.servletPath("/api/v1");
     }
 
-    private static UsernamePasswordAuthenticationToken admin() {
+    private UsernamePasswordAuthenticationToken admin() {
         return UsernamePasswordAuthenticationToken.authenticated(
-                new AdminPrincipal(7L), null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+                new AdminPrincipal(adminId), null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
     }
 }

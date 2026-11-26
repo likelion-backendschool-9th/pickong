@@ -6,11 +6,15 @@ import com.pickong.user.adapter.out.persistence.repository.UserJpaRepository;
 import com.pickong.user.application.port.out.UserPersistencePort;
 import com.pickong.user.domain.UserErrorCode;
 import com.pickong.user.domain.model.User;
+import com.pickong.user.domain.vo.UserStatus;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 회원 저장소. JPA 엔티티는 이 어댑터 밖으로 내보내지 않고 domain 모델로 바꿔서 돌려줍니다. */
@@ -23,6 +27,9 @@ public class UserPersistenceAdapter implements UserPersistencePort {
 
     private final UserJpaRepository userJpaRepository;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     public UserPersistenceAdapter(UserJpaRepository userJpaRepository) {
         this.userJpaRepository = userJpaRepository;
     }
@@ -30,6 +37,32 @@ public class UserPersistenceAdapter implements UserPersistencePort {
     @Override
     public Optional<User> findById(Long userId) {
         return userJpaRepository.findById(userId).map(UserJpaEntity::toDomain);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Optional<User> findByIdForUpdate(Long userId) {
+        return userJpaRepository.findByIdForUpdate(userId).map(entity -> {
+            // 같은 트랜잭션에서 이미 읽은 엔티티도 잠금 획득 뒤의 최신 값으로 판단합니다.
+            entityManager.refresh(entity);
+            return entity.toDomain();
+        });
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean updateStatusIfUnchanged(User previous, User updated) {
+        if (previous.getId() == null || !previous.getId().equals(updated.getId())
+                || !isAccountStatus(previous.getStatus()) || !isAccountStatus(updated.getStatus())
+                || previous.getDeletedAt() != null || updated.getDeletedAt() != null) {
+            throw new IllegalArgumentException("동일한 미탈퇴 회원의 제재 상태 변경만 저장할 수 있습니다.");
+        }
+        return userJpaRepository.updateStatusIfUnchanged(previous.getId(), previous.getStatus().name(),
+                previous.getSuspendedUntil(), updated.getStatus().name(), updated.getSuspendedUntil(), updated.getUpdatedAt()) == 1;
+    }
+
+    private static boolean isAccountStatus(UserStatus status) {
+        return status == UserStatus.ACTIVE || status == UserStatus.SUSPENDED || status == UserStatus.BANNED;
     }
 
     @Override

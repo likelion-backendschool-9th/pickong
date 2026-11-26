@@ -111,7 +111,8 @@ async function request<T>(method: Method, path: string, options: RequestOptions 
     throw new ApiError(0, "NETWORK", "서버에 연결할 수 없어요. 백엔드나 mock 서버가 실행 중인지 확인해 주세요.");
   }
 
-  if (response.status === 401 && !path.startsWith(AUTH_PATH_PREFIX)) {
+  // 관리자 계정은 회원과 별개입니다. 관리자 401로 회원 Refresh Token을 사용하거나 소셜 로그인으로 보내지 않습니다.
+  if (response.status === 401 && !path.startsWith(AUTH_PATH_PREFIX) && !path.startsWith("/admin/")) {
     if (!retried && (await refreshSession())) return request<T>(method, path, options, true);
     throw new ApiError(401, SESSION_EXPIRED, "로그인이 필요해요. 다시 로그인해 주세요.");
   }

@@ -2,6 +2,8 @@ package com.pickong.feed.application.port.out;
 
 import com.pickong.feed.domain.model.Feed;
 import java.util.List;
+import java.time.OffsetDateTime;
+import java.util.UUID;
 
 public interface FeedRepository {
     Feed save(Feed feed);
@@ -12,6 +14,12 @@ public interface FeedRepository {
     List<Feed> findFollowingFeeds(Long userId, Long cursor, int limit);
 
     Feed findById(Long feedId);
+
+    Feed findByIdForUpdate(Long feedId);
+
+    Feed findByPublicIdForUpdate(UUID publicId);
+
+    boolean updateHiddenAt(long feedId, OffsetDateTime previous, OffsetDateTime hiddenAt, OffsetDateTime now);
 
     void deleteById(Long feedId);
 

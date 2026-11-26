@@ -20,6 +20,8 @@ public interface FeedUseCase {
 
     Feed getFeed(Long feedId);
 
+    Feed getFeed(Long feedId, Long viewerId, boolean admin);
+
     void deleteFeed(Long feedId, Long userId);
 
     // 피드 지도용: 탭 기준 장소 목록 (장소별로 연결된 피드 ID 묶음)

@@ -11,9 +11,15 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.time.OffsetDateTime;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import org.springframework.transaction.annotation.Propagation;
 
 @Repository
 public class JpaCommentAdapter implements CommentRepository {
+    @PersistenceContext
+    private EntityManager entityManager;
 
     private final CommentJpaRepository commentJpaRepository;
 
@@ -28,9 +34,9 @@ public class JpaCommentAdapter implements CommentRepository {
     }
 
     @Override
-    public List<Comment> findByFeedId(Long feedId, Long cursor, int limit) {
+    public List<Comment> findByFeedId(Long feedId, Long cursor, int limit, Long viewerId, boolean admin) {
         // Object[0] = CommentJpaEntity, Object[1] = 대댓글 수(Long)
-        return commentJpaRepository.findTopLevelByFeedId(feedId, cursor, PageRequest.of(0, limit))
+        return commentJpaRepository.findTopLevelByFeedId(feedId, cursor, viewerId, admin, PageRequest.of(0, limit))
                 .stream()
                 .map(row -> {
                     CommentJpaEntity entity = (CommentJpaEntity) row[0];
@@ -41,8 +47,8 @@ public class JpaCommentAdapter implements CommentRepository {
     }
 
     @Override
-    public List<Comment> findRepliesByParentId(Long parentId, Long cursor, int limit) {
-        return commentJpaRepository.findRepliesByParentId(parentId, cursor, PageRequest.of(0, limit))
+    public List<Comment> findRepliesByParentId(Long parentId, Long cursor, int limit, Long viewerId, boolean admin) {
+        return commentJpaRepository.findRepliesByParentId(parentId, cursor, viewerId, admin, PageRequest.of(0, limit))
                 .stream().map(CommentJpaEntity::toDomain).toList();
     }
 
@@ -51,6 +57,21 @@ public class JpaCommentAdapter implements CommentRepository {
         return commentJpaRepository.findById(commentId)
                 .map(CommentJpaEntity::toDomain)
                 .orElseThrow(() -> new BusinessException(FeedErrorCode.COMMENT_NOT_FOUND));
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Comment findByIdForUpdate(Long commentId) {
+        CommentJpaEntity entity = commentJpaRepository.findByIdForUpdate(commentId)
+                .orElseThrow(() -> new BusinessException(FeedErrorCode.COMMENT_NOT_FOUND));
+        entityManager.refresh(entity);
+        return entity.toDomain();
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean updateHiddenAt(long commentId, OffsetDateTime previous, OffsetDateTime hiddenAt, OffsetDateTime now) {
+        return commentJpaRepository.updateHiddenAt(commentId, previous, hiddenAt, now) == 1;
     }
 
     @Override

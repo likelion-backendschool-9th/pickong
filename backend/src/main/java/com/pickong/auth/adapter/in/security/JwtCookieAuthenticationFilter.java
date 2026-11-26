@@ -2,6 +2,7 @@ package com.pickong.auth.adapter.in.security;
 
 import com.pickong.common.security.AccessTokenVerifier;
 import com.pickong.common.security.LoginUser;
+import com.pickong.user.application.port.in.UserAccountUseCase;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
@@ -38,6 +39,7 @@ public class JwtCookieAuthenticationFilter extends OncePerRequestFilter {
     static final List<SimpleGrantedAuthority> MEMBER_AUTHORITIES = List.of(new SimpleGrantedAuthority("ROLE_USER"));
 
     private final AccessTokenVerifier verifier;
+    private final UserAccountUseCase accounts;
 
     /** SecurityContext(현재 요청의 로그인 정보)를 꺼내고 넣는 도구. Spring Security 권장 방식대로 정적 호출 대신 필드로 둡니다. */
     private final SecurityContextHolderStrategy contextHolder = SecurityContextHolder.getContextHolderStrategy();
@@ -45,8 +47,9 @@ public class JwtCookieAuthenticationFilter extends OncePerRequestFilter {
     /**
      * @param verifier 토큰 검증기. 실제 구현은 JwtTokenAdapter이고, 테스트에서는 가짜로 바꿔 끼울 수 있게 인터페이스로 받습니다.
      */
-    public JwtCookieAuthenticationFilter(AccessTokenVerifier verifier) {
+    public JwtCookieAuthenticationFilter(AccessTokenVerifier verifier, UserAccountUseCase accounts) {
         this.verifier = verifier;
+        this.accounts = accounts;
     }
 
     /**
@@ -60,6 +63,7 @@ public class JwtCookieAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         readAccessToken(request)          // 1. 쿠키에서 토큰 문자열 찾기 (없으면 빈 값)
                 .flatMap(verifier::verify) // 2. 서명 · 만료 검증 (실패하면 빈 값)
+                .filter(user -> accounts.canLogin(user.userId())) // 유효한 토큰도 현재 계정 상태가 허용해야 합니다.
                 .ifPresent(this::authenticate); // 3. 성공했을 때만 로그인 처리
         chain.doFilter(request, response);  // 4. 성공 · 실패와 관계없이 다음 단계로
     }

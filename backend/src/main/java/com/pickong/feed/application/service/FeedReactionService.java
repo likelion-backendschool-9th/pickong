@@ -24,7 +24,7 @@ public class FeedReactionService implements FeedReactionUseCase {
     @Transactional
     public void likeFeed(Long feedId, Long userId) {
         // 피드 존재 여부 확인 — 없으면 FEED_NOT_FOUND 예외
-        feedRepository.findById(feedId);
+        feedRepository.findByIdForUpdate(feedId).ensureAcceptsInteraction();
         if (feedReactionRepository.existsLike(feedId, userId)) {
             throw new BusinessException(FeedErrorCode.ALREADY_LIKED);
         }
@@ -35,7 +35,7 @@ public class FeedReactionService implements FeedReactionUseCase {
     @Override
     @Transactional
     public void unlikeFeed(Long feedId, Long userId) {
-        feedRepository.findById(feedId);
+        feedRepository.findByIdForUpdate(feedId);
         if (!feedReactionRepository.existsLike(feedId, userId)) {
             throw new BusinessException(FeedErrorCode.LIKE_NOT_FOUND);
         }
@@ -46,7 +46,7 @@ public class FeedReactionService implements FeedReactionUseCase {
     @Override
     @Transactional
     public void bookmarkFeed(Long feedId, Long userId) {
-        feedRepository.findById(feedId);
+        feedRepository.findByIdForUpdate(feedId).ensureAcceptsInteraction();
         if (feedReactionRepository.existsBookmark(feedId, userId)) {
             throw new BusinessException(FeedErrorCode.ALREADY_BOOKMARKED);
         }
@@ -57,7 +57,7 @@ public class FeedReactionService implements FeedReactionUseCase {
     @Override
     @Transactional
     public void unbookmarkFeed(Long feedId, Long userId) {
-        feedRepository.findById(feedId);
+        feedRepository.findByIdForUpdate(feedId);
         if (!feedReactionRepository.existsBookmark(feedId, userId)) {
             throw new BusinessException(FeedErrorCode.BOOKMARK_NOT_FOUND);
         }

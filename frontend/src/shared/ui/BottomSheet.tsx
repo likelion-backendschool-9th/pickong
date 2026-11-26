@@ -14,6 +14,8 @@ interface BottomSheetProps {
   /** 시트 하단 고정 영역 (CTA) */
   footer?: ReactNode;
   showClose?: boolean;
+  /** 저장 중에는 닫기·배경 클릭·Escape·스와이프를 잠급니다. */
+  dismissible?: boolean;
   className?: string;
 }
 
@@ -29,6 +31,7 @@ export function BottomSheet({
   children,
   footer,
   showClose = true,
+  dismissible = true,
   className,
 }: BottomSheetProps) {
   const titleId = useId();
@@ -36,9 +39,10 @@ export function BottomSheet({
   const onCloseRef = useRef(onClose);
   /** 드래그 시작 시점의 Y 좌표. null이면 드래그 중 아님 */
   const dragStartY = useRef<number | null>(null);
+  const close = () => { if (dismissible) onClose(); };
 
   useEffect(() => {
-    onCloseRef.current = onClose;
+    onCloseRef.current = close;
   });
 
   useEffect(() => {
@@ -61,6 +65,7 @@ export function BottomSheet({
 
   /** 핸들에 손가락(포인터)이 닿으면 드래그 시작. setPointerCapture로 핸들 밖으로 나가도 추적 */
   const handleDragStart = (e: PointerEvent<HTMLDivElement>) => {
+    if (!dismissible) return;
     dragStartY.current = e.clientY;
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -68,7 +73,7 @@ export function BottomSheet({
   /** 드래그 중: 아래 방향만 허용하고 시트를 손가락 위치만큼 translateY */
   const handleDragMove = (e: PointerEvent<HTMLDivElement>) => {
     if (dragStartY.current === null || !panelRef.current) return;
-    const dy = Math.max(0, e.clientY - dragStartY.current);
+    const dy = dismissible ? Math.max(0, e.clientY - dragStartY.current) : 0;
     panelRef.current.style.transition = "none";
     panelRef.current.style.transform = `translateY(${dy}px)`;
   };
@@ -76,7 +81,7 @@ export function BottomSheet({
   /** 손가락을 뗐을 때: 임계값(시트 높이 30%) 초과면 닫고, 아니면 제자리로 복귀 */
   const handleDragEnd = (e: PointerEvent<HTMLDivElement>) => {
     if (dragStartY.current === null || !panelRef.current) return;
-    const dy = Math.max(0, e.clientY - dragStartY.current);
+    const dy = dismissible ? Math.max(0, e.clientY - dragStartY.current) : 0;
     dragStartY.current = null;
 
     const threshold = panelRef.current.offsetHeight * 0.3;
@@ -96,7 +101,7 @@ export function BottomSheet({
 
   return createPortal(
     <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 animate-fade-in bg-black/40" onClick={onClose} aria-hidden />
+      <div className="absolute inset-0 animate-fade-in bg-black/40" onClick={close} aria-hidden />
       <div
         ref={panelRef}
         role="dialog"
@@ -132,7 +137,8 @@ export function BottomSheet({
             {showClose && (
               <button
                 type="button"
-                onClick={onClose}
+                onClick={close}
+                disabled={!dismissible}
                 aria-label="닫기"
                 className="-mt-1 -mr-2 inline-flex size-10 items-center justify-center rounded-full text-ink active:bg-fill"
               >

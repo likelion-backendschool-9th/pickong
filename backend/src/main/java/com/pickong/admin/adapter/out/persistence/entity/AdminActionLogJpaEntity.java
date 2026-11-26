@@ -1,5 +1,6 @@
 package com.pickong.admin.adapter.out.persistence.entity;
 
+import com.pickong.admin.application.dto.AdminActionLogEntry;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -36,10 +37,29 @@ public class AdminActionLogJpaEntity {
     @Column(name = "target_id")
     private Long targetId;
 
-    /** 작업 상세 정보. JSONB → String 저장. */
+    /** 별도 JSON 변환을 강제하지 않는 TEXT 상세 정보. */
     @Column(name = "detail", columnDefinition = "TEXT")
     private String detail;
 
+    @Column(name = "reason", columnDefinition = "TEXT")
+    private String reason;
+
+    @Column(name = "source_report_id")
+    private Long sourceReportId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
+
+    public static AdminActionLogJpaEntity forInsert(AdminActionLogEntry entry) {
+        AdminActionLogJpaEntity entity = new AdminActionLogJpaEntity();
+        entity.adminId = entry.adminId();
+        entity.actionType = entry.actionType();
+        entity.targetType = entry.targetType();
+        entity.targetId = entry.targetId();
+        entity.reason = entry.reason();
+        entity.detail = entry.detail();
+        entity.sourceReportId = entry.sourceReportId();
+        entity.createdAt = entry.createdAt();
+        return entity;
+    }
 }

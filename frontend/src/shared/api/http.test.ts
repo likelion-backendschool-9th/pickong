@@ -38,6 +38,12 @@ beforeEach(() => vi.unstubAllGlobals());
 afterEach(() => vi.unstubAllGlobals());
 
 describe("http: Access Token 재발급", () => {
+  it("관리자 401은 회원 재발급·SESSION_EXPIRED 변환 없이 그대로 전달한다", async () => {
+    const calls = stubFetch({ "/api/v1/admin/users": [() => json(401, { code: "UNAUTHORIZED", message: "관리자 인증 필요" })] });
+    await expect(http.get("/admin/users")).rejects.toMatchObject({ status: 401, code: "UNAUTHORIZED" });
+    expect(urls(calls)).toEqual(["/api/v1/admin/users"]);
+  });
+
   it("401을 받으면 한 번 재발급하고 같은 요청을 다시 보낸다", async () => {
     const calls = stubFetch({
       "/api/v1/me": [() => json(401, { code: "UNAUTHORIZED" }), () => json(200, { username: "seoyeon" })],

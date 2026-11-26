@@ -14,7 +14,7 @@ import lombok.Getter;
 
 /**
  * 신고 애그리거트. targetId는 여러 테이블을 가리키므로 외래 키로 묶지 않습니다.
- * <p>snapshot은 신고 시점의 대상 스냅샷입니다. 값은 직접 바꾸지 않고 기각 결과로 새 객체를 돌려줍니다.
+ * <p>snapshot은 신고 시점의 대상 스냅샷입니다. 값은 직접 바꾸지 않고 처리 결과로 새 객체를 돌려줍니다.
  * Spring · JPA · HTTP에 의존하지 않습니다.
  */
 @Getter
@@ -80,6 +80,12 @@ public class Report {
      * 이미 처리된 신고는 상태와 기존 처리 정보를 바꾸지 않습니다.
      */
     public Report dismiss(long adminId, String memo, OffsetDateTime now) {
+        return resolve(ReportAction.DISMISS, adminId, memo, now);
+    }
+
+    /** 처리 결과만 바꾸고 신고 원문·대상·스냅샷은 보존합니다. */
+    public Report resolve(ReportAction action, long adminId, String memo, OffsetDateTime now) {
+        if (action == null) throw new BusinessException(ModerationErrorCode.INVALID_REPORT_ACTION);
         if (status != ReportStatus.PENDING) {
             throw new BusinessException(ModerationErrorCode.ALREADY_RESOLVED);
         }
@@ -91,8 +97,8 @@ public class Report {
         }
         return toBuilder()
                 .status(ReportStatus.RESOLVED)
-                .resolutionAction(ReportAction.DISMISS)
-                .resolutionMemo(ReportRules.normalizeMemo(ReportAction.DISMISS, memo))
+                .resolutionAction(action)
+                .resolutionMemo(ReportRules.normalizeMemo(action, memo))
                 .handledBy(adminId)
                 .handledAt(now)
                 .build();

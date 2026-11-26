@@ -13,7 +13,7 @@ public final class ReportRules {
     public static final int MEMO_MAX = 200;
     public static final int DETAIL_MAX = 500;
 
-    /** 화면의 제재 종류. 지금은 저장하지 않고, 요청이 올바른지만 확인합니다. */
+    /** 관리자 API에서 받는 제재 종류. 도메인 유형과 기간으로의 변환은 명령 생성 경계가 맡습니다. */
     private static final Set<String> SANCTION_TYPES = Set.of("WARNING", "SUSPEND_7", "SUSPEND_30", "BAN");
 
     private ReportRules() {
@@ -97,9 +97,15 @@ public final class ReportRules {
     }
 
     private static String blankToNull(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        return value.strip();
+        if (value == null) return null;
+        int start = 0;
+        int end = value.length();
+        while (start < end && space(value.codePointAt(start))) start += Character.charCount(value.codePointAt(start));
+        while (end > start && space(value.codePointBefore(end))) end -= Character.charCount(value.codePointBefore(end));
+        return start == end ? null : value.substring(start, end);
+    }
+
+    private static boolean space(int point) {
+        return Character.isWhitespace(point) || Character.isSpaceChar(point) || point == 0x85;
     }
 }

@@ -12,6 +12,9 @@ public interface UserAccountUseCase {
     /** 이 회원이 로그인 · 토큰 재발급을 할 수 있는지. 회원이 없거나 ACTIVE가 아니면 false */
     boolean canLogin(Long userId);
 
+    /** 토큰 쓰기 트랜잭션 안에서 사용자 행을 먼저 잠그고 상태를 확인합니다. */
+    boolean canLoginForUpdate(Long userId);
+
     /**
      * 온보딩을 마친 신규 회원을 만듭니다. 호출한 쪽(가입 완료)의 트랜잭션에 합류합니다.
      *

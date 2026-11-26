@@ -19,9 +19,16 @@ import java.util.stream.Collectors;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import java.time.OffsetDateTime;
+import java.util.UUID;
 
 @Repository
 public class JpaFeedAdapter implements FeedRepository {
+    @PersistenceContext
+    private EntityManager entityManager;
     private final FeedJpaRepository feedJpaRepository;
     private final FeedPhotoJpaRepository feedPhotoJpaRepository;
     private final FeedPlaceJpaRepository feedPlaceJpaRepository;
@@ -42,6 +49,8 @@ public class JpaFeedAdapter implements FeedRepository {
 
         feedPhotoJpaRepository.deleteAllByFeedId(feedId);
         feedPlaceJpaRepository.deleteAllByFeedId(feedId);
+        // IDENTITY 삽입보다 기존 관계 삭제를 먼저 반영해 같은 장소 재등록의 UNIQUE 충돌을 막습니다.
+        feedJpaRepository.flush();
         List<FeedPhoto> photos = feedPhotoJpaRepository.saveAll(feed.getPhotos().stream()
                 .map(photo -> FeedPhotoJpaEntity.of(feedId, photo))
                 .toList())
@@ -78,6 +87,32 @@ public class JpaFeedAdapter implements FeedRepository {
         FeedJpaEntity entity = feedJpaRepository.findById(feedId)
                 .orElseThrow(() -> new BusinessException(FeedErrorCode.FEED_NOT_FOUND));
         return toDomain(List.of(entity)).getFirst();
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Feed findByIdForUpdate(Long feedId) {
+        return locked(feedJpaRepository.findByIdForUpdate(feedId)
+                .orElseThrow(() -> new BusinessException(FeedErrorCode.FEED_NOT_FOUND)));
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Feed findByPublicIdForUpdate(UUID publicId) {
+        return locked(feedJpaRepository.findByPublicIdForUpdate(publicId)
+                .orElseThrow(() -> new BusinessException(FeedErrorCode.FEED_NOT_FOUND)));
+    }
+
+    private Feed locked(FeedJpaEntity entity) {
+        // 같은 트랜잭션에서 이미 읽은 행도 잠금 이후의 최신 상태로 판단합니다.
+        entityManager.refresh(entity);
+        return toDomain(List.of(entity)).getFirst();
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean updateHiddenAt(long feedId, OffsetDateTime previous, OffsetDateTime hiddenAt, OffsetDateTime now) {
+        return feedJpaRepository.updateHiddenAt(feedId, previous, hiddenAt, now) == 1;
     }
 
     @Override

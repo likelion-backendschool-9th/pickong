@@ -1,6 +1,8 @@
 package com.pickong.feed.domain.model;
 
 import java.time.OffsetDateTime;
+import com.pickong.common.error.BusinessException;
+import com.pickong.feed.domain.FeedErrorCode;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -43,5 +45,19 @@ public class Comment {
 
     public boolean isReply() {
         return parentId != null;
+    }
+
+    public void ensureReadable(Long viewerId, boolean admin) {
+        if (hiddenAt != null && !admin && !userId.equals(viewerId)) {
+            throw new BusinessException(FeedErrorCode.COMMENT_NOT_FOUND);
+        }
+    }
+
+    public boolean changeHidden(boolean hidden, OffsetDateTime now) {
+        if (deletedAt != null) throw new BusinessException(FeedErrorCode.COMMENT_NOT_FOUND);
+        if ((hiddenAt != null) == hidden) return false;
+        hiddenAt = hidden ? now : null;
+        updatedAt = now;
+        return true;
     }
 }

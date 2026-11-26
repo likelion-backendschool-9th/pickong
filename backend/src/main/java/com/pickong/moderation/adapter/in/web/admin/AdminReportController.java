@@ -13,9 +13,14 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import com.pickong.common.error.ErrorResponse;
 
 /**
- * 관리자 신고 목록과 기각.
+ * 관리자 신고 목록과 처리.
  * <p>
  * 목록은 배열 전체입니다. 상태 필터와 정렬은 서버가 하고, page · size는 받지 않습니다.
  * 처리자 id는 {@link AdminPrincipal}에서만 읽습니다.
@@ -54,5 +59,11 @@ public class AdminReportController {
         } catch (NumberFormatException exception) {
             throw new BusinessException(CommonErrorCode.INVALID_INPUT);
         }
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorResponse unreadableBody(HttpMessageNotReadableException exception) {
+        return ErrorResponse.of(CommonErrorCode.INVALID_INPUT);
     }
 }

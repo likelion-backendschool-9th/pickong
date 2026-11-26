@@ -2,7 +2,7 @@
 
 import { ChevronDown, ChevronUp, Info, Link2, LocateFixed, MapPinPlus } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   categoryLabel,
   formatHours,
@@ -27,12 +27,14 @@ import { findCluster, toClusterMarker } from "../../../_lib/clusterMarker";
 import {
   DEFAULT_MAP_ZOOM,
   hasBootstrappedMapGps,
+  getMapSessionSnapshot,
+  getServerMapSessionSnapshot,
   markMapGpsBootstrapped,
-  readMapCamera,
-  readUserLocation,
+  subscribeMapSession,
   writeMapCamera,
   writeUserLocation,
   type MapCamera,
+  type MapSessionState,
 } from "../../../_lib/mapSession";
 
 const POI = "poi:";
@@ -71,14 +73,16 @@ export function MyMapView({
   const [legendOpen, setLegendOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [mapFocus, setMapFocus] = useState<FocusRequest>(null);
-  const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const [locating, setLocating] = useState(false);
   /**
    * 클라이언트에서 세션을 읽은 뒤에만 지도를 만듭니다.
    * (SSR hydrate 때 useState(sessionStorage)는 항상 null로 고정되는 문제를 피합니다.)
    */
-  const [bootCamera, setBootCamera] = useState<MapCamera | null>(null);
-  const [bootReady, setBootReady] = useState(false);
+  const snapshot = useSyncExternalStore(subscribeMapSession, getMapSessionSnapshot, getServerMapSessionSnapshot);
+  const session = useMemo(() => snapshot ? JSON.parse(snapshot) as MapSessionState : null, [snapshot]);
+  const bootCamera = session?.camera ?? null;
+  const userLocation = session?.userLocation ?? null;
+  const bootReady = session?.bootstrapped ?? false;
   /** 최초 GPS 실패 메시지. 있으면 지도 위에 재시도 UI를 띄웁니다. */
   const [gpsBootError, setGpsBootError] = useState<string | null>(null);
   const [gpsBootRetrying, setGpsBootRetrying] = useState(false);
@@ -87,24 +91,14 @@ export function MyMapView({
     const camera: MapCamera = { center: position, zoom: DEFAULT_MAP_ZOOM };
     writeMapCamera(camera);
     writeUserLocation(position);
-    setUserLocation(position);
-    setBootCamera(camera);
     setMapFocus({ key: focusKey, position });
     setGpsBootError(null);
   };
 
   /**
-   * cacheComponents(Activity)는 탭을 숨겨도 bootCamera state를 유지합니다.
-   * 지도 effect는 다시 돌지만, 첫 페인트 props가 낡은 bootCamera면 그 좌표로
-   * 지도를 만들고 세션까지 덮어씁니다. 세션 재동기화는 useLayoutEffect로
-   * 지도 생성 effect보다 먼저 반영합니다.
+   * cacheComponents(Activity) 복귀 시 외부 저장소 구독이 최신 세션을 다시 읽습니다.
+   * 별도의 복사 상태를 유지하지 않아 낡은 카메라 값으로 세션을 덮어쓰지 않습니다.
    */
-  useLayoutEffect(() => {
-    if (!hasBootstrappedMapGps()) return;
-    setBootCamera(readMapCamera());
-    setUserLocation(readUserLocation());
-    setBootReady(true);
-  }, []);
 
   // 세션 최초 진입만 GPS → 카메라 확정 후에 MapView를 마운트합니다.
   useEffect(() => {
@@ -120,17 +114,13 @@ export function MyMapView({
         const camera: MapCamera = { center: position, zoom: DEFAULT_MAP_ZOOM };
         writeMapCamera(camera);
         writeUserLocation(position);
-        setUserLocation(position);
-        setBootCamera(camera);
       } catch (err) {
         if (cancelled) return;
         // 권한 거부·실패 → MapView 기본 지역 + 재시도 안내.
-        setBootCamera(null);
         setGpsBootError(err instanceof Error ? err.message : "위치를 불러오지 못했어요.");
       } finally {
         if (!cancelled) {
           markMapGpsBootstrapped();
-          setBootReady(true);
         }
       }
     }
@@ -141,10 +131,9 @@ export function MyMapView({
     };
   }, []);
 
-  /** 팬·줌 때도 bootCamera를 같이 갱신해 Activity 복귀 시 낡은 state를 남기지 않습니다. */
+  /** 팬·줌 결과를 저장하면 외부 저장소 구독을 통해 지도 props도 갱신됩니다. */
   const persistCamera = (camera: MapCamera) => {
     writeMapCamera(camera);
-    setBootCamera(camera);
   };
 
   /** 최초 GPS가 실패한 뒤, 같은 화면에서 위치를 다시 요청합니다. */
@@ -245,7 +234,6 @@ export function MyMapView({
     try {
       const position = await getCurrentPosition();
       writeUserLocation(position);
-      setUserLocation(position);
       setMapFocus({ key: `me:${position.lat},${position.lng}:${Date.now()}`, position });
     } catch (err) {
       toast({

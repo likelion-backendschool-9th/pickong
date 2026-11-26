@@ -44,6 +44,7 @@ public class TokenService implements TokenUseCase {
     @Override
     @Transactional
     public IssuedTokens issue(Long userId) {
+        if (!userAccount.canLoginForUpdate(userId)) throw new BusinessException(AuthErrorCode.ACCOUNT_UNAVAILABLE);
         return issueInFamily(userId, UUID.randomUUID().toString(), now());
     }
 
@@ -52,8 +53,8 @@ public class TokenService implements TokenUseCase {
      * <ol>
      *   <li>토큰을 DB에서 찾는다 (없으면 401)</li>
      *   <li>상태 확인: 만료 → 401 / 이미 폐기된 토큰(재사용) → 세션 전체 폐기 후 401</li>
+     *   <li>사용자 행을 잠근다. 정지 · 탈퇴 상태면 모든 기기의 토큰을 폐기하고 401</li>
      *   <li>이 토큰을 폐기한다. 동시에 같은 토큰으로 온 다른 요청이 먼저 폐기했다면 그것도 재사용으로 본다</li>
-     *   <li>회원이 정지 · 탈퇴 상태면 세션 전체 폐기 후 401</li>
      *   <li>같은 family로 새 토큰 쌍을 발급한다 (만료는 다시 14일로 연장)</li>
      * </ol>
      * <b>noRollbackFor:</b> 재사용 · 정지로 세션을 폐기한 뒤 401 예외를 던지는데, 기본 설정이면 예외 때문에
@@ -69,16 +70,16 @@ public class TokenService implements TokenUseCase {
         switch (token.stateAt(now)) {
             case EXPIRED -> throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
             case REUSED -> throw revokeSession(token, now, AuthErrorCode.REFRESH_TOKEN_REUSED);
-            case ACTIVE -> {
-                // 다른 요청이 같은 토큰을 한발 먼저 썼다면 false → 재사용과 같게 처리
-                if (!refreshTokens.revokeIfActive(token.getId(), now)) {
-                    throw revokeSession(token, now, AuthErrorCode.REFRESH_TOKEN_REUSED);
-                }
-            }
+            case ACTIVE -> { }
         }
 
-        if (!userAccount.canLogin(token.getUserId())) {
-            throw revokeSession(token, now, AuthErrorCode.ACCOUNT_UNAVAILABLE);
+        // 제재와 동일하게 사용자 → Refresh Token 순서로 잠급니다.
+        if (!userAccount.canLoginForUpdate(token.getUserId())) {
+            refreshTokens.revokeAllByUserId(token.getUserId(), now);
+            throw new BusinessException(AuthErrorCode.ACCOUNT_UNAVAILABLE);
+        }
+        if (!refreshTokens.revokeIfActive(token.getId(), now)) {
+            throw revokeSession(token, now, AuthErrorCode.REFRESH_TOKEN_REUSED);
         }
         return issueInFamily(token.getUserId(), token.getFamily(), now);
     }
