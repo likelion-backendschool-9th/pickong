@@ -7,9 +7,11 @@ export {
   useAddComment,
   useComments,
   useCreatePost,
+  useDeleteComment,
   useFeed,
   useFeedPlaces,
   usePost,
+  useUpdateComment,
   useUserPlaces,
   useUserPosts,
 } from "./api/queries";
