@@ -10,9 +10,9 @@ import java.util.List;
  */
 public interface FeedPlaceQueryPort {
 
-    // 추천 탭: PUBLIC 피드에 연결된 공개(PUBLIC) · 삭제되지 않은 장소 목록
-    List<FeedPlaceSummary> findRecommendedFeedPlaces();
+    // 추천 탭과 같은 기준: 다른 사람의 PUBLIC 게시물에 연결된 공개 · 삭제되지 않은 장소. viewerId가 null이면 PUBLIC 전체
+    List<FeedPlaceSummary> findRecommendedFeedPlaces(Long viewerId);
 
-    // 팔로잉 탭: 팔로잉한 사용자의 PUBLIC 피드에 연결된 공개 · 삭제되지 않은 장소 목록
+    // 팔로잉 탭과 같은 기준: 내 게시물 전부 + 팔로우한 사람의 PUBLIC, FOLLOWERS 게시물에 연결된 공개 · 삭제되지 않은 장소
     List<FeedPlaceSummary> findFollowingFeedPlaces(Long userId);
 }
