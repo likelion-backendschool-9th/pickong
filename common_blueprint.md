@@ -217,10 +217,10 @@ DM · 그룹 채팅의 실시간 전달 형식입니다. 서버 구조와 결정
 
 | 목적지 | 본문 | 결과 |
 | --- | --- | --- |
-| `/app/dm.send` | `{ "conversationId": "42", "clientMessageId": "UUID", "content": "안녕", "attachment": null }` | 성공하면 참여자 전원(보낸 사람 포함)에게 `MESSAGE_CREATED` |
+| `/app/dm.send` | `{ "conversationId": "42", "clientMessageId": "UUID", "text": "안녕", "attachment": null }` | 성공하면 참여자 전원(보낸 사람 포함)에게 `MESSAGE_CREATED` |
 | `/app/dm.read` | `{ "conversationId": "42", "lastReadMessageId": "1001" }` | 다른 참여자와 내 다른 탭에 `READ_UPDATED`. 읽음 위치는 뒤로 가지 않습니다 |
 
-- `content`와 `attachment` 중 하나만 보냅니다. 본문은 2,000자까지입니다. 첨부 형식(사진 · 장소 · 게시물)은 메시지 API 구현 이슈에서 ERD에 맞춰 정합니다.
+- `text`와 `attachment` 중 하나만 보냅니다. 본문은 2,000자까지입니다. 첨부 형식(사진 · 장소 · 게시물)은 메시지 API 구현 이슈에서 ERD에 맞춰 정합니다.
 - `clientMessageId`는 프론트가 메시지마다 만드는 UUID입니다. **다시 보낼 때는 같은 값을 씁니다.** 서버는 같은 값이면 새로 저장하지 않고 기존 메시지로 다시 확인해 줍니다.
 - 메시지 보내기용 HTTP API는 없습니다. 읽음은 HTTP `PATCH /conversations/{id}/read`로도 할 수 있습니다.
 
@@ -236,11 +236,11 @@ DM · 그룹 채팅의 실시간 전달 형식입니다. 서버 구조와 결정
 | `type` | `data` | 언제 |
 | --- | --- | --- |
 | `MESSAGE_CREATED` | 메시지 목록 API의 메시지 항목과 같은 형식 + `conversationId`, `clientMessageId` | 새 메시지 (보낸 사람에게는 전송 확인) |
-| `READ_UPDATED` | `{ "conversationId", "username", "lastReadMessageId" }` | 누군가 읽음 위치를 옮김 |
+| `READ_UPDATED` | `{ "conversationId", "userId", "lastReadMessageId" }` (`userId`는 회원 공개 id) | 누군가 읽음 위치를 옮김 |
 
 - 입력 중 표시, 참여자 나감 · 초대 같은 이벤트는 만들 때 `type`을 추가합니다. **프론트는 모르는 `type`을 무시합니다.**
 - 메시지 순서는 `id` 순서입니다. 이벤트와 다시 불러온 목록이 겹칠 수 있으므로 `id`로 중복을 없앱니다.
-- 보낸 사람은 `username`으로 나타냅니다. 회원 내부 id는 보내지 않습니다.
+- 보낸 사람은 `senderId`(회원 공개 id `users.public_id`)로 나타냅니다. 회원 내부 id는 보내지 않습니다.
 
 **오류**
 
@@ -341,6 +341,7 @@ API 명세서에서 **'보류'**로 표시한 기능입니다. 프론트·백엔
 - [껍데기] DM (1:1 메시지): 대화 목록(`/messages`, 대화 · 사람 검색) · 대화방(`/messages/[conversationId]`), 게시물 · 장소 공유 카드, 입력창 + 버튼으로 사진 · 장소 첨부, 프로필의 ‘메시지’ 버튼이나 검색으로 시작
   - API: `GET/POST /api/conversations`, `GET /api/conversations/unread-count`(하단바 배지), `GET /api/conversations/:id`, `GET/POST /api/conversations/:id/messages` (목록 조회 시 읽음 처리, 보낼 때 `attachment: { type: "IMAGE", url } | { type: "PLACE", placeId }`). 사진은 업로드 API 연결 전까지 브라우저 임시 URL
   - 실시간 연결 전까지 열린 대화방은 5초마다 새 메시지를 확인
+  - 백엔드 HTTP API는 구현됨(#188, 1:1만): 경로 · 형식은 [backend_blueprint.md](backend_blueprint.md) 3장 conversation의 구현 현황. mock과 다른 점은 대화방 열기 `POST /conversations/direct`, 메시지 내역 커서 페이지(`{ items, nextCursor }`), 조회만으로는 읽지 않음
   - 백엔드 연동 시: 보내기는 STOMP `/app/dm.send`로 바뀌고 `POST …/messages`는 없습니다. 읽음은 목록 조회가 아니라 `PATCH /conversations/{id}/read` 또는 `/app/dm.read`로 따로 처리합니다. 새 메시지 · 읽음은 폴링 대신 `/user/queue/dm` 이벤트로 받습니다 (5.9)
 - [껍데기] 팔로우 / 언팔로우, 팔로워·팔로잉 목록
 - 프로필 편집: 아이디(바꾸면 프로필 주소도 바뀜) · 이름 · 소개 · 활동 지역 (`PATCH /me` `{ username, name, bio, region }`, 보낸 항목만 변경). 사진은 업로드 API 연결 후

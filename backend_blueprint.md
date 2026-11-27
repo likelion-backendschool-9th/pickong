@@ -499,8 +499,9 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | 메서드 | 경로 · 목적지 | 입력 포트 · 메서드 |
 | --- | --- | --- |
 | GET | `/conversations` | `ConversationQueryUseCase.myConversations` |
+| GET | `/conversations/unread-count` | `ConversationQueryUseCase.unreadCount` (8.1 #11) |
 | POST | `/conversations/direct` | `ConversationCommandUseCase.openDirect` (있으면 기존 반환) |
-| POST | `/conversations/group` | `ConversationCommandUseCase.createGroup` |
+| POST | `/conversations/group` | `ConversationCommandUseCase.createGroup` (그룹 이슈, 아직 없음) |
 | GET | `/conversations/{conversationId}` | `ConversationQueryUseCase.getDetail` |
 | GET | `/conversations/{conversationId}/messages` | `ConversationQueryUseCase.messages` (`cursor`: 이전 내역, `after`: 끊긴 동안 빠진 메시지 보충, 5.4.6) |
 | PATCH | `/conversations/{conversationId}/read` | `MessageUseCase.markRead` (HTTP 대체 수단) |
@@ -510,6 +511,19 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | STOMP SUBSCRIBE | `/user/queue/dm` (이벤트 종류는 `type`), `/user/queue/errors` | 출력: `MessagePushPort` · `@MessageExceptionHandler` |
 
 STOMP 메시지 형식(보내기 · 이벤트 · 오류)은 [common_blueprint.md](common_blueprint.md) 5.9가 기준입니다.
+
+#### 대화방 HTTP API 구현 현황 (2026-11-28, #188)
+
+- **1:1만 구현했습니다.** 그룹(`/conversations/group`, 방장 · 초대 등)은 별도 이슈이고, STOMP 보내기 · 실시간 전달도 별도 이슈입니다. 마이그레이션은 V21(`conversations`, `conversation_members`, `messages`)이고 첨부 컬럼은 보내기 이슈에서 추가합니다.
+- **볼 수 있는 메시지** = 지우지 않았고(`deleted_at IS NULL`) 내 참여 시각(`joined_at`) 이후에 보낸 메시지. 내역 · 마지막 메시지 · 안 읽은 수가 모두 이 기준입니다. 안 읽은 메시지는 그중 상대가 보냈고 `last_read_message_id`보다 뒤에 있는 것입니다.
+- `GET /conversations`: 배열. 참여 중이고 볼 수 있는 메시지가 있는 1:1 대화방만, 마지막 메시지 id 내림차순. `GET /conversations/{id}`는 메시지가 없어도 보이고, 그때 `updatedAt`은 내 참여 시각입니다.
+- `POST /conversations/direct` `{username}`: 새로 만들면 201, 있으면 200(본문은 같은 `ConversationDto`). 상대가 없거나 ACTIVE가 아니면 404 `USER_NOT_FOUND`, 나 자신은 400 `SELF_CONVERSATION_NOT_ALLOWED`. 동시에 열어도 `INSERT … ON CONFLICT (direct_key) DO NOTHING`으로 하나만 생깁니다. **내가 나갔던 대화방이면 다시 참여**하고(참여 시각을 지금으로 바꿔 예전 메시지는 보이지 않음), 상대가 나간 상태는 그대로 둡니다(상대는 보내기 이슈에서 새 메시지를 받을 때 다시 참여).
+- `GET /conversations/{id}/messages?cursor=|after=&size=`: `{ items, nextCursor }`, `items`는 항상 오래된 순. `size` 기본 30, 1~100. `cursor`와 `after`를 함께 보내면 400 `INVALID_INPUT`. 조회는 읽음 위치를 바꾸지 않습니다.
+- `PATCH /conversations/{id}/read`: 본문 `{ lastReadMessageId }`는 선택이고 없으면 마지막 메시지까지. 뒤로 가지 않으며 동시 요청도 조건부 UPDATE로 막습니다. 이 대화방에서 볼 수 없는 메시지면 404 `MESSAGE_NOT_FOUND`. 204.
+- `DELETE /conversations/{id}/members/me`: 204. 나간 뒤에는 목록에서 빠지고 상세 · 내역 · 읽음 · 나가기가 404 `CONVERSATION_NOT_FOUND`입니다. 참여하지 않은 대화방도 같은 404입니다(있다는 것을 알리지 않음).
+- `GET /conversations/unread-count`: `{ count }`. 참여 중인 모든 대화방의 안 읽은 메시지 수 합.
+- 응답 필드는 프론트 DTO에 맞췄습니다. `ConversationDto { id, partner { id, username, nickname, profileImageUrl }, lastMessage, unreadCount, updatedAt }`, `MessageDto { id, conversationId, senderId, isMine, text, attachment, createdAt }`. `partner.id` · `senderId`는 회원 공개 id(`users.public_id`), `nickname`은 이름이 없으면 아이디, `attachment`는 첨부를 만들 때까지 항상 null, 대화방 · 메시지 id는 문자열입니다.
+- 남은 것: 차단 관계 확인(`user_blocks`, #179 이후), 첨부, 그룹. 프론트는 아직 mock 계약(`POST /conversations`, 배열 내역, 조회 시 읽음)을 쓰므로 `BACKEND_PATHS`에 넣지 않았습니다. 프론트 연동 이슈에서 이 계약으로 바꿉니다.
 
 ### notification
 | 메서드 | 경로 | 입력 포트 · 메서드 |
@@ -1375,7 +1389,7 @@ conversation/
 │   │   │   └── MessageUseCase.java              # send(STOMP), markRead(HTTP · STOMP 공용)
 │   │   └── out/
 │   │       ├── ConversationPersistencePort.java # Conversation + Members
-│   │       ├── MessagePersistencePort.java      # 저장 · (sender, clientMessageId)로 기존 메시지 찾기
+│   │       ├── MessagePersistencePort.java      # 볼 수 있는 마지막 메시지 · 메시지 확인 (보내기 이슈: 저장 · clientMessageId로 찾기)
 │   │       ├── ConversationQueryPort.java
 │   │       └── MessagePushPort.java             # pushMessage(받는 사람들, 메시지), pushRead(받는 사람들, 읽음 정보)
 │   ├── service/
@@ -1390,7 +1404,8 @@ conversation/
     ├── in/websocket/
     │   ├── DmStompController.java          # @MessageMapping("dm.send" · "dm.read"), @MessageExceptionHandler(보내기 오류에 clientMessageId)
     │   └── payload/                        # SendMessagePayload, ReadPayload, DmEventPayload({type, data}) (STOMP 전용 DTO)
-    ├── out/persistence/
+    ├── out/persistence/                    # ConversationPersistenceAdapter(1:1은 INSERT … ON CONFLICT), MessagePersistenceAdapter
+    │   └── query/ConversationQueryAdapter.java  # 목록 · 상세 · 내역 · 안 읽은 수 SQL (users는 JOIN으로 읽기만)
     └── out/websocket/StompMessagePushAdapter.java   # 커밋 후(TransactionSynchronization) UserPushRelay.publish
 ```
 
@@ -1413,7 +1428,7 @@ common/websocket/
 | --- | --- | --- |
 | 연결 (`/ws` 핸드셰이크) | `common/websocket/WebSocketConfig` | **Origin이 허용 목록(프론트 주소)에 없으면 거절.** 쿠키로 인증하므로 다른 사이트가 사용자 브라우저로 연결하는 것(CSWSH)을 막습니다. SameSite=Lax 쿠키도 다른 사이트의 핸드셰이크에는 실리지 않지만, 같은 사이트의 다른 하위 도메인까지 막으려고 Origin을 확인합니다 |
 | 연결 (`/ws` 핸드셰이크) | `auth/adapter/in/websocket/WebSocketAuthHandshakeInterceptor` | httpOnly 쿠키의 Access Token 검증 → Principal. 실패하면 401로 핸드셰이크 거절. JS가 토큰을 읽을 수 없으므로 CONNECT 헤더 대신 핸드셰이크 쿠키를 씀. 토큰 만료 시각을 세션 속성에 저장 |
-| Principal 이름 | 위와 같음 | **회원 내부 id 문자열.** 아이디(`username`)는 바꿀 수 있어 사용자 목적지 키로 쓰지 않습니다. 응답에는 내부 id 대신 `username`을 씁니다(8.6) |
+| Principal 이름 | 위와 같음 | **회원 내부 id 문자열.** 아이디(`username`)는 바꿀 수 있어 사용자 목적지 키로 쓰지 않습니다. 응답에는 내부 id 대신 공개 id(`public_id`)와 `username`을 씁니다(8.6) |
 | CSRF | — | STOMP CONNECT에 CSRF 토큰을 요구하지 않습니다(Spring Security 메시지 보안 미사용). 위의 Origin 확인과 SameSite 쿠키가 같은 역할을 합니다 |
 | 구독 (SUBSCRIBE) | `auth/adapter/in/websocket/StompDestinationGuard` | `/user/queue/**` 외 목적지 구독 거부. 사용자 목적지는 본인에게만 전달되므로 대화방별 구독 권한 검사가 필요 없음 |
 | 보내기 (SEND) | `StompDestinationGuard` → `MessageService` | 목적지는 `/app/**`만 허용. 대화방 참여 · 차단 · 첨부 권한은 서비스가 검사 (HTTP와 같은 코드) |
@@ -1426,7 +1441,7 @@ common/websocket/
 클라이언트                          서버 (어느 인스턴스든)
   │ SEND /app/dm.send                 │
   │ {conversationId, clientMessageId, │
-  │  content | attachment}            │
+  │  text | attachment}               │
   │──────────────────────────────────▶│ MessageService: 권한 · 규칙 확인 → 저장(tx) → 커밋
   │                                   │ 커밋 후 UserPushRelay.publish(참여자 전원, MESSAGE_CREATED)
   │◀── /user/queue/dm ────────────────│  보낸 사람의 다른 탭 · 다른 참여자도 같은 이벤트를 받음
@@ -1673,8 +1688,8 @@ class ArchitectureTest {
 | 7 | 저장 장소 개인 태그: 이전에는 보류였지만 ERD에 `saved_place_tags`(2026-11-20)가 추가됐고, 프론트 · mock은 `/me/places/{placeId}/tags`를 씀 | savedplace | 메모는 `PATCH /saved-places`의 `memo`. 태그는 ERD대로 구현(달거나 지울 때 `place_tags.count`, `user_tag_stats.score` 갱신). 태그 테이블(`tags` 등) 마이그레이션 필요 |
 | 8 ★ | **관리자 로그인 · 토큰 API 없음.** `refresh_tokens.user_id`는 회원만 가리킴 | admin, auth | 관리자 로그인 API + 관리자 세션 방식 결정 (별도 토큰 테이블 또는 짧은 세션) |
 | 9 | **비밀번호 재설정 토큰** 저장 위치 없음 | auth | 테이블(해시 · 만료 · 사용 시각) 또는 만료 있는 캐시 |
-| 10 | DM 재전송 중복 방지 키 없음 (재연결 시 같은 메시지 두 번 저장) | conversation | **결정 (2026-11-27):** `messages.client_message_id UUID NOT NULL` + UNIQUE(sender_id, client_message_id). 같은 키로 다시 오면 저장하지 않고 기존 메시지로 전송 확인 (5.4.4). `messages` 마이그레이션을 만들 때 함께 추가 |
-| 11 | DM 안 읽은 대화 수(프론트 하단바 배지, mock `GET /conversations/unread-count`)가 명세에 없음 | conversation | 명세 추가 (`last_read_message_id`로 계산 가능) |
+| 10 | DM 재전송 중복 방지 키 없음 (재연결 시 같은 메시지 두 번 저장) | conversation | **결정 (2026-11-27):** `messages.client_message_id UUID NOT NULL` + UNIQUE(sender_id, client_message_id). 같은 키로 다시 오면 저장하지 않고 기존 메시지로 전송 확인 (5.4.4). V21에 추가함 |
+| 11 | DM 안 읽은 대화 수(프론트 하단바 배지, mock `GET /conversations/unread-count`)가 명세에 없음 | conversation | **구현 (#188):** `GET /conversations/unread-count` → `{ count }`. mock과 같이 안 읽은 **메시지** 수의 합 (`last_read_message_id`로 계산) |
 | 12 | **저장 출처 컬렉션:** ERD의 `saved_places.source_collection_id`(FK → collections)는 `collections` 마이그레이션이 없어 만들지 못했음(V19로 테이블이 생겨 이제 추가 가능). 출처 문구(`source_label`) · 원본 URL(`source_url`) · 게시물(`source_feed_id`)은 ERD에 있어 해결됨 | savedplace, collection | savedplace 저장 API 작업에서 컬럼 · FK 추가. 그 전에는 `COLLECTION` 출처를 종류 · 문구만 저장 |
 | 13 | **저장하면서 컬렉션에 담기:** 프론트 · mock은 `POST /saved-places`의 `collectionIds`와 `PATCH /saved-places`의 `add/set/removeCollectionIds`로 컬렉션 구성까지 한 번에 바꿈. `collection_places`는 collection 모듈 소유라 savedplace가 직접 쓰거나 collection의 UseCase를 부르면 `savedplace → collection` 화살표가 생겨, 이미 있는 `collection → savedplace`와 서로 의존하게 됨(6.2 비순환 원칙). DB 관계(`collection_places`가 `collections` · `saved_places`를 FK로 잇는 다대다)에는 문제가 없음 | savedplace, collection | **결정: 이벤트 방식 (2026-11-26).** savedplace가 저장 · 수정 직후 같은 트랜잭션에서 `SavedPlaceCollectionsChangedEvent`를 발행하고, collection의 리스너가 `collection_places`를 쓰며 컬렉션 소유자를 검증함(실패하면 함께 롤백). 삭제의 `SavedPlaceDeletingEvent`와 같은 방식이고, 코드 의존은 `collection → savedplace` 한 방향뿐. `collections` · `collection_places`는 V19로 생겼으므로 리스너를 구현할 수 있음. 구현 전에는 필드를 받기만 하고 무시 |
 | 12 | 개인 크리에이터 · 사업자 구분 없음 → 원천징수 3.3% "개인만" 적용 불가 | settlement, creator | `creators.business_type` 또는 정산 계좌에 사업자 정보 |
