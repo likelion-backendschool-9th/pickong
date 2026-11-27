@@ -11,6 +11,7 @@ export type MessageAttachment =
 export type OutgoingAttachment = { type: "IMAGE"; url: string } | { type: "PLACE"; placeId: string };
 
 export interface Message {
+  /** 서버 id(숫자 문자열). 보내는 중인 메시지는 "pending:{clientMessageId}" */
   id: string;
   conversationId: string;
   senderId: string;
@@ -18,6 +19,16 @@ export interface Message {
   text: string;
   attachment: MessageAttachment | null;
   createdAt: string;
+  /** 내가 보낸 메시지를 만든 UUID. 서버 확인(MESSAGE_CREATED)과 보내는 중인 말풍선을 짝지을 때 씁니다 */
+  clientMessageId?: string;
+  /** 보내는 중 · 실패. 서버에 저장된 메시지는 없음(undefined) */
+  status?: "sending" | "failed";
+}
+
+/** 대화방 메시지 목록 (오래된 순) + 더 오래된 내역을 불러올 커서 */
+export interface MessageThread {
+  items: Message[];
+  olderCursor: string | null;
 }
 
 /** 1:1 대화방 */

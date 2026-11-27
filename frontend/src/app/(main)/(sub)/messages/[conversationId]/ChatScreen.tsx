@@ -3,7 +3,15 @@
 import { ArrowUp, ImagePlus, MapPin, Plus, X } from "lucide-react";
 import Link from "next/link";
 import { Fragment, useEffect, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from "react";
-import { useConversation, useMessages, useSendMessage, type Message } from "@/entities/conversation";
+import {
+  useConversation,
+  useConversationRealtime,
+  useLoadOlderMessages,
+  useMarkReadWhileVisible,
+  useMessages,
+  useSendMessage,
+  type Message,
+} from "@/entities/conversation";
 import { categoryLabel, useSavedPlaces, type Place } from "@/entities/place";
 import { PlaceSearchPanel } from "@/features/place-search";
 import { errorMessage } from "@/shared/api/errors";
@@ -15,17 +23,24 @@ import { Avatar, ErrorState, Photo, Skeleton, Thumb } from "@/shared/ui/display"
 import { TopBar } from "@/shared/ui/layout";
 import { useToast } from "@/shared/ui/Toast";
 
-/** DM 대화방: 날짜별로 묶은 말풍선 + 게시물 · 장소 공유 카드 + 하단 입력창 */
+/**
+ * DM 대화방: 날짜별로 묶은 말풍선 + 게시물 · 장소 공유 카드 + 하단 입력창.
+ * 새 메시지는 실시간(STOMP)으로 받고, 보고 있는 동안 상대 메시지를 읽음으로 표시합니다.
+ */
 export function ChatScreen({ id }: { id: string }) {
+  useConversationRealtime();
   const { data: conversation, isError: convError, error: convErr } = useConversation(id);
-  const { data: messages, isPending, isError, error, refetch } = useMessages(id);
+  const { data: thread, isPending, isError, error, refetch } = useMessages(id);
+  const messages = thread?.items;
+  const loadOlder = useLoadOlderMessages(id);
+  useMarkReadWhileVisible(id, messages);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const count = messages?.length ?? 0;
+  const lastId = messages?.at(-1)?.id;
 
-  // 처음 열 때와 새 메시지가 올 때 맨 아래로
+  // 처음 열 때와 새 메시지가 올 때 맨 아래로 (이전 내역을 앞에 붙일 때는 그대로)
   useEffect(() => {
-    if (count) bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [count]);
+    if (lastId) bottomRef.current?.scrollIntoView({ block: "end" });
+  }, [lastId]);
 
   const partner = conversation?.partner;
 
@@ -56,10 +71,22 @@ export function ChatScreen({ id }: { id: string }) {
           </div>
         ) : isError ? (
           <ErrorState message={errorMessage(error)} onRetry={() => refetch()} />
-        ) : messages.length === 0 ? (
+        ) : !messages || messages.length === 0 ? (
           <p className="pt-10 text-center text-[13px] text-ink-faint">{partner ? `${partner.username}님에게 첫 메시지를 보내 보세요.` : ""}</p>
         ) : (
           <ol className="space-y-1.5">
+            {thread.olderCursor && (
+              <li className="pb-2 text-center">
+                <button
+                  type="button"
+                  onClick={() => loadOlder.mutate()}
+                  disabled={loadOlder.isPending}
+                  className="rounded-full bg-fill px-3 py-1.5 text-[12px] text-ink-sub active:bg-line disabled:text-ink-faint"
+                >
+                  {loadOlder.isPending ? "불러오는 중" : "이전 메시지 보기"}
+                </button>
+              </li>
+            )}
             {messages.map((m, i) => {
               const prev = messages[i - 1];
               const next = messages[i + 1];
@@ -74,7 +101,7 @@ export function ChatScreen({ id }: { id: string }) {
                       {formatLongDate(localYmd(m.createdAt))}
                     </li>
                   )}
-                  <MessageItem message={m} showTime={showTime} avatar={showAvatar ? partner : undefined} />
+                  <MessageItem id={id} message={m} showTime={showTime} avatar={showAvatar ? partner : undefined} />
                 </Fragment>
               );
             })}
@@ -89,16 +116,18 @@ export function ChatScreen({ id }: { id: string }) {
 }
 
 function MessageItem({
+  id,
   message: m,
   showTime,
   avatar,
 }: {
+  id: string;
   message: Message;
   showTime: boolean;
   avatar?: { username: string; profileImageUrl: string | null };
 }) {
   return (
-    <li className={cn("flex items-end gap-1.5", m.isMine ? "flex-row-reverse" : "flex-row")}>
+    <li className={cn("flex items-end gap-1.5", m.isMine ? "flex-row-reverse" : "flex-row", m.status === "sending" && "opacity-60")}>
       {!m.isMine && <span className="w-7 shrink-0">{avatar && <Avatar src={avatar.profileImageUrl} name={avatar.username} size={28} />}</span>}
       <div className={cn("flex max-w-[75%] flex-col gap-1", m.isMine ? "items-end" : "items-start")}>
         {m.attachment && <AttachmentCard attachment={m.attachment} />}
@@ -113,8 +142,29 @@ function MessageItem({
           </p>
         )}
       </div>
-      {showTime && <time className="shrink-0 pb-0.5 text-[10px] text-ink-faint" dateTime={m.createdAt}>{formatClock(m.createdAt)}</time>}
+      {m.status === "failed" ? (
+        <RetryButton id={id} message={m} />
+      ) : m.status === "sending" ? (
+        <span className="shrink-0 pb-0.5 text-[10px] text-ink-faint">보내는 중</span>
+      ) : (
+        showTime && <time className="shrink-0 pb-0.5 text-[10px] text-ink-faint" dateTime={m.createdAt}>{formatClock(m.createdAt)}</time>
+      )}
     </li>
+  );
+}
+
+/** 보내지 못한 메시지: 같은 clientMessageId로 다시 보내서 서버가 두 번 저장하지 않습니다. */
+function RetryButton({ id, message }: { id: string; message: Message }) {
+  const { retry } = useSendMessage(id);
+  const toast = useToast();
+  return (
+    <button
+      type="button"
+      onClick={() => retry(message).catch((err) => toast({ message: errorMessage(err) }))}
+      className="shrink-0 pb-0.5 text-[11px] font-bold text-danger"
+    >
+      전송 실패 · 다시 보내기
+    </button>
   );
 }
 
@@ -169,10 +219,10 @@ function Composer({ id, disabled }: { id: string; disabled: boolean }) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [sheet, setSheet] = useState<"menu" | "place" | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const send = useSendMessage(id);
+  const { send } = useSendMessage(id);
   const toast = useToast();
   const { data: saved = [] } = useSavedPlaces();
-  const canSend = !disabled && (text.trim().length > 0 || !!draft) && !send.isPending;
+  const canSend = !disabled && (text.trim().length > 0 || !!draft);
 
   const clearDraft = () => {
     if (draft?.type === "IMAGE") URL.revokeObjectURL(draft.url);
@@ -193,16 +243,10 @@ function Composer({ id, disabled }: { id: string; disabled: boolean }) {
     e?.preventDefault();
     if (!canSend) return;
     const attachment = draft ? (draft.type === "IMAGE" ? draft : { type: "PLACE" as const, placeId: draft.place.id }) : null;
-    send.mutate(
-      { text: text.trim(), attachment },
-      {
-        onSuccess: () => {
-          setText("");
-          setDraft(null); // 보낸 사진 URL은 말풍선에서 계속 쓰므로 해제하지 않습니다.
-        },
-        onError: (err) => toast({ message: errorMessage(err) }),
-      },
-    );
+    // 보내는 중 말풍선이 바로 생기므로 입력창은 바로 비웁니다. 실패하면 말풍선에 '다시 보내기'가 남습니다.
+    send({ text: text.trim(), attachment, preview: draft }).catch((err) => toast({ message: errorMessage(err) }));
+    setText("");
+    setDraft(null); // 보낸 사진 URL은 말풍선에서 계속 쓰므로 해제하지 않습니다.
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {

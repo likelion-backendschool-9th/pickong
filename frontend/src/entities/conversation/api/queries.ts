@@ -1,20 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Message, OutgoingAttachment } from "../model";
+import { useCallback, useEffect, useRef } from "react";
+import { latestServerMessage, mergeMessages } from "../messageList";
+import type { Message, MessageAttachment, MessageThread, OutgoingAttachment } from "../model";
 import { conversationApi } from "./conversationApi";
+import { conversationKeys } from "./keys";
+import { sendMessage, type SendInput } from "./realtime";
 
-/** 새 메시지를 확인하는 주기 (실시간 연결 전까지 주기적으로 다시 불러옵니다) */
-const POLL_MS = 5_000;
+export { conversationKeys };
 
-export const conversationKeys = {
-  all: ["conversations"] as const,
-  list: () => [...conversationKeys.all, "list"] as const,
-  unread: () => [...conversationKeys.all, "unread"] as const,
-  detail: (id: string) => [...conversationKeys.all, "detail", id] as const,
-  messages: (id: string) => [...conversationKeys.all, "messages", id] as const,
-};
+/*
+ * 새 메시지 · 읽음은 실시간 이벤트(./realtime)가 캐시를 갱신하므로 주기적으로 다시 불러오지 않습니다.
+ * 끊긴 동안 놓친 것은 다시 연결 · 탭 복귀 때 보충합니다.
+ */
 
-export const useConversations = () =>
-  useQuery({ queryKey: conversationKeys.list(), queryFn: conversationApi.list, refetchInterval: POLL_MS * 6 });
+export const useConversations = () => useQuery({ queryKey: conversationKeys.list(), queryFn: conversationApi.list });
 
 /**
  * 안 읽은 메시지 수 (하단바 배지).
@@ -22,36 +21,91 @@ export const useConversations = () =>
  * 하단바가 먼저 받아 둔 목록으로 다르게 그려져 hydration 불일치가 납니다.
  */
 export const useUnreadMessageCount = () =>
-  useQuery({ queryKey: conversationKeys.unread(), queryFn: conversationApi.unreadCount, refetchInterval: POLL_MS * 6 }).data ?? 0;
+  useQuery({ queryKey: conversationKeys.unread(), queryFn: conversationApi.unreadCount }).data ?? 0;
 
 export const useConversation = (id: string) =>
   useQuery({ queryKey: conversationKeys.detail(id), queryFn: () => conversationApi.get(id) });
 
-/** 대화방 메시지. 열려 있는 동안 주기적으로 새 메시지를 확인하고, 읽음 처리 후 목록 배지를 갱신합니다. */
-export function useMessages(id: string) {
-  const qc = useQueryClient();
-  return useQuery({
+/** 대화방 메시지 (오래된 순). 처음에는 최신 한 페이지만 불러오고, 이전 내역은 useLoadOlderMessages로 앞에 붙입니다. */
+export const useMessages = (id: string) =>
+  useQuery({
     queryKey: conversationKeys.messages(id),
-    queryFn: async () => {
-      const list = await conversationApi.messages(id);
-      // 읽음 처리됐으므로 대화 목록 · 배지 갱신 (메시지 자신은 다시 부르지 않도록 키를 골라서)
-      qc.invalidateQueries({ queryKey: conversationKeys.list() });
-      qc.invalidateQueries({ queryKey: conversationKeys.unread() });
-      return list;
+    queryFn: async (): Promise<MessageThread> => {
+      const page = await conversationApi.messages(id);
+      return { items: page.items, olderCursor: page.nextCursor };
     },
-    refetchInterval: POLL_MS,
+    // 실시간으로 받은 메시지와 보내는 중 말풍선이 캐시에만 있으므로, 화면을 다시 열 때 덮어쓰지 않게 합니다.
+    staleTime: Infinity,
+  });
+
+export function useLoadOlderMessages(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const cursor = qc.getQueryData<MessageThread>(conversationKeys.messages(id))?.olderCursor;
+      return cursor ? conversationApi.messages(id, cursor) : null;
+    },
+    onSuccess: (page) => {
+      if (!page) return;
+      qc.setQueryData<MessageThread>(conversationKeys.messages(id), (thread) =>
+        thread ? { items: mergeMessages(thread.items, page.items), olderCursor: page.nextCursor } : thread,
+      );
+    },
   });
 }
 
+/**
+ * 대화방을 보고 있는 동안, 상대가 보낸 마지막 메시지까지 읽음으로 표시합니다(탭이 보일 때만).
+ * 조회만으로는 읽음이 되지 않으므로(backend 3장) 따로 보냅니다.
+ */
+export function useMarkReadWhileVisible(id: string, items: Message[] | undefined) {
+  const qc = useQueryClient();
+  const marked = useRef<string | null>(null);
+  const last = items ? latestServerMessage(items) : null;
+  const lastId = last && !last.isMine ? last.id : null;
+
+  const mark = useCallback(() => {
+    if (!lastId || marked.current === lastId || document.visibilityState !== "visible") return;
+    marked.current = lastId;
+    conversationApi
+      .markRead(id, lastId)
+      .then(() => {
+        qc.invalidateQueries({ queryKey: conversationKeys.unread() });
+        qc.invalidateQueries({ queryKey: conversationKeys.list() });
+        qc.invalidateQueries({ queryKey: conversationKeys.detail(id) });
+      })
+      .catch(() => {
+        marked.current = null;
+      });
+  }, [id, lastId, qc]);
+
+  useEffect(() => {
+    mark();
+    document.addEventListener("visibilitychange", mark);
+    return () => document.removeEventListener("visibilitychange", mark);
+  }, [mark]);
+}
+
+/** 메시지 보내기 (STOMP). 실패하면 말풍선이 '실패'로 남고 retry로 같은 clientMessageId로 다시 보냅니다. */
 export function useSendMessage(id: string) {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: { text: string; attachment?: OutgoingAttachment | null }) => conversationApi.send(id, input),
-    onSuccess: (message) => {
-      qc.setQueryData<Message[]>(conversationKeys.messages(id), (prev) => [...(prev ?? []), message]);
-      qc.invalidateQueries({ queryKey: conversationKeys.list() });
-    },
-  });
+  return {
+    send: (input: SendInput) => sendMessage(qc, id, input),
+    retry: (message: Message) =>
+      sendMessage(
+        qc,
+        id,
+        { text: message.text, attachment: toOutgoing(message.attachment), preview: message.attachment },
+        message.clientMessageId,
+      ),
+  };
+}
+
+/** 다시 보낼 때 말풍선의 첨부를 보낼 형식으로 되돌립니다. 게시물 공유는 입력창에서 만들지 않으므로 없음 */
+function toOutgoing(attachment: MessageAttachment | null): OutgoingAttachment | null {
+  if (attachment?.type === "IMAGE") return { type: "IMAGE", url: attachment.url };
+  if (attachment?.type === "PLACE" && attachment.place) return { type: "PLACE", placeId: attachment.place.id };
+  return null;
 }
 
 export function useStartConversation() {
