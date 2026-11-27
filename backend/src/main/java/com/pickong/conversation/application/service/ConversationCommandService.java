@@ -49,10 +49,11 @@ public class ConversationCommandService implements ConversationCommandUseCase {
         SavedDirect saved = conversations.saveDirectIfAbsent(Conversation.openDirect(userId, partner.id(), now));
 
         if (!saved.created()) {
-            ConversationMember me = load(saved.conversationId()).memberOf(userId)
+            // 메시지 보내기와 같은 대화방 행 잠금을 거친 뒤 참여 시각을 정해, 경계에 걸린 메시지가 보이지 않는 일이 없게 합니다.
+            ConversationMember me = lock(saved.conversationId()).memberOf(userId)
                     .orElseThrow(() -> new IllegalStateException("1:1 대화방에 참여자 행이 없습니다: " + saved.conversationId()));
             if (!me.isActive()) {
-                conversations.rejoin(me.getId(), me.rejoin(now).getJoinedAt());
+                conversations.rejoin(me.getId(), me.rejoin(OffsetDateTime.now(clock)).getJoinedAt());
             }
         }
 
@@ -63,12 +64,13 @@ public class ConversationCommandService implements ConversationCommandUseCase {
 
     @Override
     public void leave(long userId, long conversationId) {
-        ConversationMember me = load(conversationId).ensureActiveMember(userId);
+        ConversationMember me = lock(conversationId).ensureActiveMember(userId);
         conversations.leave(me.getId(), me.leave(OffsetDateTime.now(clock)).getLeftAt());
     }
 
-    private Conversation load(long conversationId) {
-        return conversations.findById(conversationId)
+    /** 참여 상태를 바꿀 때는 메시지 보내기와 같은 대화방 행 잠금(SELECT … FOR UPDATE)을 거칩니다. */
+    private Conversation lock(long conversationId) {
+        return conversations.findByIdForUpdate(conversationId)
                 .orElseThrow(() -> new BusinessException(ConversationErrorCode.CONVERSATION_NOT_FOUND));
     }
 }

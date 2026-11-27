@@ -45,18 +45,19 @@ public class MessageService implements MessageUseCase {
     }
 
     /**
-     * 본문 확인(domain) → 대화방 행 잠금 → 참여 확인 → 같은 clientMessageId 확인 → (1:1) 나간 상대 다시 참여
+     * 본문 확인(domain) → 대화방 행 잠금 → 시각 정하기 → 참여 확인 → 같은 clientMessageId 확인 → (1:1) 나간 상대 다시 참여
      * → 저장 · 대화방 시각 갱신 · 보낸 사람 읽음 위치 → 커밋 후 전달.
      * <p>잠금 덕분에 같은 대화방의 메시지는 id 순서대로 커밋되고, 같은 clientMessageId 두 개가 동시에 와도 하나만 저장됩니다.
+     * 시각을 잠근 뒤에 정해서 id가 큰 메시지가 시각이 더 이르지 않게 합니다. 다시 참여 · 나가기도 같은 잠금을 거치므로,
+     * '참여 시각 이후의 메시지만 보임' 경계가 메시지 순서와 어긋나지 않습니다.
      */
     @Override
     public void send(SendMessageCommand command) {
-        OffsetDateTime now = OffsetDateTime.now(clock);
-        Message message = Message.write(command.conversationId(), command.senderId(), command.clientMessageId(),
-                command.text(), now);
+        Message.validateText(command.text());
 
         Conversation conversation = conversations.findByIdForUpdate(command.conversationId())
                 .orElseThrow(() -> new BusinessException(ConversationErrorCode.CONVERSATION_NOT_FOUND));
+        OffsetDateTime now = OffsetDateTime.now(clock);
         ConversationMember sender = conversation.ensureActiveMember(command.senderId());
 
         Optional<StoredMessage> existing = messages.findBySenderAndClientMessageId(command.senderId(), command.clientMessageId());
@@ -72,7 +73,8 @@ public class MessageService implements MessageUseCase {
         for (ConversationMember left : conversation.membersToRejoinOnNewMessage()) {
             conversations.rejoin(left.getId(), now);
         }
-        long id = messages.save(message);
+        long id = messages.save(Message.write(command.conversationId(), command.senderId(), command.clientMessageId(),
+                command.text(), now));
         conversations.touch(conversation.getId(), now);
         conversations.advanceLastRead(sender.getId(), id);
 

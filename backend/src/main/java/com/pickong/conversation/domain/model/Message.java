@@ -35,12 +35,7 @@ public class Message {
      * @throws BusinessException 400 EMPTY_MESSAGE — 비었거나 공백뿐, 400 MESSAGE_TOO_LONG — 2,000자 초과
      */
     public static Message write(long conversationId, long senderId, UUID clientMessageId, String text, OffsetDateTime now) {
-        if (text == null || text.isBlank()) {
-            throw new BusinessException(ConversationErrorCode.EMPTY_MESSAGE);
-        }
-        if (text.codePointCount(0, text.length()) > TEXT_MAX) {
-            throw new BusinessException(ConversationErrorCode.MESSAGE_TOO_LONG);
-        }
+        validateText(text);
         return Message.builder()
                 .conversationId(conversationId)
                 .senderId(senderId)
@@ -48,5 +43,19 @@ public class Message {
                 .content(text)
                 .createdAt(now)
                 .build();
+    }
+
+    /**
+     * 본문 규칙만 확인합니다. 보내기는 대화방을 잠그기 전에 이것으로 먼저 거르고, 시각은 잠근 뒤에 정합니다.
+     *
+     * @throws BusinessException 400 EMPTY_MESSAGE — 비었거나 공백뿐, 400 MESSAGE_TOO_LONG — 2,000자 초과
+     */
+    public static void validateText(String text) {
+        if (text == null || text.isBlank()) {
+            throw new BusinessException(ConversationErrorCode.EMPTY_MESSAGE);
+        }
+        if (text.codePointCount(0, text.length()) > TEXT_MAX) {
+            throw new BusinessException(ConversationErrorCode.MESSAGE_TOO_LONG);
+        }
     }
 }
