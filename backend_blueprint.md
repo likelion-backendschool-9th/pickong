@@ -1677,7 +1677,7 @@ class ArchitectureTest {
 | 2 | enum 값 목록이 없는 컬럼: `media_files.purpose/status`, `payments.status/purpose/provider`, `import_jobs.status/source_type/platform`, `places.source_type/category`, `reports.reason`(접수는 `ReportReason` 여섯 값. 컬럼은 문자열이라 기존 다른 값은 관리자 조회에 남음. 상태·대상·처리 액션은 확정), `notifications.type/target_type`, `messages.attachment_type`, `plan_item_reservations.type`, 이동 수단 `mode` |
 | 3 | 길찾기 · 날씨 · LLM · PG · 메일 제공자 |
 | 4 | 보류 테이블(tags 등)을 Flyway 초기 스크립트에 포함할지 (제안: 보류를 풀 때 마이그레이션 추가) |
-| 5 | R2 파일 접근 방식: 공개 버킷이면 비공개 게시물 · 유료 컬렉션 사진이 URL만으로 열림 → 비공개 버킷 + 서명 URL(GET) 여부. **게시물 사진은 공개 버킷 + 랜덤 UUID 파일 이름으로 시작함(이슈 #164).** 이름을 추측할 수는 없지만, 볼 권한이 있던 사람이 주소를 퍼뜨리면 비공개 글의 사진도 열리는 한계가 있음. 유료 컬렉션 사진은 비공개 버킷 + 서명 GET을 따로 정함 |
+| 5 | R2 파일 접근 방식: 공개 버킷이면 비공개 게시물 · 유료 컬렉션 사진이 URL만으로 열림 → 비공개 버킷 + 서명 URL(GET) 여부. **게시물 사진은 공개 버킷 + 랜덤 UUID 파일 이름으로 시작함(PR #168, #155).** 이름을 추측할 수는 없지만, 볼 권한이 있던 사람이 주소를 퍼뜨리면 비공개 글의 사진도 열리는 한계가 있음. 유료 컬렉션 사진은 비공개 버킷 + 서명 GET을 따로 정함 |
 | 6 | DM으로 공유한 FOLLOWERS 게시물을 팔로워가 아닌 상대가 볼 수 있는지 (제안: 열람 시점에 공개 범위 다시 확인) |
 | 7 | 피드 상세 조회는 공개 범위를 검사하지 않습니다. 신고 접수는 다른 회원에게 `PUBLIC`만 허용하고, 상세가 열려 있다는 이유로 `FOLLOWERS`·`PRIVATE` 신고를 허용하지 않습니다. `follows` 마이그레이션이 생기고 피드 목록이 팔로워 글을 실제로 보여 주면 신고 조건을 맞춥니다 |
 
