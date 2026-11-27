@@ -1,5 +1,6 @@
 package com.pickong.social.application.service;
 
+import com.pickong.common.domain.ViewerRelation;
 import com.pickong.common.error.BusinessException;
 import com.pickong.social.application.port.in.RelationCommandUseCase;
 import com.pickong.social.application.port.in.RelationQueryUseCase;
@@ -66,5 +67,17 @@ public class RelationCommandService implements RelationCommandUseCase, RelationQ
     @Override
     public List<Long> getFollowingIds(Long userId) {
         return relationRepository.findFollowingIds(userId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ViewerRelation relationOf(Long viewerId, Long ownerId) {
+        if (viewerId == null) {
+            return ViewerRelation.ANONYMOUS;
+        }
+        if (viewerId.equals(ownerId)) {
+            return ViewerRelation.OWNER;
+        }
+        return relationRepository.existsFollow(viewerId, ownerId) ? ViewerRelation.FOLLOWER : ViewerRelation.OTHER;
     }
 }
