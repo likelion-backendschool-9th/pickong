@@ -147,7 +147,7 @@ class SavedPlaceControllerIntegrationTest {
     }
 
     private void save(long userId, long placeId, String savedAt) {
-        jdbc.update("INSERT INTO saved_places (user_id, place_id, created_at) VALUES (?, ?, ?::timestamptz)",
+        jdbc.update("INSERT INTO saved_places (user_id, place_id, source_type, created_at) VALUES (?, ?, 'SEARCH', ?::timestamptz)",
                 userId, placeId, savedAt);
     }
 
