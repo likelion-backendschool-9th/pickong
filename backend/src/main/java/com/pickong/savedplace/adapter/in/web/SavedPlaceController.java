@@ -53,6 +53,7 @@ public class SavedPlaceController {
     public SaveSavedPlacesResponse save(@CurrentUser LoginUser user,
                                         @RequestBody(required = false) SaveSavedPlacesRequest request) {
         SaveSavedPlacesRequest body = request == null ? new SaveSavedPlacesRequest(null, null, null) : request;
+        rejectCollectionLink(body.collectionIds());
         SaveSavedPlacesRequest.Source source = body.source();
         SaveSavedPlacesCommand command = new SaveSavedPlacesCommand(
                 user.userId(),
@@ -63,13 +64,17 @@ public class SavedPlaceController {
         return SaveSavedPlacesResponse.from(commands.save(command));
     }
 
-    /** PATCH /api/v1/saved-places — 방문 상태 · 메모 수정. 바뀐 저장 장소를 돌려줍니다. */
+    /**
+     * PATCH /api/v1/saved-places — 방문 상태 · 메모 수정. 바뀐 저장 장소를 돌려줍니다.
+     * 메모: 생략하거나 null이면 그대로, 빈 문자열(공백만 포함)이면 지웁니다.
+     */
     @PatchMapping
     public List<SavedPlaceResponse> update(@CurrentUser LoginUser user,
                                            @RequestBody(required = false) UpdateSavedPlacesRequest request) {
         if (request == null) {
             return List.of();
         }
+        rejectCollectionLink(request.addCollectionIds(), request.setCollectionIds(), request.removeCollectionIds());
         UpdateSavedPlacesCommand command = new UpdateSavedPlacesCommand(
                 user.userId(), savedPlaceIds(request.ids()), visitStatus(request.visitStatus()), request.memo());
         return commands.update(command).stream().map(SavedPlaceResponse::from).toList();
@@ -81,6 +86,19 @@ public class SavedPlaceController {
                                        @RequestBody(required = false) DeleteSavedPlacesRequest request) {
         commands.delete(user.userId(), savedPlaceIds(request == null ? null : request.ids()));
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * 컬렉션에 담기는 아직 구현하지 않았습니다 (8.1 #13). 받고 무시하면 성공처럼 보이므로 값이 있으면 거절합니다.
+     * 프론트는 컬렉션을 고르지 않아도 {@code collectionIds: []}를 보내므로 빈 목록은 받습니다.
+     */
+    @SafeVarargs
+    private static void rejectCollectionLink(List<String>... collectionIds) {
+        for (List<String> ids : collectionIds) {
+            if (ids != null && !ids.isEmpty()) {
+                throw new BusinessException(SavedPlaceErrorCode.COLLECTION_LINK_NOT_SUPPORTED);
+            }
+        }
     }
 
     /** 장소 공개 id. UUID가 아니면 그런 장소가 없는 것이므로 404입니다. */

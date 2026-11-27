@@ -15,7 +15,12 @@ public enum SavedPlaceErrorCode implements ErrorCode {
     PLACE_NOT_FOUND(404, "장소를 찾을 수 없어요."),
     INVALID_SOURCE(400, "저장 경로를 확인해 주세요."),
     INVALID_VISIT_STATUS(400, "방문 상태를 확인해 주세요."),
-    MEMO_TOO_LONG(400, "메모는 500자까지 쓸 수 있어요.");
+    MEMO_TOO_LONG(400, "메모는 500자까지 쓸 수 있어요."),
+    /**
+     * 저장하면서 컬렉션에 담기(collectionIds, add · set · removeCollectionIds)는 아직 없습니다 (8.1 #13).
+     * 받고 무시하면 성공처럼 보이므로 명시적으로 거절합니다. 빈 목록은 받습니다.
+     */
+    COLLECTION_LINK_NOT_SUPPORTED(400, "컬렉션에 담기는 아직 지원하지 않아요.");
 
     private final int status;
     private final String message;
