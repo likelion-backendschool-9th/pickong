@@ -221,7 +221,8 @@ DM · 그룹 채팅의 실시간 전달 형식입니다. 서버 구조와 결정
 | `/app/dm.send` | `{ "conversationId": "42", "clientMessageId": "UUID", "text": "안녕", "attachment": null }` | 성공하면 참여자 전원(보낸 사람 포함)에게 `MESSAGE_CREATED` |
 | `/app/dm.read` | `{ "conversationId": "42", "lastReadMessageId": "1001" }` | 다른 참여자와 내 다른 탭에 `READ_UPDATED`. 읽음 위치는 뒤로 가지 않습니다 |
 
-- `text`와 `attachment` 중 하나만 보냅니다. 본문은 2,000자까지입니다. 첨부 형식(사진 · 장소 · 게시물)은 메시지 API 구현 이슈에서 ERD에 맞춰 정합니다.
+- 지금은 `text`만 보냅니다. 본문은 2,000자(코드 포인트, 이모지 한 개 = 1자)까지이고 받은 그대로 저장합니다(앞뒤 공백 유지). 비었거나 공백뿐이면 400 `EMPTY_MESSAGE`, 넘으면 400 `MESSAGE_TOO_LONG`입니다.
+- **첨부(사진 · 장소 · 게시물)는 아직 받지 않습니다.** `attachment`가 null이 아니면 400 `ATTACHMENT_NOT_SUPPORTED`입니다. 업로드 API · 공개 범위 확인과 함께 별도 이슈에서 형식을 정하고, 그때 "`text`와 `attachment` 중 하나"로 바꿉니다.
 - `clientMessageId`는 프론트가 메시지마다 만드는 UUID입니다. **다시 보낼 때는 같은 값을 씁니다.** 서버는 같은 값이면 새로 저장하지 않고 기존 메시지로 다시 확인해 줍니다.
 - 메시지 보내기용 HTTP API는 없습니다. 읽음은 HTTP `PATCH /conversations/{id}/read`로도 할 수 있습니다.
 
@@ -247,9 +248,9 @@ DM · 그룹 채팅의 실시간 전달 형식입니다. 서버 구조와 결정
 
 | 종류 | 전달 | 연결 |
 | --- | --- | --- |
-| 업무 오류 (권한 없음, 차단, 나간 대화방, 본문 길이, 입력 형식 400 `INVALID_INPUT`) | `/user/queue/errors`. `status` · `code` · `message`는 HTTP 오류 응답(5.2)과 같은 값 | 유지 |
-| 토큰 만료 | STOMP ERROR 프레임 (`message` 헤더 `TOKEN_EXPIRED`) | 서버가 닫음 → 재발급 후 재연결 |
-| 허용되지 않은 목적지 구독 · 보내기 | STOMP ERROR 프레임 | 서버가 닫음 |
+| 업무 오류: 없거나 참여하지 않은 대화방 404 `CONVERSATION_NOT_FOUND`, 400 `EMPTY_MESSAGE` · `MESSAGE_TOO_LONG` · `ATTACHMENT_NOT_SUPPORTED`, 입력 형식 400 `INVALID_INPUT`(ID 형식, 다른 대화방에서 이미 쓴 `clientMessageId`), 읽음 위치 404 `MESSAGE_NOT_FOUND` | `/user/queue/errors`. `status` · `code` · `message`는 HTTP 오류 응답(5.2)과 같은 값 | 유지 |
+| 토큰 만료 | STOMP ERROR 프레임 (`message` 헤더 `TOKEN_EXPIRED`). 받기만 하는 연결은 프레임 없이 WebSocket close(1008, 이유 `TOKEN_EXPIRED`) | 서버가 닫음 → 재발급 후 재연결 |
+| 허용되지 않은 목적지 구독 · 보내기, 로그인 없이 CONNECT, 연결 중 이용할 수 없게 된 계정 | STOMP ERROR 프레임 (`FORBIDDEN_DESTINATION` · `UNAUTHORIZED` · `ACCOUNT_UNAVAILABLE`) | 서버가 닫음 |
 | 전송 확인이 오지 않음 | (서버 응답 없음) | 프론트가 10초 뒤 실패로 표시하고, 재전송은 같은 `clientMessageId`로 (제안) |
 
 ---

@@ -5,6 +5,7 @@ import com.pickong.auth.application.port.out.TokenIssuerPort;
 import com.pickong.common.security.AccessTokenVerifier;
 import com.pickong.common.security.LoginUser;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
@@ -60,5 +61,10 @@ public class JwtTokenAdapter implements TokenIssuerPort, AccessTokenVerifier {
             // subject가 숫자가 아닌 토큰은 우리가 만든 Access Token이 아닙니다.
             return Optional.empty();
         }
+    }
+
+    @Override
+    public Optional<Instant> expiresAt(String accessToken) {
+        return codec.decode(TokenType.ACCESS, accessToken).map(jwt -> jwt.getExpiresAt());
     }
 }

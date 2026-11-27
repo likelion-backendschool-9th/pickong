@@ -30,6 +30,10 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
 
+    // 채팅 실시간 전달: STOMP over WebSocket (blueprint 5.4). Redis는 서버 간 전달용이며 REDIS_HOST가 없으면 쓰지 않습니다.
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
     // Security / JWT: Spring Security의 JWT 인코더 · 디코더(Nimbus)만 쓰고, 쿠키 검증 필터는 직접 둡니다.
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.security:spring-security-oauth2-jose'

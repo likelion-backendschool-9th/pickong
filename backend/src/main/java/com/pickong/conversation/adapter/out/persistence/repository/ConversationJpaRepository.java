@@ -1,9 +1,11 @@
 package com.pickong.conversation.adapter.out.persistence.repository;
 
 import com.pickong.conversation.adapter.out.persistence.entity.ConversationJpaEntity;
+import jakarta.persistence.LockModeType;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -26,4 +28,13 @@ public interface ConversationJpaRepository extends JpaRepository<ConversationJpa
                              @Param("now") OffsetDateTime now);
 
     Optional<ConversationJpaEntity> findByDirectKey(String directKey);
+
+    /** SELECT … FOR UPDATE: 메시지 저장 전에 대화방 행을 잠급니다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select c from ConversationJpaEntity c where c.id = :id")
+    Optional<ConversationJpaEntity> findByIdForUpdate(@Param("id") long id);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update ConversationJpaEntity c set c.updatedAt = :at where c.id = :id")
+    int touch(@Param("id") long id, @Param("at") OffsetDateTime at);
 }

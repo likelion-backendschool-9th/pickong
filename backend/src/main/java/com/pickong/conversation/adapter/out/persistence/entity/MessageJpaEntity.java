@@ -1,5 +1,6 @@
 package com.pickong.conversation.adapter.out.persistence.entity;
 
+import com.pickong.conversation.domain.model.Message;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -44,4 +45,15 @@ public class MessageJpaEntity {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
+
+    /** 새 메시지 행 (id는 저장할 때 DB가 채움) */
+    public static MessageJpaEntity from(Message message) {
+        MessageJpaEntity entity = new MessageJpaEntity();
+        entity.conversationId = message.getConversationId();
+        entity.senderId = message.getSenderId();
+        entity.clientMessageId = message.getClientMessageId();
+        entity.content = message.getContent();
+        entity.createdAt = message.getCreatedAt();
+        return entity;
+    }
 }

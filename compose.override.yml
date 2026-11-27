@@ -84,6 +84,19 @@ services:
       timeout: 3s
       retries: 10
 
+  # 채팅 실시간 전달의 서버 간 중계(선택). 기본으로는 켜지 않습니다. 백엔드는 REDIS_HOST가 없으면 Redis 없이 서버 안에서만 전달합니다.
+  # 써 보려면: docker compose --profile redis up -d redis → backend/.env에 REDIS_HOST (bootRun이면 localhost, Docker 백엔드면 redis)
+  redis:
+    image: redis:7-alpine
+    profiles: ["redis"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
 volumes:
   frontend_node_modules:
   frontend_next:
