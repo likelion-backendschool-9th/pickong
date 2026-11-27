@@ -63,12 +63,12 @@
 1. 클라이언트 → POST /media/presigned           : Presigned PUT URL 발급             ✅ PR #168
 2. 클라이언트 → R2 직접 PUT                                                          ☐ #170 (프론트)
 3. 클라이언트 → POST /media/{mediaId}/confirm   : R2 HEAD로 크기와 Content-Type 검증  ✅ PR #168
-4. POST /feeds {mediaFileIds}                   : 본인 · UPLOADED · 1:1 참조 검증       ☐ #169
-5. 피드 응답 photos[].url                                                            ☐ #169
+4. POST /feeds {mediaFileIds}                   : 본인 · UPLOADED · 1:1 참조 검증       ☐ #155
+5. 피드 응답 photos[].url                                                            ☐ #155
 ```
 
 - R2 설정은 `backend/.env`의 `R2_*` 5개 (`backend/.env.example` 참고)
-- 후속: 정리 스케줄러 #171, `DELETE /media/{mediaId}` #172, 사진별 장소 태그 계약 #173, 운영 R2 설정 #174
+- 후속: 정리 스케줄러 #171, `DELETE /media/{mediaId}` #172, 사진별 장소 태그 계약 #155, 운영 R2 설정 #174
 
 ### ◐ 2-1. 게시물 공개 범위 (FOLLOWERS, PRIVATE)
 
@@ -80,7 +80,7 @@
 
 - ☐ 게시물 삭제가 물리 삭제 (`JpaFeedAdapter.deleteById`, CASCADE로 댓글 · 반응 삭제) → `deleted_at` 소프트 삭제
 - ☐ 카운터 미동기화: 댓글 작성 · 삭제 시 `feeds.comment_count`, 게시물 작성 · 삭제 시 `users.feed_count`
-- ☐ 프론트 `PostDto`와 백엔드 `FeedResponse` 응답 계약 불일치 (작성자, `isLiked` · `isBookmarked`, 사진 URL, 내부 id 노출) — #169와 같이 검토
+- ☐ 프론트 `PostDto`와 백엔드 `FeedResponse` 응답 계약 불일치 (작성자, `isLiked` · `isBookmarked`, 사진 URL, 내부 id 노출) — #155에서 처리
 - ☐ `CreateFeedRequest` 입력 검증 (`content` 길이, `placeIds` 존재 확인)
 - ☐ 삭제된 댓글 수정 가능 (`Comment.update`에 상태 검사 없음)
 - 💡 상태 코드 통일 (게시물 작성 200 → 201, 삭제 200 → 204), 컨트롤러의 `isAdmin` 중복
