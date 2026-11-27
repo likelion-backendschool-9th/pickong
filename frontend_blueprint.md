@@ -783,7 +783,7 @@ export async function getFeed(id: Id): Promise<Feed> {
 | `API_BASE_URL` | 브라우저의 `/api/*`를 전달할 기본 주소. 개발은 mock, 배포는 백엔드 |
 | `BACKEND_URL` | 개발 전용. 정하면 `BACKEND_PATHS`의 경로만 이 백엔드로 보냄 |
 | `API_INTERNAL_URL` | 서버 → 백엔드(또는 mock) 주소. 서버 전용 |
-| `NEXT_PUBLIC_WS_URL` | WebSocket 주소. 로컬 `ws://localhost:8080/api/v1/ws`, 운영 `wss://{프론트 도메인}/api/v1/ws` (Next rewrites를 거치지 않음, 8.8) |
+| `NEXT_PUBLIC_WS_URL` | 채팅 STOMP 주소. mock `ws://localhost:4000/api/v1/ws`, 백엔드 `ws://localhost:8080/api/v1/ws`. 비우면 같은 도메인의 `/api/v1/ws`(운영, 리버스 프록시). Next rewrites를 거치지 않음 (8.8) |
 | `NEXT_PUBLIC_NAVER_MAP_CLIENT_ID` | 네이버 지도 Client ID (`ncpKeyId`, Web 서비스 URL·Dynamic Map 설정) |
 | `NEXT_PUBLIC_NAVER_MAP_STYLE_ID` | (선택) Map Style Editor My Style ID. 설정 시 GL + 커스텀 스타일 |
 | `NEXT_PUBLIC_NAVER_MAP_GL` | (선택) `true`면 Style ID 없이 GL 벡터맵만 사용 |
@@ -800,18 +800,22 @@ export async function getFeed(id: Id): Promise<Feed> {
 
 ### 8.8 실시간 연결 (STOMP)
 
-메시지 형식은 [common_blueprint.md](common_blueprint.md) 5.9가 기준입니다. 아직 구현 전이며, 지금 DM 화면은 5초 폴링 + HTTP 보내기(mock)입니다.
+메시지 형식은 [common_blueprint.md](common_blueprint.md) 5.9가 기준입니다. 1:1 DM에 적용했습니다(#192). 주소는 `NEXT_PUBLIC_WS_URL`(8.6), 없으면 같은 도메인의 `/api/v1/ws`입니다.
 
 | 위치 | 하는 일 | 모르는 것 |
 | --- | --- | --- |
-| `shared/realtime/` | STOMP 연결 하나(탭당 하나), heartbeat, 재연결 간격, `TOKEN_EXPIRED`이면 `shared/api`의 재발급을 거친 뒤 재연결, 연결 · 재연결 알림. CONNECTED 전 실패는 브라우저가 상태를 알려 주지 않으므로 주입받은 확인 요청(대화에서는 `GET /conversations/unread-count`)을 `shared/api`로 보내 401 재발급 · 403 기존 오류 처리(재연결 안 함)로 나눕니다 (common 5.9) | 대화 · 메시지 같은 도메인 |
-| `entities/conversation/api/realtime.ts` | `/user/queue/dm` · `/user/queue/errors` 구독, 이벤트를 `setQueryData`로 `conversationKeys` 캐시에 반영, `/app/dm.send` · `/app/dm.read` 보내기, (재)연결 시 목록 · 열린 대화방(`?after=`, `nextCursor`가 null이 될 때까지 다시 `after`로) 다시 불러오기 | 연결 관리 |
+| `shared/realtime/connection.ts` | STOMP 연결 하나(탭당). 쓰는 곳이 있으면(`acquire`) 연결하고 모두 놓으면 5초 뒤 끊음(화면 이동 중 유지). heartbeat 10초, 1초부터 두 배씩 최대 30초로 재연결, 다시 연결되면 구독 다시 맺기 · `onConnected` 알림. 끊긴 뒤 재연결 전에는 주입받은 확인 요청(probe)을 보내 401(재발급 실패) · 403(약관 재동의)이면 재연결을 멈춤 — 화면 이동은 QueryClient 공통 오류 처리가 함 (common 5.9) | 대화 · 메시지 같은 도메인 |
+| `entities/conversation/api/realtime.ts` | `useConversationRealtime()`(여러 곳에서 불러도 구독은 하나): `/user/queue/dm` · `/user/queue/errors` 구독, 이벤트를 `setQueryData`로 `conversationKeys` 캐시에 반영, probe = `GET /conversations/unread-count`(`fetchQuery`), (재)연결 · 탭 복귀 시 목록 · 안 읽은 수 · 열어 둔 대화방(`?after=`, `nextCursor`가 null이 될 때까지)을 다시 맞춤. `sendMessage()`: 보내는 중 말풍선 → `/app/dm.send` → 확인 · 오류 · 10초 초과로 확정 · 실패 | 연결 관리 |
+| `entities/conversation/messageList.ts` | 메시지 합치기 순수 함수: 서버 id(숫자) 순 정렬, id 중복 제거, 확인이 오면 같은 `clientMessageId`의 보내는 중 말풍선 교체, 실패 · 다시 보내기 표시 (테스트 옆에) | React · 캐시 |
 
 - `@stomp/stompjs`는 `shared/realtime/` 밖에서 import하지 않습니다 (지도 SDK와 같은 경계 규칙, 8.7).
 - 컴포넌트는 지금처럼 `useMessages` · `useSendMessage` 같은 훅만 씁니다. 이벤트를 컴포넌트에서 직접 구독하지 않습니다.
 - 보내는 중인 메시지는 `clientMessageId`로 캐시에 먼저 넣고, 같은 `clientMessageId`의 `MESSAGE_CREATED`를 받으면 확정합니다. 메시지 목록은 `id` 순으로 정렬하고 `id`로 중복을 없앱니다.
-- 연결은 로그인한 화면에서만 엽니다(로그인 레이아웃 안의 Client Component). 연결이 생기면 `refetchInterval` 폴링을 없앱니다.
-- 열 결정: mock 서버는 STOMP를 지원하지 않습니다. mock에 최소한의 STOMP를 추가할지, `NEXT_PUBLIC_WS_URL`이 없을 때 지금의 폴링을 유지할지는 프론트 연동 이슈에서 정합니다 (`USE_MOCK` 같은 코드 분기는 만들지 않습니다, 8.6).
+- 연결을 켜는 곳: 하단바(`BottomTabBar`, 탭 화면 전체), 대화방(`ChatScreen`), DM 보내기 시트(`SendDmSheet`, 하단바가 없는 화면에서도 열림). 대화 목록 · 안 읽은 수 · 메시지는 더 이상 폴링하지 않습니다.
+- 메시지 캐시는 `MessageThread { items(오래된 순), olderCursor }`이고 `staleTime: Infinity`입니다(실시간으로 받은 메시지 · 보내는 중 말풍선을 덮어쓰지 않게). 이전 내역은 '이전 메시지 보기'로 앞에 붙입니다.
+- 조회만으로는 읽음이 되지 않으므로, 대화방이 보이는 동안 상대가 보낸 마지막 메시지까지 `PATCH /read`를 보냅니다(`useMarkReadWhileVisible`).
+- 실패한 메시지는 말풍선에 '다시 보내기'가 남고, 같은 `clientMessageId`로 다시 보냅니다(서버가 두 번 저장하지 않음). 첨부는 백엔드가 아직 받지 않아 보내면 서버 오류 문구가 뜹니다.
+- **mock 결정 (2026-11-28):** mock 서버에 의존성 없는 최소 WebSocket · STOMP(`mocks/realtime.ts`, `ws://localhost:4000/api/v1/ws`)를 넣어 mock과 백엔드가 같은 코드로 동작합니다. `USE_MOCK` 같은 분기는 없고 주소(`NEXT_PUBLIC_WS_URL`)만 바꿉니다(8.6). mock의 보내기 규칙 · 오류 코드 · 중복 처리도 백엔드와 같습니다.
 
 ---
 
@@ -1012,8 +1016,8 @@ entities/plan/model/            # React import 금지. 입력 → 출력만 있�
 | `/plans/[planId]` | 일정 상세 · 편집 · 점검 | 로그인 | Server 조회 + 편집기(Client) | 껍데기 |
 | `/users/[username]` | 프로필 | 공개 | Server + 팔로우(Client) | 껍데기 |
 | `/users/[username]/followers`, `/following` | 팔로워 · 팔로잉 | 공개 | Server + 팔로우(Client) | 1차 |
-| `/messages` | DM 대화 목록 | 로그인 | Client (주기적 갱신 → 연동 후 실시간 구독, 8.8) | 껍데기 |
-| `/messages/[conversationId]` | DM 대화방 | 로그인 | Client (주기적 갱신 → 연동 후 실시간 구독, 8.8) | 껍데기 |
+| `/messages` | DM 대화 목록 | 로그인 | Client (실시간 구독, 8.8) | 1:1 백엔드 연동 (사람 검색은 mock) |
+| `/messages/[conversationId]` | DM 대화방 | 로그인 | Client (실시간 구독, 8.8) | 1:1 백엔드 연동 (첨부 보내기 미지원) |
 | `/notifications` | 알림 | 로그인 | Server | 3차 |
 | `/settings`, `/settings/profile` | 설정 · 프로필 편집 (아이디 변경 · 이름 · 소개 · 활동 지역) | 로그인 | 폼(Client) | 1차 |
 | `/settings/login-methods` | 로그인 수단 관리: 카카오 · Google 연결 · 해제 | 로그인 | Client | 껍데기 |

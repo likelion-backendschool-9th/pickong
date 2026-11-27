@@ -52,6 +52,7 @@ docker compose down
 
 - 프론트엔드: http://localhost:3000 (Next.js 개발 서버, 소스 변경 자동 반영)
 - mock API: http://localhost:4000/api/me (파일 변경 시 재시작, 메모리 데이터 초기화)
+- mock 채팅 STOMP: ws://localhost:4000/api/v1/ws (`NEXT_PUBLIC_WS_URL`). 백엔드에 연결할 때는 `ws://localhost:8080/api/v1/ws`로 바꿉니다
 - 프론트엔드 `/api/*` 요청은 Docker 네트워크의 `http://mock:4000`으로 전달됩니다.
 - 시작할 때 `npm ci`로 lockfile에 맞게 의존성을 설치합니다. 의존성을 변경하면 `docker compose restart frontend`로 반영합니다.
 - 컨테이너의 `node_modules`와 `.next`는 전용 볼륨에 보관해 호스트 파일과 분리합니다.
