@@ -21,6 +21,7 @@ import { placeRoutes } from "./handlers/places.ts";
 import { planRoutes } from "./handlers/plans.ts";
 import { postRoutes } from "./handlers/posts.ts";
 import { userRoutes } from "./handlers/users.ts";
+import { attachStomp } from "./realtime.ts";
 import { createRouter } from "./router.ts";
 
 const PORT = Number(process.env.MOCK_PORT ?? 4000);
@@ -43,6 +44,9 @@ const handle = createRouter([
   ...adminRoutes,
 ]);
 
-createServer(handle).listen(PORT, () => {
-  console.log(`[mock] http://localhost:${PORT}/api/v1`);
+const server = createServer(handle);
+// 채팅 STOMP (ws://localhost:4000/api/v1/ws). 프론트는 NEXT_PUBLIC_WS_URL로 연결합니다.
+attachStomp(server);
+server.listen(PORT, () => {
+  console.log(`[mock] http://localhost:${PORT}/api/v1 · ws://localhost:${PORT}/api/v1/ws`);
 });
