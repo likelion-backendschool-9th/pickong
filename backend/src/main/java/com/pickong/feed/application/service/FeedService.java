@@ -11,6 +11,7 @@ import com.pickong.feed.application.port.out.FeedPlaceQueryPort;
 import com.pickong.feed.application.port.out.FeedRepository;
 import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.feed.domain.model.Feed;
+import com.pickong.social.application.port.in.RelationQueryUseCase;
 import com.pickong.user.application.port.in.UserQueryUseCase;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -25,13 +26,16 @@ public class FeedService implements FeedUseCase {
     private final FeedRepository feedRepository;
     private final FeedPlaceQueryPort feedPlaceQueryPort;
     private final UserQueryUseCase userQueryUseCase;
+    private final RelationQueryUseCase relationQueryUseCase;
 
     public FeedService(FeedRepository feedRepository,
                        FeedPlaceQueryPort feedPlaceQueryPort,
-                       UserQueryUseCase userQueryUseCase) {
+                       UserQueryUseCase userQueryUseCase,
+                       RelationQueryUseCase relationQueryUseCase) {
         this.feedRepository = feedRepository;
         this.feedPlaceQueryPort = feedPlaceQueryPort;
         this.userQueryUseCase = userQueryUseCase;
+        this.relationQueryUseCase = relationQueryUseCase;
     }
 
     @Override
@@ -44,7 +48,8 @@ public class FeedService implements FeedUseCase {
     @Transactional(readOnly = true)
     public Feed getFeed(Long feedId, Long viewerId, boolean admin) {
         Feed feed = feedRepository.findById(feedId);
-        feed.ensureReadable(viewerId, admin);
+        // 관리자면 관계를 계산하지 않고 통과, 아니면 보는 사람과 작성자의 관계로 공개 범위 판정
+        feed.ensureReadable(admin ? null : relationQueryUseCase.relationOf(viewerId, feed.getUserId()), admin);
         return feed;
     }
 
@@ -77,9 +82,9 @@ public class FeedService implements FeedUseCase {
     @Transactional
     public Feed updateFeed(Long feedId, Long userId, UpdateFeedCommand command) {
         Feed feed = feedRepository.findByIdForUpdate(feedId);
-        // 삭제된 게시물은 행이 남아 있어도 수정할 수 없음 (소프트 삭제 전에는 행이 없어서 저절로 막혔음)
-        feed.ensureNotDeleted();
-        // 본인 피드만 수정 가능
+        // 1. 볼 수 있는 글인지 → 2. 본인 글인지. 1번이 없으면 남의 비공개 글에 403이 나가서 글이 있다는 게 드러남
+        // 소프트 삭제된 글은 행이 남아 있지만 1번에서 404로 막힘 (수정해서 되살릴 수 없음)
+        feed.ensureReadable(relationQueryUseCase.relationOf(userId, feed.getUserId()), false);
         if (!feed.getUserId().equals(userId)) {
             throw new BusinessException(FeedErrorCode.FEED_NOT_OWNER);
         }
@@ -90,9 +95,10 @@ public class FeedService implements FeedUseCase {
     @Override
     @Transactional
     public void deleteFeed(Long feedId, Long userId) {
-        // 1. 행 잠금 → 2. 이미 삭제됐으면 404 → 3. 본인 게시물인지 → 4. deleted_at만 채움 (숨김 게시물도 작성자는 삭제 가능)
+        // 1. 행 잠금 → 2. 볼 수 있는 글인지 (이미 삭제됨, 남의 숨김 글, 공개 범위 밖이면 모두 404)
+        // → 3. 본인 글인지 → 4. deleted_at만 채움. 숨김 글도 작성자는 볼 수 있어서 삭제할 수 있음
         Feed feed = feedRepository.findByIdForUpdate(feedId);
-        feed.ensureNotDeleted();
+        feed.ensureReadable(relationQueryUseCase.relationOf(userId, feed.getUserId()), false);
         if (!feed.getUserId().equals(userId)) {
             throw new BusinessException(FeedErrorCode.FEED_NOT_OWNER);
         }

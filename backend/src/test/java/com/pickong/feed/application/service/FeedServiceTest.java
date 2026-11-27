@@ -14,6 +14,7 @@ import com.pickong.feed.domain.model.Feed;
 import com.pickong.user.application.port.in.UserQueryUseCase;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import com.pickong.social.application.port.in.RelationQueryUseCase;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -44,6 +45,10 @@ class FeedServiceTest {
 
     @Mock
     private UserQueryUseCase userQueryUseCase;
+
+    // 관계를 정해 주지 않으면 null → 도메인이 ANONYMOUS로 판정 (PUBLIC 게시물만 통과)
+    @Mock
+    private RelationQueryUseCase relationQueryUseCase;
 
     @InjectMocks
     private FeedService feedService;

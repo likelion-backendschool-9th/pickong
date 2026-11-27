@@ -1,5 +1,6 @@
 package com.pickong.feed.domain.model;
 
+import com.pickong.common.domain.ViewerRelation;
 import com.pickong.common.domain.Visibility;
 import com.pickong.common.error.BusinessException;
 import com.pickong.feed.domain.FeedErrorCode;
@@ -60,23 +61,31 @@ public class Feed {
         replacePlaces(placeIds);
     }
 
-    /** 삭제 글과 권한 없는 숨김 글은 존재 여부를 구분하지 않습니다. */
-    public void ensureReadable(Long viewerId, boolean admin) {
-        if (deletedAt != null || (hiddenAt != null && !admin && !userId.equals(viewerId))) {
-            throw new BusinessException(FeedErrorCode.FEED_NOT_FOUND);
-        }
-    }
-
-    /** 소프트 삭제된 게시물은 수정, 삭제 모두 없는 게시물처럼 404 */
-    public void ensureNotDeleted() {
+    /**
+     * 이 게시물을 볼 수 있는지 판정함. 볼 수 없으면 모두 같은 404라서 게시물이 있는지 알 수 없음
+     * 1. 삭제됨 → 404 → 2. 관리자는 통과 → 3. 숨김 글은 작성자만 → 4. 공개 범위(Visibility.allows)
+     * relation이 null이면 가장 낮은 권한인 ANONYMOUS로 판정함
+     */
+    public void ensureReadable(ViewerRelation relation, boolean admin) {
         if (deletedAt != null) {
             throw new BusinessException(FeedErrorCode.FEED_NOT_FOUND);
         }
+        if (admin) {
+            return;
+        }
+        ViewerRelation viewer = relation == null ? ViewerRelation.ANONYMOUS : relation;
+        if (hiddenAt != null && viewer != ViewerRelation.OWNER) {
+            throw new BusinessException(FeedErrorCode.FEED_NOT_FOUND);
+        }
+        if (visibility == null || !visibility.allows(viewer)) {
+            throw new BusinessException(FeedErrorCode.FEED_NOT_FOUND);
+        }
     }
 
-    /** 작성자도 숨김 글에 새 댓글·좋아요·북마크를 추가할 수 없습니다. */
-    public void ensureAcceptsInteraction() {
-        if (deletedAt != null || hiddenAt != null) {
+    /** 새 댓글, 좋아요, 북마크 추가: 볼 수 있어야 하고, 작성자도 숨김 글에는 추가할 수 없음 */
+    public void ensureAcceptsInteraction(ViewerRelation relation) {
+        ensureReadable(relation, false);
+        if (hiddenAt != null) {
             throw new BusinessException(FeedErrorCode.FEED_NOT_FOUND);
         }
     }

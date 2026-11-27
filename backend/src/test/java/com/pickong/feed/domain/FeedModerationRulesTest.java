@@ -3,6 +3,7 @@ package com.pickong.feed.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.pickong.common.domain.ViewerRelation;
 import com.pickong.common.domain.Visibility;
 import com.pickong.common.error.BusinessException;
 import com.pickong.feed.domain.model.Feed;
@@ -30,18 +31,19 @@ class FeedModerationRulesTest {
 
     @Test
     void onlyOwnerOrAdminCanReadHiddenFeedAndNobodyCanAddInteractions() {
-        Feed feed = Feed.builder().userId(2L).hiddenAt(NOW).build();
-        feed.ensureReadable(2L, false);
+        Feed feed = Feed.builder().userId(2L).visibility(Visibility.PUBLIC).hiddenAt(NOW).build();
+        feed.ensureReadable(ViewerRelation.OWNER, false);
         feed.ensureReadable(null, true);
-        assertThatThrownBy(() -> feed.ensureReadable(null, false)).isInstanceOf(BusinessException.class);
-        assertThatThrownBy(() -> feed.ensureReadable(3L, false)).isInstanceOf(BusinessException.class);
-        assertThatThrownBy(feed::ensureAcceptsInteraction).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> feed.ensureReadable(ViewerRelation.ANONYMOUS, false)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> feed.ensureReadable(ViewerRelation.FOLLOWER, false)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> feed.ensureReadable(ViewerRelation.OTHER, false)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> feed.ensureAcceptsInteraction(ViewerRelation.OWNER)).isInstanceOf(BusinessException.class);
     }
 
     @Test
     void deletedFeedCannotBeReadOrRestoredEvenByOwnerOrAdmin() {
-        Feed feed = Feed.builder().userId(2L).hiddenAt(NOW).deletedAt(NOW).build();
-        assertThatThrownBy(() -> feed.ensureReadable(2L, true)).isInstanceOf(BusinessException.class);
+        Feed feed = Feed.builder().userId(2L).visibility(Visibility.PUBLIC).hiddenAt(NOW).deletedAt(NOW).build();
+        assertThatThrownBy(() -> feed.ensureReadable(ViewerRelation.OWNER, true)).isInstanceOf(BusinessException.class);
         assertThatThrownBy(() -> feed.changeHidden(false, NOW.plusHours(1))).isInstanceOf(BusinessException.class);
         assertThat(feed.getHiddenAt()).isEqualTo(NOW);
     }
