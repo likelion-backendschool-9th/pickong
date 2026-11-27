@@ -77,6 +77,8 @@ public class FeedService implements FeedUseCase {
     @Transactional
     public Feed updateFeed(Long feedId, Long userId, UpdateFeedCommand command) {
         Feed feed = feedRepository.findByIdForUpdate(feedId);
+        // 삭제된 게시물은 행이 남아 있어도 수정할 수 없음 (소프트 삭제 전에는 행이 없어서 저절로 막혔음)
+        feed.ensureNotDeleted();
         // 본인 피드만 수정 가능
         if (!feed.getUserId().equals(userId)) {
             throw new BusinessException(FeedErrorCode.FEED_NOT_OWNER);
@@ -88,12 +90,16 @@ public class FeedService implements FeedUseCase {
     @Override
     @Transactional
     public void deleteFeed(Long feedId, Long userId) {
+        // 1. 행 잠금 → 2. 이미 삭제됐으면 404 → 3. 본인 게시물인지 → 4. deleted_at만 채움 (숨김 게시물도 작성자는 삭제 가능)
         Feed feed = feedRepository.findByIdForUpdate(feedId);
-        // 본인 피드만 삭제 가능
+        feed.ensureNotDeleted();
         if (!feed.getUserId().equals(userId)) {
             throw new BusinessException(FeedErrorCode.FEED_NOT_OWNER);
         }
-        feedRepository.deleteById(feedId);
+        // 행을 잠그고 읽어서 동시에 두 번 삭제해도 여기는 한 번만 true. 그래도 false면 이미 삭제된 것으로 봄
+        if (!feedRepository.softDelete(feedId)) {
+            throw new BusinessException(FeedErrorCode.FEED_NOT_FOUND);
+        }
     }
 
     @Override

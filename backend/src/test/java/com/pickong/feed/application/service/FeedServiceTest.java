@@ -19,6 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.time.OffsetDateTime;
 
 import org.mockito.ArgumentCaptor;
 
@@ -29,7 +30,6 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.willDoNothing;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -121,13 +121,53 @@ class FeedServiceTest {
     void deleteFeed_성공() {
         // given: 피드가 존재하고 본인 피드
         given(feedRepository.findByIdForUpdate(1L)).willReturn(sampleFeed());
-        willDoNothing().given(feedRepository).deleteById(1L);
+        given(feedRepository.softDelete(1L)).willReturn(true);
 
         // when
         feedService.deleteFeed(1L, 1L);
 
-        // then: deleteById()가 호출됐는지 확인
-        verify(feedRepository).deleteById(1L);
+        // then: 행을 지우지 않고 소프트 삭제만 호출됐는지 확인
+        verify(feedRepository).softDelete(1L);
+    }
+
+    @Test
+    void deleteFeed_이미삭제된피드_404_소프트삭제안함() {
+        given(feedRepository.findByIdForUpdate(1L)).willReturn(
+                Feed.builder().id(1L).userId(1L).deletedAt(OffsetDateTime.now()).build());
+
+        assertThatThrownBy(() -> feedService.deleteFeed(1L, 1L))
+                .extracting("errorCode").isEqualTo(FeedErrorCode.FEED_NOT_FOUND);
+        verify(feedRepository, never()).softDelete(1L);
+    }
+
+    @Test
+    void deleteFeed_타인의삭제된피드_403이아니라404() {
+        // 이미 삭제된 글이면 작성자가 아니어도 FEED_NOT_OWNER 대신 없는 글과 같은 404
+        given(feedRepository.findByIdForUpdate(1L)).willReturn(
+                Feed.builder().id(1L).userId(1L).deletedAt(OffsetDateTime.now()).build());
+
+        assertThatThrownBy(() -> feedService.deleteFeed(1L, 99L))
+                .extracting("errorCode").isEqualTo(FeedErrorCode.FEED_NOT_FOUND);
+    }
+
+    @Test
+    void deleteFeed_소프트삭제가반영안되면_404() {
+        given(feedRepository.findByIdForUpdate(1L)).willReturn(sampleFeed());
+        given(feedRepository.softDelete(1L)).willReturn(false);
+
+        assertThatThrownBy(() -> feedService.deleteFeed(1L, 1L))
+                .extracting("errorCode").isEqualTo(FeedErrorCode.FEED_NOT_FOUND);
+    }
+
+    @Test
+    void updateFeed_삭제된피드_404() {
+        given(feedRepository.findByIdForUpdate(1L)).willReturn(
+                Feed.builder().id(1L).userId(1L).deletedAt(OffsetDateTime.now()).build());
+
+        assertThatThrownBy(() -> feedService.updateFeed(1L, 1L,
+                new UpdateFeedCommand("수정", Visibility.PUBLIC, List.of(), List.of())))
+                .extracting("errorCode").isEqualTo(FeedErrorCode.FEED_NOT_FOUND);
+        verify(feedRepository, never()).save(any());
     }
 
     @Test

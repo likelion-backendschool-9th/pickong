@@ -67,6 +67,13 @@ public class Feed {
         }
     }
 
+    /** 소프트 삭제된 게시물은 수정, 삭제 모두 없는 게시물처럼 404 */
+    public void ensureNotDeleted() {
+        if (deletedAt != null) {
+            throw new BusinessException(FeedErrorCode.FEED_NOT_FOUND);
+        }
+    }
+
     /** 작성자도 숨김 글에 새 댓글·좋아요·북마크를 추가할 수 없습니다. */
     public void ensureAcceptsInteraction() {
         if (deletedAt != null || hiddenAt != null) {
