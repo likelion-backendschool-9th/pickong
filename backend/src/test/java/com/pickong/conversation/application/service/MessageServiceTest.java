@@ -70,6 +70,25 @@ class MessageServiceTest {
     }
 
     @Test
+    @DisplayName("메시지 시각은 대화방을 잠근 뒤에 정한다 (id가 큰 메시지가 시각이 더 이르지 않게)")
+    void timeIsTakenAfterLock() {
+        Clock clock = mock(Clock.class);
+        when(clock.instant()).thenReturn(NOW.toInstant());
+        when(clock.getZone()).thenReturn(ZoneOffset.UTC);
+        MessageService withClock = new MessageService(conversations, messages, queries, push, clock);
+        direct(member(10, ME, null), member(11, PARTNER, null));
+        when(messages.findBySenderAndClientMessageId(ME, CLIENT_ID)).thenReturn(Optional.empty());
+        when(messages.save(any())).thenReturn(900L);
+        when(queries.findSentMessage(900)).thenReturn(Optional.of(sent(900)));
+
+        withClock.send(new SendMessageCommand(ME, CONVERSATION, CLIENT_ID, "안녕"));
+
+        var order = inOrder(conversations, clock);
+        order.verify(conversations).findByIdForUpdate(CONVERSATION);
+        order.verify(clock).instant();
+    }
+
+    @Test
     @DisplayName("1:1에서 나간 상대는 저장 전에 다시 참여시키고 받는 사람에 넣는다")
     void rejoinsLeftPartner() {
         direct(member(10, ME, null), member(11, PARTNER, NOW.minusDays(1)));
