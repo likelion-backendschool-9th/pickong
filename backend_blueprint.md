@@ -38,8 +38,8 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | 마이그레이션 | Flyway (`spring-boot-starter-flyway`) | `resources/db/migration`. V1은 인증 테이블만, 나머지는 각 모듈이 V2부터 추가. 스키마는 Flyway만 만들고 `ddl-auto: none` |
 | 보안 | Spring Security 7, OAuth2 Client(카카오 · Google), JWT(Spring Security의 Nimbus 인코더 · 디코더) | 이메일 · 비밀번호 로그인 없음. 보안 설정 상세는 아래 '보안 결정' |
 | 실시간 | Spring WebSocket + STOMP (SockJS 없음) | DM · 그룹 채팅. 서버마다 simple broker, 서버 간 전달은 Redis Pub/Sub (5.4) |
-| Redis | Redis 7 + Spring Data Redis | 지금은 WebSocket 서버 간 전달(Pub/Sub)만. 지도 캐시 등 다른 용도는 쓰는 기능이 생길 때 추가 |
-| 테스트 | JUnit 5, ArchUnit, Testcontainers(PostGIS 16, Redis 7) | `TestcontainersConfiguration`. Docker가 없으면 DB 테스트는 실패(건너뛰지 않음) |
+| Redis | Redis 7 + Spring Data Redis | 지금은 WebSocket 서버 간 전달(Pub/Sub)만. **선택:** 정하지 않으면 서버 안에서만 전달합니다(5.4.5). 지도 캐시 등 다른 용도는 쓰는 기능이 생길 때 추가 |
+| 테스트 | JUnit 5, ArchUnit, Testcontainers(PostGIS 16, Redis 7은 중계 테스트만) | `TestcontainersConfiguration`. Docker가 없으면 DB 테스트는 실패(건너뛰지 않음) |
 
 패키지 구조는 Spring Boot 3.4와 4.x 어느 쪽이어도 똑같이 적용됩니다.
 
@@ -183,7 +183,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | GET | `/auth/withdrawal` | `AccountWithdrawalUseCase.getRestoreSession` | 탈퇴 취소 쿠키의 탈퇴 상태 `{username, requestedAt, anonymizeAt}` |
 | POST | `/auth/withdrawal/cancel` | `AccountWithdrawalUseCase.cancelWithdrawal` + `TokenUseCase.issue` | 탈퇴 취소 → ACTIVE, 세션 발급 |
 | DELETE | `/auth/withdrawal` | 컨트롤러만 (탈퇴 취소 쿠키 삭제) | 탈퇴는 그대로 |
-| WS | `/ws` (CONNECT) | `auth/adapter/in/websocket` 인증 인터셉터 | 5.4 |
+| WS | `/ws` 핸드셰이크 (실제 주소 `/api/v1/ws`) | 보안 필터 체인 + `auth/adapter/in/websocket` 인증 인터셉터 | 5.4 |
 
 > **소셜 로그인 스키마 결정 (V1)**
 > - 로그인 수단은 카카오 · Google만. `user_social_accounts`의 `(provider, provider_id)` UNIQUE(같은 소셜 계정은 한 찜콩 계정에만), `(user_id, provider)` UNIQUE(제공자마다 하나만 연결).
@@ -658,8 +658,8 @@ backend/src/main/java/com/pickong/
 │   ├── web/                                  # CursorRequest, CursorPage<T>, PageResult<T>, @CurrentUser 리졸버
 │   ├── security/                             # LoginUser, AdminPrincipal, AccessTokenVerifier(interface)
 │   ├── persistence/                          # BaseTimeEntity, JpaConfig, PostGIS 변환기
-│   ├── websocket/                            # WebSocketConfig (/ws, /app, /user, simple broker, heartbeat, 허용 Origin),
-│   │                                         # UserPushRelay(Redis Pub/Sub 서버 간 전달), StompExceptionHandler(공통 오류 → /user/queue/errors)
+│   ├── websocket/                            # WebSocketConfig (/ws → 실제 /api/v1/ws, /app, /user, simple broker, heartbeat, 허용 Origin),
+│   │                                         # UserPushRelay(Redis 또는 서버 안 전달), StompExceptionHandler(공통 오류 → /user/queue/errors)
 │   └── config/                               # AsyncConfig(작업별 Executor), SchedulingConfig, ClockConfig, OpenApiConfig
 │
 ├── auth/
@@ -1354,6 +1354,7 @@ STOMP DmStompController ──────┘   (MessageService)      ├─▶ 
                                                                                    ▼
                                                      common/websocket UserPushRelay ──▶ Redis Pub/Sub ──▶ 모든 서버
                                                                                    ──▶ convertAndSendToUser ──▶ /user/queue/dm
+                                                     (보낸 사람의 전송 확인은 이 서버에서 바로 ──▶ /user/queue/dm, 5.4.5)
 ```
 
 | 전송 계층(adapter)이 하는 일 | 업무 로직(application · domain)이 하는 일 |
@@ -1411,11 +1412,14 @@ conversation/
 
 ```
 common/websocket/
-├── WebSocketConfig.java          # /ws(SockJS 없음), /app · /user, simple broker(/queue), heartbeat 10초,
-│                                 # 허용 Origin, 등록된 HandshakeInterceptor · ChannelInterceptor 빈을 모아 연결
-├── WebSocketProperties.java      # pickong.websocket.allowed-origins (기본값: 프론트 주소)
-├── UserPushRelay.java            # publish(받는 회원 id들, 목적지, payload) — 모듈의 Push 어댑터가 쓰는 유일한 출구
-├── RedisUserPushRelay.java       # Redis 채널에 발행 + 구독해서 이 서버의 사용자에게 convertAndSendToUser
+├── WebSocketConfig.java          # 엔드포인트 "/ws"(SockJS 없음). 서블릿 경로(spring.mvc.servlet.path = /api/v1) 아래라 실제 주소는 /api/v1/ws
+│                                 # /app · /user, simple broker(/queue), heartbeat 10초, 등록된 HandshakeInterceptor · ChannelInterceptor 빈을 모아 연결
+│                                 # 허용 Origin은 pickong.frontend.base-url(FRONTEND_BASE_URL)을 그대로 읽음 (새 설정 · 환경변수 없음)
+├── UserPushRelay.java            # publish(받는 회원 id들, 목적지, payload): 모든 서버로
+│                                 # sendLocal(회원 id, 목적지, payload): 이 서버의 세션에만 (보낸 사람의 전송 확인용)
+│                                 # — 모듈의 Push 어댑터가 쓰는 유일한 출구
+├── RedisUserPushRelay.java       # REDIS_HOST가 있을 때: Redis 채널에 발행 + 구독해서 이 서버의 사용자에게 convertAndSendToUser
+├── LocalUserPushRelay.java       # REDIS_HOST가 없을 때: 발행 없이 이 서버의 사용자에게 바로 (서버 1대 전제, 로컬 · 테스트)
 └── StompExceptionHandler.java    # @ControllerAdvice + @MessageExceptionHandler. 모듈이 따로 처리하지 않은 오류 → /user/queue/errors
 ```
 
@@ -1426,13 +1430,13 @@ common/websocket/
 
 | 단계 | 위치 | 내용 |
 | --- | --- | --- |
-| 연결 (`/ws` 핸드셰이크) | `common/websocket/WebSocketConfig` | **Origin이 허용 목록(프론트 주소)에 없으면 거절.** 쿠키로 인증하므로 다른 사이트가 사용자 브라우저로 연결하는 것(CSWSH)을 막습니다. SameSite=Lax 쿠키도 다른 사이트의 핸드셰이크에는 실리지 않지만, 같은 사이트의 다른 하위 도메인까지 막으려고 Origin을 확인합니다 |
-| 연결 (`/ws` 핸드셰이크) | `auth/adapter/in/websocket/WebSocketAuthHandshakeInterceptor` | httpOnly 쿠키의 Access Token 검증 → Principal. 실패하면 401로 핸드셰이크 거절. JS가 토큰을 읽을 수 없으므로 CONNECT 헤더 대신 핸드셰이크 쿠키를 씀. 토큰 만료 시각을 세션 속성에 저장 |
+| 연결 (`/api/v1/ws` 핸드셰이크) | `common/websocket/WebSocketConfig` | **Origin이 허용 목록(`pickong.frontend.base-url`)에 없으면 거절.** 쿠키로 인증하므로 다른 사이트가 사용자 브라우저로 연결하는 것(CSWSH)을 막습니다. SameSite=Lax 쿠키도 다른 사이트의 핸드셰이크에는 실리지 않지만, 같은 사이트의 다른 하위 도메인까지 막으려고 Origin을 확인합니다 |
+| 연결 (`/api/v1/ws` 핸드셰이크) | 보안 필터 체인 + `auth/adapter/in/websocket/WebSocketAuthHandshakeInterceptor` | 핸드셰이크는 REST와 같은 `/api/v1/**` 보안 필터를 거칩니다(비로그인 · 만료 · ACTIVE가 아닌 계정 401, 필수 약관 재동의 필요 403 `TERMS_RECONSENT_REQUIRED`). 그다음 인터셉터가 httpOnly 쿠키의 Access Token을 검증해 Principal을 만듭니다. JS가 토큰을 읽을 수 없으므로 CONNECT 헤더 대신 핸드셰이크 쿠키를 씀. 토큰 만료 시각을 세션 속성에 저장 |
 | Principal 이름 | 위와 같음 | **회원 내부 id 문자열.** 아이디(`username`)는 바꿀 수 있어 사용자 목적지 키로 쓰지 않습니다. 응답에는 내부 id 대신 공개 id(`public_id`)와 `username`을 씁니다(8.6) |
 | CSRF | — | STOMP CONNECT에 CSRF 토큰을 요구하지 않습니다(Spring Security 메시지 보안 미사용). 위의 Origin 확인과 SameSite 쿠키가 같은 역할을 합니다 |
 | 구독 (SUBSCRIBE) | `auth/adapter/in/websocket/StompDestinationGuard` | `/user/queue/**` 외 목적지 구독 거부. 사용자 목적지는 본인에게만 전달되므로 대화방별 구독 권한 검사가 필요 없음 |
 | 보내기 (SEND) | `StompDestinationGuard` → `MessageService` | 목적지는 `/app/**`만 허용. 대화방 참여 · 차단 · 첨부 권한은 서비스가 검사 (HTTP와 같은 코드) |
-| 토큰 만료 | `StompDestinationGuard` + 세션 만료 확인 | Access Token 만료 시각이 지난 연결은 다음 프레임을 받을 때 STOMP ERROR(`TOKEN_EXPIRED`)를 보내고 닫습니다. 수신만 하는 연결도 만료 시각이 지나면 서버가 닫습니다. 프론트는 `/auth/refresh`로 재발급한 뒤 다시 연결하고 빠진 메시지를 보충합니다(5.4.6). 로그아웃 · 탈퇴 후에도 연결이 남는 시간은 Access Token 수명 이하입니다 |
+| 토큰 만료 | `StompDestinationGuard` + 세션 만료 확인 | Access Token 만료 시각이 지난 연결은 다음 프레임을 받을 때 STOMP ERROR(`TOKEN_EXPIRED`)를 보내고 닫습니다. 수신만 하는 연결도 만료 시각이 지나면 서버가 닫습니다. 프론트는 `/auth/refresh`로 재발급한 뒤 다시 연결하고 빠진 메시지를 보충합니다(5.4.6). 로그아웃 · 탈퇴 후에도 연결이 남는 시간은 Access Token 수명 이하입니다. 참고: 수명이 15분이라 모든 연결이 15분마다 재연결 → 목록 재조회를 합니다. 동시 접속이 늘어 부하가 되면 재연결 때 다시 맞추는 범위를 줄이거나(열린 대화방만) 연결 수명을 따로 두는 것을 검토합니다 |
 | 회원 상태 | 핸드셰이크 인터셉터 · `MessageService` | HTTP 요청과 같은 계정 상태 확인을 핸드셰이크에서 하고, 보낼 때마다 다시 확인합니다. SUSPENDED · BANNED는 회원 기능을 쓸 수 없으므로(common 5.8) 연결과 보내기 모두 거절합니다 |
 
 #### 5.4.4 보내기 · 전송 확인 · 오류
@@ -1442,8 +1446,8 @@ common/websocket/
   │ SEND /app/dm.send                 │
   │ {conversationId, clientMessageId, │
   │  text | attachment}               │
-  │──────────────────────────────────▶│ MessageService: 권한 · 규칙 확인 → 저장(tx) → 커밋
-  │                                   │ 커밋 후 UserPushRelay.publish(참여자 전원, MESSAGE_CREATED)
+  │──────────────────────────────────▶│ MessageService: 권한 · 규칙 확인 → 대화방 행 잠금 → 저장(tx) → 커밋
+  │                                   │ 커밋 후 보낸 사람에게 sendLocal(MESSAGE_CREATED) + publish(참여자 전원)
   │◀── /user/queue/dm ────────────────│  보낸 사람의 다른 탭 · 다른 참여자도 같은 이벤트를 받음
   │    {type:"MESSAGE_CREATED",       │
   │     data:{id, clientMessageId…}}  │
@@ -1452,13 +1456,13 @@ common/websocket/
 
 | 상황 | 처리 |
 | --- | --- |
-| 전송 확인 | 별도 ACK 프레임이 없습니다. 보낸 사람도 받는 `MESSAGE_CREATED`가 전송 확인이고, 프론트는 `clientMessageId`로 보내는 중인 말풍선과 짝짓습니다 |
+| 전송 확인 | 별도 ACK 프레임이 없습니다. 보낸 사람도 받는 `MESSAGE_CREATED`가 전송 확인이고, 프론트는 `clientMessageId`로 보내는 중인 말풍선과 짝짓습니다. 보낸 사람은 SEND를 처리한 서버에 연결돼 있으므로 **전송 확인은 Redis를 거치지 않고 그 서버에서 바로 보냅니다**(5.4.5) |
 | 같은 `clientMessageId`로 다시 옴 (재시도 · 재연결) | 새로 저장하지 않고 기존 메시지로 `MESSAGE_CREATED`를 보낸 사람에게만 다시 보냅니다. `messages`의 UNIQUE(sender_id, client_message_id) 위반도 같은 처리 (8.1 #10) |
 | 업무 오류 (권한 없음 · 차단 · 나간 대화방 · 본문 길이 등) | `BusinessException`을 `/user/queue/errors`로 `{status, code, message, clientMessageId}` 형식으로 보냅니다. `status` · `code` · `message`는 HTTP 오류 응답(common 5.2)과 같은 값이고 `ConversationErrorCode`를 그대로 씁니다 |
 | 입력 형식 오류 (payload 검증) | 400 `INVALID_INPUT`, 같은 오류 큐 |
 | 응답이 오지 않음 | 프론트가 일정 시간(제안: 10초) 뒤 실패로 표시하고, 다시 보낼 때 **같은 `clientMessageId`** 를 씁니다 |
 | 전달 시점 | 메시지는 DB 커밋 후에 보냅니다. 커밋 전에 보내면 롤백된 메시지가 상대 화면에 나타날 수 있습니다 |
-| 순서 | 같은 대화방의 메시지 순서는 `messages.id` 순서입니다. 프론트는 받은 순서가 아니라 id 순서로 끼워 넣습니다 |
+| 순서 | 같은 대화방의 메시지 순서는 `messages.id` 순서입니다. 프론트는 받은 순서가 아니라 id 순서로 끼워 넣습니다. id는 INSERT 때 정해지고 커밋 순서는 다를 수 있어서, 100번이 101번보다 늦게 커밋되면 `after=101`로 보충한 클라이언트는 100번을 놓칩니다. 그래서 **`MessageService`는 메시지를 INSERT하기 전에 대화방 행을 `SELECT … FOR UPDATE`로 잠가** 같은 대화방 안에서는 id 순서와 커밋 순서를 같게 합니다. 대화방 행은 어차피 마지막 메시지 시각(`updated_at`) 갱신으로 수정하므로 추가 비용이 거의 없습니다 |
 
 #### 5.4.5 Redis Pub/Sub 서버 간 전달
 
@@ -1476,10 +1480,10 @@ simple broker는 메모리에 있어서 **그 서버에 연결된 사용자에�
 | 항목 | 결정 |
 | --- | --- |
 | 채널 | `pickong:ws:user-push` 하나. 내용은 `{ "userIds": ["12", "34"], "destination": "/queue/dm", "payload": { … } }` (JSON) |
-| 보내는 서버 자신 | 따로 처리하지 않습니다. 자기가 발행한 것도 구독해서 받으므로, 서버가 1대인 지금도 같은 경로로 동작합니다 |
+| 보내는 서버 자신 | 자기가 발행한 것도 구독해서 받으므로 서버가 1대여도 같은 경로로 동작합니다. 단, **보낸 사람의 `MESSAGE_CREATED`(전송 확인)는 `sendLocal`로 이 서버에서 바로 보냅니다.** Redis 경로로 한 번 더 와도 프론트가 `id`로 중복을 없앱니다 |
 | 전달 보장 | Pub/Sub은 그 순간 구독 중인 서버에만 전달하고 저장하지 않습니다. **메시지의 원본은 DB**이고 끊긴 동안 빠진 메시지는 HTTP로 보충하므로(5.4.6) Redis Streams는 쓰지 않습니다 |
-| Redis 장애 | 발행 실패는 로그만 남기고 재시도하지 않습니다. 메시지는 이미 커밋됐으므로 보내기는 실패로 돌리지 않습니다(보낸 사람에게 전송 확인이 가지 않아 재시도하면 같은 `clientMessageId`로 기존 메시지를 받음) |
-| 설정 | `REDIS_HOST` · `REDIS_PORT`(· 필요하면 `REDIS_PASSWORD`) 환경변수. compose에 `redis:7-alpine` 서비스 추가. 테스트는 Testcontainers Redis |
+| Redis 장애 | 발행 실패는 로그만 남기고 재시도하지 않습니다. 메시지는 이미 커밋됐으므로 보내기는 실패로 돌리지 않습니다. 보낸 사람의 전송 확인은 Redis를 거치지 않으므로 장애 중에도 화면에 '전송됨'으로 남습니다. 다른 참여자는 재연결 · 탭 복귀 때 HTTP로 보충합니다(5.4.6) |
+| 설정 | `REDIS_HOST` · `REDIS_PORT`(· 필요하면 `REDIS_PASSWORD`) 환경변수. **Redis는 선택입니다:** `REDIS_HOST`를 정하면 `RedisUserPushRelay`, 정하지 않으면 `LocalUserPushRelay`(서버 안에서만 전달)로 시작합니다. 그래서 `./gradlew bootRun`과 기존 `@SpringBootTest`에는 Redis가 필요 없고, 공통 `TestcontainersConfiguration`에도 넣지 않습니다. Redis 중계는 전용 통합 테스트에서만 Testcontainers Redis를 띄웁니다. Redis를 쓰지 않을 때는 Redis 연결 · 상태 확인(health)도 켜지 않아 `/actuator/health`가 DOWN이 되지 않습니다. 운영(compose.prod)은 서버 대수와 관계없이 `redis:7-alpine`을 켜고, 로컬 compose에도 넣어 두되 쓰는지는 `REDIS_HOST`로 정합니다. `backend/README.md` 로컬 실행 안내는 구현 PR에서 함께 고칩니다 |
 | 바뀌는 범위 | 다른 브로커로 바꾸더라도 `common/websocket`만 고칩니다. 모듈의 Push 어댑터는 `UserPushRelay`만 압니다 |
 
 #### 5.4.6 끊김 복구
@@ -1492,7 +1496,8 @@ WebSocket은 끊긴 동안의 이벤트를 다시 보내 주지 않습니다. �
 | 탭이 다시 보일 때 (`visibilitychange`) | 위와 같음. 연결이 살아 있어도 Redis 발행이 실패했을 수 있으므로 |
 | 대화방 진입 | 첫 페이지 (`cursor` 없이) |
 
-- `after`는 그 id보다 큰 메시지를 오래된 순으로 돌려줍니다(최대 `size`개, 더 있으면 `nextCursor`). `cursor`(이전 내역)와 함께 쓰지 않습니다.
+- `after`는 그 id보다 큰 메시지를 오래된 순으로 돌려줍니다(최대 `size`개). `cursor`(이전 내역)와 함께 쓰지 않습니다.
+- **`after`로 받을 때 `nextCursor`는 다음 요청의 `after` 값입니다**(이번에 받은 것 중 가장 새 id). 더 오래된 방향인 `cursor` 응답의 `nextCursor`(가장 오래된 id)와 방향이 반대입니다. `nextCursor`가 null이 될 때까지 그 값을 다시 `after`로 보내면 빠진 메시지를 모두 받습니다.
 - 받은 이벤트와 보충한 메시지가 겹칠 수 있으므로 프론트는 메시지 `id`로 중복을 없앱니다.
 
 ---
@@ -1662,7 +1667,7 @@ class ArchitectureTest {
 | **Domain 단위** | `domain/model`, `vo`, `policy` | JUnit만 (Spring 없음, ms 단위) | 상태 전이, 가격 · 수수료 · 정산 계산, 환불 판정, 순서 최적화, 충돌 검증, 일치도 | DB, 트랜잭션 |
 | **Application** | `application/service` | **Fake Port**(메모리 구현, `test/support/fake/`) + 고정 `Clock` | 유스케이스 흐름, 권한 확인, 어떤 포트를 어떤 순서로 부르는지, 실패 시 상태 | SQL, JSON 형식 |
 | **Persistence 통합** | `*PersistenceAdapter`, `*QueryAdapter` | Testcontainers `postgis/postgis:16-*` + Flyway 전체 적용 | 매핑, 조회 쿼리, 공개 범위 · 차단 · soft delete 필터, UNIQUE · CHECK 제약, 잠금 · 조건부 UPDATE, PostGIS 범위 조회 | 업무 규칙 |
-| **API 통합** | HTTP · STOMP 전체 경로 | `@SpringBootTest` + MockMvc / `WebSocketStompClient` + Testcontainers(PostGIS · Redis), 외부 Port는 테스트 어댑터 | 인증 쿠키, 오류 응답 형식, 경로 · 요청 검증, 권한별 응답, 결제 · 환불 · 정산 같은 핵심 시나리오, STOMP 핸드셰이크 거절(Origin · 쿠키) · 보내기 → 다른 참여자 수신 · 오류 큐 | 모든 분기 (그건 Application 테스트) |
+| **API 통합** | HTTP · STOMP 전체 경로 | `@SpringBootTest` + MockMvc / `WebSocketStompClient` + Testcontainers(PostGIS, Redis는 중계 테스트만), 외부 Port는 테스트 어댑터 | 인증 쿠키, 오류 응답 형식, 경로 · 요청 검증, 권한별 응답, 결제 · 환불 · 정산 같은 핵심 시나리오, STOMP 핸드셰이크 거절(Origin · 쿠키) · 보내기 → 다른 참여자 수신 · 오류 큐 | 모든 분기 (그건 Application 테스트) |
 | **아키텍처** | 전체 | ArchUnit | 7.1 | |
 
 - Fake를 Mock보다 먼저 씁니다. Mock은 호출 순서에 묶여서 리팩터링할 때 테스트가 함께 깨집니다. 외부 API 오류처럼 만들기 어려운 상황만 Mock을 씁니다.

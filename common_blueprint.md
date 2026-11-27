@@ -92,12 +92,12 @@ pickong/
 | REST API | `/api/v1/**` |
 | 관리자 API | `/api/v1/admin/**` (회원과 별개인 관리자 계정으로 접근) |
 | 소셜 로그인 시작 · 콜백 | `/api/v1/auth/oauth2/authorization/{provider}`, `/api/v1/auth/oauth2/callback/{provider}` (`kakao` · `google`) |
-| WebSocket (STOMP) | 연결 `/ws`(SockJS 없음), 보내기 `/app/**`, 받기 `/user/queue/**` (5.9) |
+| WebSocket (STOMP) | 연결 `/api/v1/ws`(SockJS 없음), 보내기 `/app/**`, 받기 `/user/queue/**` (5.9) |
 | 상태 확인 · 문서 | `/actuator/health`, `/swagger-ui.html`, `/v3/api-docs` |
 
 - 브라우저는 같은 도메인의 `/api/*`로 요청하고, Next의 rewrites가 백엔드로 전달합니다. CORS 설정이 필요 없고 httpOnly 쿠키를 그대로 씁니다.
 - 소셜 로그인 경로는 Spring 기본값(`/oauth2/**`, `/login/oauth2/**`) 대신 `/api/v1/auth/oauth2/**`에 둡니다. 같은 rewrites를 타서 콜백에서 내려준 쿠키가 프론트 도메인에 저장되고, 프론트의 `/login` 페이지와도 겹치지 않습니다. 제공자 콘솔에 등록하는 Redirect URI도 프론트 도메인 기준입니다 (예: `https://{프론트 도메인}/api/v1/auth/oauth2/callback/kakao`).
-- **WebSocket은 Next rewrites를 거치지 않습니다.** Next는 WebSocket 업그레이드 요청을 전달하지 않기 때문입니다. 로컬은 백엔드(`ws://localhost:8080/ws`)로 바로 연결하고(쿠키는 포트를 구분하지 않아 같은 쿠키가 실립니다), 운영은 프론트 도메인의 `/ws`를 리버스 프록시가 백엔드로 전달합니다. 백엔드는 프론트 주소에서 온 핸드셰이크(Origin)만 받습니다.
+- **WebSocket은 Next rewrites를 거치지 않습니다.** Next는 WebSocket 업그레이드 요청을 전달하지 않기 때문입니다. 로컬은 백엔드(`ws://localhost:8080/api/v1/ws`)로 바로 연결하고(쿠키는 포트를 구분하지 않아 같은 쿠키가 실립니다), 운영은 프론트 도메인의 `/api/v1/ws`를 리버스 프록시가 백엔드로 전달합니다. 백엔드는 프론트 주소에서 온 핸드셰이크(Origin)만 받습니다. 경로가 `/ws`가 아닌 이유는 백엔드의 서블릿 경로가 `/api/v1`이기 때문이고(STOMP 엔드포인트도 그 아래에 열림), 덕분에 REST와 같은 보안 설정 · 프록시 규칙(`/api/v1/**`)을 함께 씁니다.
 - **URL에는 DB 테이블 이름이 아니라 화면 용어를 씁니다.** 예: 게시물 테이블은 `posts`지만 경로는 `/feeds`입니다 (6장 용어표).
 
 > **현재 부분 연동:** 프론트와 mock도 `/api/v1/**`를 사용합니다. `BACKEND_URL` 설정 시 `frontend/next.config.ts`의 `BACKEND_PATHS`에 있는 회원 인증·약관·관리자 사용자/게시물/신고 API만 백엔드로 전달하고 나머지는 mock을 사용합니다. 관리자 API의 현재 계약은 5.8에 기록합니다. 회원용 게시물 API의 Long ID와 공개 UUID 통합 등 나머지 연동 범위는 별도 협의하며, 아직 전환하지 않은 화면을 실제 백엔드 연동 완료로 취급하지 않습니다.
@@ -127,7 +127,7 @@ pickong/
 | 방식 | Access Token(JWT, 짧은 만료) + Refresh Token(임의 문자열, DB에는 SHA-256 해시만 저장) |
 | 전달 | 둘 다 **httpOnly · Secure · SameSite=Lax 쿠키**. 프론트 JS는 토큰을 읽지 않습니다 |
 | 재발급 | Refresh Token은 쓸 때마다 새로 발급(로테이션). 이미 교체된 토큰이 다시 오면 같은 family 전체를 폐기 |
-| WebSocket | `/ws` 핸드셰이크에 실린 같은 쿠키로 인증하고 Origin을 확인합니다(CONNECT 헤더에 토큰 없음). Access Token이 만료되면 서버가 연결을 닫고, 프론트는 `/auth/refresh` 후 다시 연결합니다 (5.9) |
+| WebSocket | `/api/v1/ws` 핸드셰이크에 실린 같은 쿠키로 인증하고 Origin을 확인합니다(CONNECT 헤더에 토큰 없음). Access Token이 만료되면 서버가 연결을 닫고, 프론트는 `/auth/refresh` 후 다시 연결합니다 (5.9) |
 | 관리자 | `admins` 테이블의 별도 계정. 회원 토큰으로는 `/api/v1/admin/**`에 접근할 수 없습니다 |
 | 로그인 수단 | 카카오 · Google만. 회원(`users`)과 로그인 수단(`user_social_accounts`)을 분리하고 `(provider, provider_id)`는 UNIQUE. 이메일이 같다는 이유로 계정을 자동 연결하지 않습니다 |
 | 최초 가입 | 처음 온 소셜 계정은 정식 토큰 대신 **임시 가입 세션 쿠키**만 받고 온보딩(`/signup`)으로 갑니다. 이 세션으로는 `/api/v1/auth/signup`, `/auth/username-availability`만 쓸 수 있고, 온보딩을 마쳐야 Access · Refresh Token이 발급됩니다 |
@@ -163,7 +163,7 @@ pickong/
 ### 5.6 목록 · 페이지네이션 (제안)
 
 - 무한 스크롤 목록(피드, 댓글, 메시지, 알림, 저장 장소)은 **커서 방식**: `?cursor=&size=` → `{ "items": [...], "nextCursor": "..." | null }`
-- 메시지 목록만 끊김 복구용 `?after={메시지 id}&size=`도 받습니다. 그 id보다 새 메시지를 오래된 순으로 돌려주고, `cursor`와 함께 쓰지 않습니다 (5.9)
+- 메시지 목록만 끊김 복구용 `?after={메시지 id}&size=`도 받습니다. 그 id보다 새 메시지를 오래된 순으로 돌려주고, `cursor`와 함께 쓰지 않습니다. 이때 `nextCursor`는 **다음 요청의 `after` 값**(받은 것 중 가장 새 id)입니다 (5.9)
 - 관리자 화면처럼 페이지 번호가 필요한 목록만 `?page=&size=` → `{ "items", "page", "size", "totalCount" }`
 - 예외: 관리자 사용자·게시물·신고 목록과 장소 제보 목록은 화면에 페이지가 없어 배열 전체를 돌려줍니다. 페이지 UI가 생기면 이 형식으로 바꿉니다.
 
@@ -207,11 +207,12 @@ DM · 그룹 채팅의 실시간 전달 형식입니다. 서버 구조와 결정
 
 | 항목 | 규칙 |
 | --- | --- |
-| 주소 | 브라우저 기준 `/ws` (STOMP over WebSocket, SockJS 없음). Next rewrites를 거치지 않습니다(5.1) |
+| 주소 | `/api/v1/ws` (STOMP over WebSocket, SockJS 없음). Next rewrites를 거치지 않습니다(5.1) |
 | 인증 | 핸드셰이크에 실린 Access Token 쿠키. CONNECT 헤더에 토큰을 넣지 않습니다. 실패하면 핸드셰이크가 401로 거절됩니다 |
 | heartbeat | `10000,10000` (서버 · 클라이언트 모두 10초) |
-| 재연결 | 끊기면 점점 늘어나는 간격으로 다시 연결합니다 (제안: 1초부터 두 배씩, 최대 30초). 핸드셰이크 401이나 ERROR `TOKEN_EXPIRED`면 `/auth/refresh`를 먼저 보내고, 재발급도 실패하면 로그인 화면으로 이동합니다 |
-| 다시 맞추기 | (재)연결 직후와 탭이 다시 보일 때 대화 목록 · 안 읽은 수 · 열린 대화방의 `GET /conversations/{id}/messages?after={마지막 메시지 id}`를 다시 불러옵니다. 끊긴 동안의 이벤트는 다시 오지 않습니다 |
+| 재연결 | 끊기면 점점 늘어나는 간격으로 다시 연결합니다 (제안: 1초부터 두 배씩, 최대 30초). 연결된 뒤 ERROR `TOKEN_EXPIRED`를 받으면 `/auth/refresh`를 먼저 보내고 다시 연결합니다 |
+| 연결 실패 확인 | **브라우저 WebSocket은 핸드셰이크 실패의 HTTP 상태(401 · 403)를 알려 주지 않습니다**(close code 1006). 그래서 CONNECTED 전에 실패하면 `GET /conversations/unread-count`를 HTTP 클라이언트로 한 번 보냅니다. 이 API는 핸드셰이크와 같은 보안 필터를 거치므로 상태가 그대로 드러납니다(`GET /me`는 약관 재동의 중에도 허용되어 쓰지 않음). 401이면 기존 재발급 흐름(실패하면 로그인 화면), **403(`TERMS_RECONSENT_REQUIRED` 등)이면 재연결하지 않고 기존 HTTP 오류 처리(재동의 화면)로 넘깁니다.** 성공하면 네트워크 문제로 보고 백오프로 재연결합니다 |
+| 다시 맞추기 | (재)연결 직후와 탭이 다시 보일 때 대화 목록 · 안 읽은 수 · 열린 대화방의 `GET /conversations/{id}/messages?after={마지막 메시지 id}`를 다시 불러옵니다. 응답의 `nextCursor`가 null이 될 때까지 그 값을 다시 `after`로 보냅니다. 끊긴 동안의 이벤트는 다시 오지 않습니다 |
 
 **보내기 (SEND)**
 
@@ -266,7 +267,7 @@ DM · 그룹 채팅의 실시간 전달 형식입니다. 서버 구조와 결정
 | 컬렉션 · 유료 컬렉션 구매 | `/collections`, `/me/purchases` | `collections`, `collection_*` | `collection` | `entities/collection` |
 | 일정 | `/plans` | `plans`, `plan_items`, `plan_item_reservations` | `plan` | `entities/plan` |
 | AI 링크 가져오기 | `/place-imports` | `import_jobs`, `import_extraction_runs` | `placeimport` | `app/(main)/import/_api` |
-| DM | `/conversations`, `/ws` | `conversations`, `conversation_members`, `messages` | `conversation` | `/messages` 라우트 |
+| DM | `/conversations`, `/ws`(실제 `/api/v1/ws`) | `conversations`, `conversation_members`, `messages` | `conversation` | `/messages` 라우트 |
 | 크리에이터 · 정산 | `/creators`, `/me/creator/**` | `creators`, `creator_*` | `creator`, `settlement` | |
 | 결제 · 환불 | `/payments`, `/purchases/{id}/refunds` | `payments`, `refunds` | `payment` | |
 

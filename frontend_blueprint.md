@@ -783,7 +783,7 @@ export async function getFeed(id: Id): Promise<Feed> {
 | `API_BASE_URL` | 브라우저의 `/api/*`를 전달할 기본 주소. 개발은 mock, 배포는 백엔드 |
 | `BACKEND_URL` | 개발 전용. 정하면 `BACKEND_PATHS`의 경로만 이 백엔드로 보냄 |
 | `API_INTERNAL_URL` | 서버 → 백엔드(또는 mock) 주소. 서버 전용 |
-| `NEXT_PUBLIC_WS_URL` | WebSocket 주소. 로컬 `ws://localhost:8080/ws`, 운영 `wss://{프론트 도메인}/ws` (Next rewrites를 거치지 않음, 8.8) |
+| `NEXT_PUBLIC_WS_URL` | WebSocket 주소. 로컬 `ws://localhost:8080/api/v1/ws`, 운영 `wss://{프론트 도메인}/api/v1/ws` (Next rewrites를 거치지 않음, 8.8) |
 | `NEXT_PUBLIC_NAVER_MAP_CLIENT_ID` | 네이버 지도 Client ID (`ncpKeyId`, Web 서비스 URL·Dynamic Map 설정) |
 | `NEXT_PUBLIC_NAVER_MAP_STYLE_ID` | (선택) Map Style Editor My Style ID. 설정 시 GL + 커스텀 스타일 |
 | `NEXT_PUBLIC_NAVER_MAP_GL` | (선택) `true`면 Style ID 없이 GL 벡터맵만 사용 |
@@ -804,8 +804,8 @@ export async function getFeed(id: Id): Promise<Feed> {
 
 | 위치 | 하는 일 | 모르는 것 |
 | --- | --- | --- |
-| `shared/realtime/` | STOMP 연결 하나(탭당 하나), heartbeat, 재연결 간격, 401 · `TOKEN_EXPIRED`이면 `shared/api`의 재발급을 거친 뒤 재연결, 연결 · 재연결 알림 | 대화 · 메시지 같은 도메인 |
-| `entities/conversation/api/realtime.ts` | `/user/queue/dm` · `/user/queue/errors` 구독, 이벤트를 `setQueryData`로 `conversationKeys` 캐시에 반영, `/app/dm.send` · `/app/dm.read` 보내기, (재)연결 시 목록 · 열린 대화방(`?after=`) 다시 불러오기 | 연결 관리 |
+| `shared/realtime/` | STOMP 연결 하나(탭당 하나), heartbeat, 재연결 간격, `TOKEN_EXPIRED`이면 `shared/api`의 재발급을 거친 뒤 재연결, 연결 · 재연결 알림. CONNECTED 전 실패는 브라우저가 상태를 알려 주지 않으므로 주입받은 확인 요청(대화에서는 `GET /conversations/unread-count`)을 `shared/api`로 보내 401 재발급 · 403 기존 오류 처리(재연결 안 함)로 나눕니다 (common 5.9) | 대화 · 메시지 같은 도메인 |
+| `entities/conversation/api/realtime.ts` | `/user/queue/dm` · `/user/queue/errors` 구독, 이벤트를 `setQueryData`로 `conversationKeys` 캐시에 반영, `/app/dm.send` · `/app/dm.read` 보내기, (재)연결 시 목록 · 열린 대화방(`?after=`, `nextCursor`가 null이 될 때까지 다시 `after`로) 다시 불러오기 | 연결 관리 |
 
 - `@stomp/stompjs`는 `shared/realtime/` 밖에서 import하지 않습니다 (지도 SDK와 같은 경계 규칙, 8.7).
 - 컴포넌트는 지금처럼 `useMessages` · `useSendMessage` 같은 훅만 씁니다. 이벤트를 컴포넌트에서 직접 구독하지 않습니다.
