@@ -328,6 +328,15 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | POST | `/media/{mediaId}/confirm` | `MediaUploadUseCase.confirmUpload` |
 | DELETE | `/media/{mediaId}` | `MediaUploadUseCase.delete` |
 
+**사진 업로드 구현 현황:** 발급(`presigned`) · 확인(`confirm`)은 구현됨. `DELETE`, 이미지 처리(`PROCESSED`), 정리 스케줄러는 아직 없음.
+- 흐름: 발급 → 브라우저가 R2에 직접 PUT → 확인. 로그인 필수(비로그인 401). 서버는 파일 내용을 받지 않음
+- 발급: 요청 `{contentType, sizeBytes}`, 응답 201 `{mediaId, uploadUrl, uploadHeaders}`. R2 설정값이 하나라도 없으면 503 `MEDIA_STORAGE_UNAVAILABLE`이고 기록을 만들지 않음. `image/jpeg` · `image/png` · `image/webp`만, 10MB 이하(`MediaFile.issue`). 그 외 400 `MEDIA_TYPE_NOT_ALLOWED` · `MEDIA_TOO_LARGE`. `media_files`(V21)에 PENDING 저장. 파일 이름은 `feeds/{랜덤 UUID}.{확장자}`이고 회원 id를 넣지 않음
+- Presigned PUT URL: 5분(`pickong.media.r2.upload-url-ttl`) 유효하고 `Content-Type` · `Content-Length` · `If-None-Match: *`가 서명에 들어감. 브라우저는 `uploadHeaders`(`Content-Type`, `If-None-Match`)를 그대로 넣어 PUT해야 하고, 빠지거나 다르면 403. Presigned URL은 일회용이 아니어서 `If-None-Match: *`(key에 객체가 없을 때만 저장)로 같은 URL의 두 번째 PUT을 412로 막음. 그래서 업로드 확인이 끝난 사진은 바꿔치기할 수 없음(실제 R2로 확인)
+- 확인: 응답 200 `{mediaId, url, contentType, sizeBytes}`. 행을 잠그고 읽은 뒤 R2에 HEAD로 실제 크기 · 종류를 비교함. 남의 사진 · 없는 사진 404 `MEDIA_NOT_FOUND`, 이미 확인된 사진은 같은 결과(멱등), R2에 파일 없음 400 `MEDIA_NOT_UPLOADED`(PENDING 유지), 종류 · 크기가 다르면 FAILED로 커밋하고 R2 파일을 지운 뒤 400 `MEDIA_FILE_MISMATCH`, 이미 실패한 사진 409 `MEDIA_UPLOAD_FAILED`. R2 삭제가 실패해도 FAILED는 커밋하고 경고 로그만 남김(남은 파일은 정리 스케줄러 대상)
+- 파일 내용이 실제 이미지인지(디코딩), EXIF 제거, 픽셀 수 제한은 아직 서버에서 확인하지 않음. 프론트 재인코딩과 별개로 서버 측 이미지 처리에서 다룸
+- 설정: `R2_ACCOUNT_ID` · `R2_ACCESS_KEY_ID` · `R2_SECRET_ACCESS_KEY` · `R2_BUCKET` · `R2_PUBLIC_BASE_URL`(`backend/.env.example`). 값이 없어도 앱은 시작하고 업로드 API만 503. 버킷 CORS는 PUT과 `Content-Type` · `If-None-Match` 헤더를 허용해야 함
+- 공개 방식은 8.7 #5 참고
+
 ### place
 | 메서드 | 경로 | 입력 포트 · 메서드 | 비고 |
 | --- | --- | --- | --- |
@@ -458,6 +467,14 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | GET | `/users/{username}/feeds` | `FeedQueryUseCase.feedsOf` | |
 | GET | `/users/{username}/visits` | `FeedQueryUseCase.visitedPlacesOf` | 기준 미정 (8.3 #3) |
 
+**게시물 단건 접근의 공개 범위 (이슈 #175):** 게시물 하나에 접근하는 모든 API는 같은 판정(`Feed.ensureReadable`)을 거칩니다. 상세, 댓글 · 대댓글 조회, 좋아요 · 북마크 추가와 취소, 댓글 작성 · 수정 · 삭제, 댓글 좋아요와 취소, 게시물 수정 · 삭제가 대상입니다.
+- 관계(`ViewerRelation`)는 social의 `RelationQueryUseCase.relationOf`가 계산합니다. 비로그인 ANONYMOUS, 작성자 OWNER, `follows`에 행이 있으면 FOLLOWER, 그 외 OTHER입니다. 요청마다 새로 읽어서 팔로우를 끊으면 바로 반영됩니다.
+- 판정 순서: 삭제됨 → 관리자 통과 → 숨김 글은 작성자만 → `Visibility.allows(관계)`. 볼 수 없으면 모두 404 `FEED_NOT_FOUND`이고, 공개 범위를 알 수 없으면 열지 않습니다.
+- 반응 추가와 댓글 작성(`ensureAcceptsInteraction`)은 여기에 더해 작성자도 숨김 글에는 할 수 없습니다.
+- 취소 · 수정 · 삭제도 먼저 판정합니다. 볼 수 없는 게시물에서 `LIKE_NOT_FOUND` · `COMMENT_NOT_OWNER` · `FEED_NOT_OWNER` 같은 다른 오류가 나가면 게시물이 있다는 사실이 드러나기 때문입니다.
+- 그래서 게시물이 PRIVATE로 바뀌면 다른 회원이 전에 남긴 좋아요 · 북마크 · 댓글은 남고, 그 회원도 취소하거나 지울 수 없습니다.
+- 목록(팔로잉 탭, 프로필 피드, 피드 지도)은 아직 PUBLIC만 보여 줍니다. FOLLOWERS 게시물을 목록에 넣는 것은 후속입니다.
+
 ### collection
 | 메서드 | 경로 | 입력 포트 · 메서드 | 비고 |
 | --- | --- | --- | --- |
@@ -514,8 +531,8 @@ STOMP 메시지 형식(보내기 · 이벤트 · 오류)은 [common_blueprint.md
 
 #### 대화방 HTTP API 구현 현황 (2026-11-28, #188)
 
-- **1:1만 구현했습니다.** 그룹(`/conversations/group`, 방장 · 초대 등)은 별도 이슈이고, STOMP 보내기 · 실시간 전달도 별도 이슈입니다. 마이그레이션은 V21(`conversations`, `conversation_members`, `messages`)이고 첨부 컬럼은 보내기 이슈에서 추가합니다.
-- **볼 수 있는 메시지** = 지우지 않았고(`deleted_at IS NULL`) 내 참여 시각(`joined_at`) 이후에 보낸 메시지. 내역 · 마지막 메시지 · 안 읽은 수가 모두 이 기준입니다. 안 읽은 메시지는 그중 상대가 보냈고 `last_read_message_id`보다 뒤에 있는 것입니다.
+- **1:1만 구현했습니다.** 그룹(`/conversations/group`, 방장 · 초대 등)은 별도 이슈이고, STOMP 보내기 · 실시간 전달도 별도 이슈입니다. 마이그레이션은 V23(`conversations`, `conversation_members`, `messages`)이고 첨부 컬럼은 보내기 이슈에서 추가합니다. (V21은 `media_files`, V22는 #193이 씁니다)
+- **볼 수 있는 메시지** = 지우지 않았고(`deleted_at IS NULL`) 내 참여 시각(`joined_at`) 이후에 보낸 메시지. `joined_at`과 메시지 `created_at`은 둘 다 앱 `Clock`이 정합니다(DB `now()`를 쓰지 않음). 다시 참여한 시각과 같은 시각의 메시지는 보입니다(`>=`). 서버가 여러 대가 되어 서버 간 시계 차이가 문제가 되면 '참여할 때의 마지막 메시지 id' 기준(`m.id > :visibleAfterId`)으로 바꿉니다. 내역 · 마지막 메시지 · 안 읽은 수가 모두 이 기준입니다. 안 읽은 메시지는 그중 상대가 보냈고 `last_read_message_id`보다 뒤에 있는 것입니다.
 - `GET /conversations`: 배열. 참여 중이고 볼 수 있는 메시지가 있는 1:1 대화방만, 마지막 메시지 id 내림차순. `GET /conversations/{id}`는 메시지가 없어도 보이고, 그때 `updatedAt`은 내 참여 시각입니다.
 - `POST /conversations/direct` `{username}`: 새로 만들면 201, 있으면 200(본문은 같은 `ConversationDto`). 상대가 없거나 ACTIVE가 아니면 404 `USER_NOT_FOUND`, 나 자신은 400 `SELF_CONVERSATION_NOT_ALLOWED`. 동시에 열어도 `INSERT … ON CONFLICT (direct_key) DO NOTHING`으로 하나만 생깁니다. **내가 나갔던 대화방이면 다시 참여**하고(참여 시각을 지금으로 바꿔 예전 메시지는 보이지 않음), 상대가 나간 상태는 그대로 둡니다(상대는 보내기 이슈에서 새 메시지를 받을 때 다시 참여).
 - `GET /conversations/{id}/messages?cursor=|after=&size=`: `{ items, nextCursor }`, `items`는 항상 오래된 순. `size` 기본 30, 1~100. `cursor`와 `after`를 함께 보내면 400 `INVALID_INPUT`. 조회는 읽음 위치를 바꾸지 않습니다.
@@ -1710,7 +1727,7 @@ class ArchitectureTest {
 | 7 | 저장 장소 개인 태그: 이전에는 보류였지만 ERD에 `saved_place_tags`(2026-11-20)가 추가됐고, 프론트 · mock은 `/me/places/{placeId}/tags`를 씀 | savedplace | 메모는 `PATCH /saved-places`의 `memo`. 태그는 ERD대로 구현(달거나 지울 때 `place_tags.count`, `user_tag_stats.score` 갱신). 태그 테이블(`tags` 등) 마이그레이션 필요 |
 | 8 ★ | **관리자 로그인 · 토큰 API 없음.** `refresh_tokens.user_id`는 회원만 가리킴 | admin, auth | 관리자 로그인 API + 관리자 세션 방식 결정 (별도 토큰 테이블 또는 짧은 세션) |
 | 9 | **비밀번호 재설정 토큰** 저장 위치 없음 | auth | 테이블(해시 · 만료 · 사용 시각) 또는 만료 있는 캐시 |
-| 10 | DM 재전송 중복 방지 키 없음 (재연결 시 같은 메시지 두 번 저장) | conversation | **결정 (2026-11-27):** `messages.client_message_id UUID NOT NULL` + UNIQUE(sender_id, client_message_id). 같은 키로 다시 오면 저장하지 않고 기존 메시지로 전송 확인 (5.4.4). V21에 추가함 |
+| 10 | DM 재전송 중복 방지 키 없음 (재연결 시 같은 메시지 두 번 저장) | conversation | **결정 (2026-11-27):** `messages.client_message_id UUID NOT NULL` + UNIQUE(sender_id, client_message_id). 같은 키로 다시 오면 저장하지 않고 기존 메시지로 전송 확인 (5.4.4). V23에 추가함 |
 | 11 | DM 안 읽은 대화 수(프론트 하단바 배지, mock `GET /conversations/unread-count`)가 명세에 없음 | conversation | **구현 (#188):** `GET /conversations/unread-count` → `{ count }`. mock과 같이 안 읽은 **메시지** 수의 합 (`last_read_message_id`로 계산) |
 | 12 | **저장 출처 컬렉션:** ERD의 `saved_places.source_collection_id`(FK → collections)는 `collections` 마이그레이션이 없어 만들지 못했음(V19로 테이블이 생겨 이제 추가 가능). 출처 문구(`source_label`) · 원본 URL(`source_url`) · 게시물(`source_feed_id`)은 ERD에 있어 해결됨 | savedplace, collection | savedplace 저장 API 작업에서 컬럼 · FK 추가. 그 전에는 `COLLECTION` 출처를 종류 · 문구만 저장 |
 | 13 | **저장하면서 컬렉션에 담기:** 프론트 · mock은 `POST /saved-places`의 `collectionIds`와 `PATCH /saved-places`의 `add/set/removeCollectionIds`로 컬렉션 구성까지 한 번에 바꿈. `collection_places`는 collection 모듈 소유라 savedplace가 직접 쓰거나 collection의 UseCase를 부르면 `savedplace → collection` 화살표가 생겨, 이미 있는 `collection → savedplace`와 서로 의존하게 됨(6.2 비순환 원칙). DB 관계(`collection_places`가 `collections` · `saved_places`를 FK로 잇는 다대다)에는 문제가 없음 | savedplace, collection | **결정: 이벤트 방식 (2026-11-26).** savedplace가 저장 · 수정 직후 같은 트랜잭션에서 `SavedPlaceCollectionsChangedEvent`를 발행하고, collection의 리스너가 `collection_places`를 쓰며 컬렉션 소유자를 검증함(실패하면 함께 롤백). 삭제의 `SavedPlaceDeletingEvent`와 같은 방식이고, 코드 의존은 `collection → savedplace` 한 방향뿐. `collections` · `collection_places`는 V19로 생겼으므로 리스너를 구현할 수 있음. 구현 전에는 필드를 받기만 하고 무시 |
@@ -1796,9 +1813,9 @@ class ArchitectureTest {
 | 2 | enum 값 목록이 없는 컬럼: `media_files.purpose/status`, `payments.status/purpose/provider`, `import_jobs.status/source_type/platform`, `places.source_type/category`, `reports.reason`(접수는 `ReportReason` 여섯 값. 컬럼은 문자열이라 기존 다른 값은 관리자 조회에 남음. 상태·대상·처리 액션은 확정), `notifications.type/target_type`, `messages.attachment_type`, `plan_item_reservations.type`, 이동 수단 `mode` |
 | 3 | 길찾기 · 날씨 · LLM · PG · 메일 제공자 |
 | 4 | 보류 테이블(tags 등)을 Flyway 초기 스크립트에 포함할지 (제안: 보류를 풀 때 마이그레이션 추가) |
-| 5 | R2 파일 접근 방식: 공개 버킷이면 비공개 게시물 · 유료 컬렉션 사진이 URL만으로 열림 → 비공개 버킷 + 서명 URL(GET) 여부 |
+| 5 | R2 파일 접근 방식: 공개 버킷이면 비공개 게시물 · 유료 컬렉션 사진이 URL만으로 열림 → 비공개 버킷 + 서명 URL(GET) 여부. **게시물 사진은 공개 버킷 + 랜덤 UUID 파일 이름으로 시작함(PR #168, #155).** 이름을 추측할 수는 없지만, 볼 권한이 있던 사람이 주소를 퍼뜨리면 비공개 글의 사진도 열리는 한계가 있음. 유료 컬렉션 사진은 비공개 버킷 + 서명 GET을 따로 정함 |
 | 6 | DM으로 공유한 FOLLOWERS 게시물을 팔로워가 아닌 상대가 볼 수 있는지 (제안: 열람 시점에 공개 범위 다시 확인) |
-| 7 | 피드 상세 조회는 공개 범위를 검사하지 않습니다. 신고 접수는 다른 회원에게 `PUBLIC`만 허용하고, 상세가 열려 있다는 이유로 `FOLLOWERS`·`PRIVATE` 신고를 허용하지 않습니다. `follows` 마이그레이션이 생기고 피드 목록이 팔로워 글을 실제로 보여 주면 신고 조건을 맞춥니다 |
+| 7 | 피드 단건 접근(상세, 댓글, 반응, 수정 · 삭제)은 공개 범위를 검사합니다(이슈 #175, 위 feed 절). 신고 접수는 여전히 다른 회원에게 `PUBLIC`만 허용합니다. 팔로워는 이제 `FOLLOWERS` 게시물을 상세로 볼 수 있지만 신고할 수 없습니다. 피드 목록이 팔로워 글을 보여 주면(후속) 신고 조건을 같은 기준으로 맞춥니다 |
 
 ---
 

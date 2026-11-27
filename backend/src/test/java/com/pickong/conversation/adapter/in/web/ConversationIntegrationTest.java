@@ -34,7 +34,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 대화방 HTTP API: 실제 보안 필터 · 마이그레이션(V21) · 조회 SQL을 함께 확인합니다. 테스트마다 롤백합니다.
+ * 대화방 HTTP API: 실제 보안 필터 · 마이그레이션(V23) · 조회 SQL을 함께 확인합니다. 테스트마다 롤백합니다.
  * 메시지 보내기 API가 없으므로(STOMP 이슈) 메시지는 JDBC로 직접 넣습니다.
  */
 @SpringBootTest
