@@ -10,5 +10,9 @@ import java.util.Optional;
  */
 public interface ReportTargetLookupPort {
 
-    Optional<ReportTargetLookup> findReportable(long reporterId, ReportTargetType targetType, long targetId);
+    /**
+     * 신고 대상이 될 수 있는 게시물 또는 댓글을 읽음 (없음, 삭제, 숨김은 빈 값)
+     * 신고자가 볼 수 있는지(공개 범위)는 판단하지 않음. 접수 서비스가 feed 모듈에 물어봄
+     */
+    Optional<ReportTargetLookup> findReportable(ReportTargetType targetType, long targetId);
 }

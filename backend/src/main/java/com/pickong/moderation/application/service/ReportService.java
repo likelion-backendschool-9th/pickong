@@ -2,6 +2,7 @@ package com.pickong.moderation.application.service;
 
 import com.pickong.common.error.BusinessException;
 import com.pickong.common.error.CommonErrorCode;
+import com.pickong.feed.application.port.in.FeedAccessQueryUseCase;
 import com.pickong.moderation.application.ReportSnapshots;
 import com.pickong.moderation.application.dto.ReportCommand;
 import com.pickong.moderation.application.dto.ReportReceipt;
@@ -28,13 +29,15 @@ public class ReportService implements ReportUseCase {
     private final ReportTargetLookupPort targets;
     private final ReportPersistencePort reports;
     private final ReportSnapshotWriter snapshots;
+    private final FeedAccessQueryUseCase feedAccess;
     private final Clock clock;
 
     public ReportService(ReportTargetLookupPort targets, ReportPersistencePort reports,
-            ReportSnapshotWriter snapshots, Clock clock) {
+            ReportSnapshotWriter snapshots, FeedAccessQueryUseCase feedAccess, Clock clock) {
         this.targets = targets;
         this.reports = reports;
         this.snapshots = snapshots;
+        this.feedAccess = feedAccess;
         this.clock = clock;
     }
 
@@ -47,8 +50,14 @@ public class ReportService implements ReportUseCase {
         ReportTargetType targetType = ReportRules.reportableTarget(command.targetType(), command.targetId());
         ReportReason reason = ReportReason.parse(command.reason());
         String detail = ReportRules.normalizeDetail(reason, command.detail());
-        ReportTargetLookup target = targets.findReportable(command.reporterId(), targetType, command.targetId())
+        // 1. 대상 읽기 (없음, 삭제, 숨김이면 404) → 2. 신고자가 그 게시물을 볼 수 있는지 feed 모듈에 물어봄 (댓글은 상위 게시물)
+        // → 3. 자기 글이면 400. 2번이 3번보다 먼저라, 볼 수 없는 글의 작성자가 누구인지 SELF_REPORT로 드러나지 않음
+        // 2번은 상세 조회와 같은 판단이라 팔로워는 FOLLOWERS 게시물을 신고할 수 있음
+        ReportTargetLookup target = targets.findReportable(targetType, command.targetId())
                 .orElseThrow(() -> new BusinessException(ModerationErrorCode.REPORT_TARGET_NOT_FOUND));
+        if (!feedAccess.isReadableBy(target.feedId(), command.reporterId())) {
+            throw new BusinessException(ModerationErrorCode.REPORT_TARGET_NOT_FOUND);
+        }
         if (target.authorId() == command.reporterId()) {
             throw new BusinessException(ModerationErrorCode.SELF_REPORT);
         }

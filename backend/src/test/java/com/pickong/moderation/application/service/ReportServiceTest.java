@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 import com.pickong.common.error.BusinessException;
 import com.pickong.common.error.CommonErrorCode;
 import com.pickong.common.error.ErrorCode;
+import com.pickong.feed.application.port.in.FeedAccessQueryUseCase;
 import com.pickong.moderation.application.dto.ReportCommand;
 import com.pickong.moderation.application.dto.ReportDismissal;
 import com.pickong.moderation.application.dto.ReportReceipt;
@@ -38,12 +39,13 @@ class ReportServiceTest {
     private final FakeTargets targets = new FakeTargets();
     private final FakeReports reports = new FakeReports();
     private final FakeWriter writer = new FakeWriter();
+    private final FakeFeedAccess feedAccess = new FakeFeedAccess();
     private final ReportService service = new ReportService(
-            targets, reports, writer, Clock.fixed(Instant.parse("2026-11-25T03:00:00Z"), ZoneOffset.UTC));
+            targets, reports, writer, feedAccess, Clock.fixed(Instant.parse("2026-11-25T03:00:00Z"), ZoneOffset.UTC));
 
     @BeforeEach
     void reportableFeed() {
-        targets.found = new ReportTargetLookup(ReportTargetType.FEED, 41L, 9L, ORIGINAL);
+        targets.found = new ReportTargetLookup(ReportTargetType.FEED, 41L, 9L, ORIGINAL, 41L);
     }
 
     @Test
@@ -72,7 +74,7 @@ class ReportServiceTest {
     void reportsACommentWithoutChangingTheEarlierSnapshot() {
         service.report(new ReportCommand(2L, ReportTargetType.FEED, 41L, "SPAM", null));
         String firstSnapshot = reports.saved.getFirst().getSnapshot();
-        targets.found = new ReportTargetLookup(ReportTargetType.COMMENT, 8L, 4L, "");
+        targets.found = new ReportTargetLookup(ReportTargetType.COMMENT, 8L, 4L, "", 41L);
 
         ReportReceipt comment = service.report(new ReportCommand(3L, ReportTargetType.COMMENT, 8L, "ABUSE", null));
 
@@ -87,7 +89,7 @@ class ReportServiceTest {
     void resolvedTargetCanBeReportedAgain() {
         ReportReceipt first = service.report(new ReportCommand(2L, ReportTargetType.FEED, 41L, "ETC", "처음"));
         reports.resolveFirst();
-        targets.found = new ReportTargetLookup(ReportTargetType.FEED, 41L, 9L, "수정된 본문");
+        targets.found = new ReportTargetLookup(ReportTargetType.FEED, 41L, 9L, "수정된 본문", 41L);
 
         ReportReceipt again = service.report(new ReportCommand(2L, ReportTargetType.FEED, 41L, "ETC", "다시"));
 
@@ -135,7 +137,7 @@ class ReportServiceTest {
     @Test
     @DisplayName("자기 글은 작성자 번호가 같아 400이고 본문을 응답하지 않는다")
     void selfReportIsRejected() {
-        targets.found = new ReportTargetLookup(ReportTargetType.COMMENT, 8L, 2L, ORIGINAL);
+        targets.found = new ReportTargetLookup(ReportTargetType.COMMENT, 8L, 2L, ORIGINAL, 41L);
 
         BusinessException error = assertCode(
                 () -> service.report(new ReportCommand(2L, ReportTargetType.COMMENT, 8L, "ABUSE", null)),
@@ -143,6 +145,42 @@ class ReportServiceTest {
 
         assertThat(error.getMessage()).doesNotContain(ORIGINAL).doesNotContain("2");
         assertThat(reports.saved).isEmpty();
+    }
+
+    @Test
+    @DisplayName("신고자가 볼 수 없는 게시물이면 404이고 feed 모듈에 신고자와 게시물 id로 물어본다")
+    void unreadableFeedIsNotFiled() {
+        feedAccess.readable = false;
+
+        BusinessException error = assertCode(
+                () -> service.report(new ReportCommand(2L, ReportTargetType.FEED, 41L, "SPAM", null)),
+                ModerationErrorCode.REPORT_TARGET_NOT_FOUND);
+
+        assertThat(error.getMessage()).doesNotContain(ORIGINAL);
+        assertThat(feedAccess.askedFeedId).isEqualTo(41L);
+        assertThat(feedAccess.askedViewerId).isEqualTo(2L);
+        assertThat(reports.saved).isEmpty();
+    }
+
+    @Test
+    @DisplayName("댓글은 상위 게시물을 볼 수 있는지 물어본다")
+    void commentAsksAboutTheParentFeed() {
+        targets.found = new ReportTargetLookup(ReportTargetType.COMMENT, 8L, 4L, "댓글", 77L);
+
+        service.report(new ReportCommand(2L, ReportTargetType.COMMENT, 8L, "ABUSE", null));
+
+        assertThat(feedAccess.askedFeedId).isEqualTo(77L);
+        assertThat(reports.saved).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("볼 수 없는 글은 자기 글이어도 SELF_REPORT보다 404가 먼저 (작성자가 드러나지 않음)")
+    void unreadableCheckComesBeforeSelfReport() {
+        targets.found = new ReportTargetLookup(ReportTargetType.FEED, 41L, 2L, ORIGINAL, 41L);
+        feedAccess.readable = false;
+
+        assertCode(() -> service.report(new ReportCommand(2L, ReportTargetType.FEED, 41L, "SPAM", null)),
+                ModerationErrorCode.REPORT_TARGET_NOT_FOUND);
     }
 
     @Test
@@ -170,9 +208,23 @@ class ReportServiceTest {
         private int calls;
 
         @Override
-        public Optional<ReportTargetLookup> findReportable(long reporterId, ReportTargetType targetType, long targetId) {
+        public Optional<ReportTargetLookup> findReportable(ReportTargetType targetType, long targetId) {
             calls++;
             return Optional.ofNullable(found);
+        }
+    }
+
+    /** feed 모듈 대신 정해 둔 값으로 답하고, 무엇을 물어봤는지 기록함 */
+    private static final class FakeFeedAccess implements FeedAccessQueryUseCase {
+        private boolean readable = true;
+        private Long askedFeedId;
+        private Long askedViewerId;
+
+        @Override
+        public boolean isReadableBy(Long feedId, Long viewerId) {
+            askedFeedId = feedId;
+            askedViewerId = viewerId;
+            return readable;
         }
     }
 

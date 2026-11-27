@@ -152,6 +152,30 @@ class ReportServiceIntegrationTest {
         assertThat(count).isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("팔로워는 FOLLOWERS 게시물과 그 댓글을 신고할 수 있고, 팔로우를 끊으면 다음 신고부터 404 (상세 열람과 같은 기준)")
+    void followerCanReportFollowersOnlyContent() {
+        long feedAuthor = insertUser();
+        long commentAuthor = insertUser();
+        long follower = insertUser();
+        long stranger = insertUser();
+        jdbc.update("INSERT INTO follows (follower_id, followee_id) VALUES (?, ?)", follower, feedAuthor);
+        long followersFeed = insertFeed(feedAuthor, "service-it-팔로워글", "FOLLOWERS");
+        long comment = insertComment(followersFeed, commentAuthor, "service-it-팔로워글댓글");
+
+        ReportReceipt feedReport = reports.report(new ReportCommand(follower, ReportTargetType.FEED, followersFeed, "SPAM", null));
+        ReportReceipt commentReport = reports.report(new ReportCommand(follower, ReportTargetType.COMMENT, comment, "ABUSE", null));
+        assertThat(feedReport.status()).isEqualTo("PENDING");
+        assertThat(commentReport.status()).isEqualTo("PENDING");
+
+        assertRejected(stranger, ReportTargetType.FEED, followersFeed, ModerationErrorCode.REPORT_TARGET_NOT_FOUND, "팔로워글");
+        assertRejected(stranger, ReportTargetType.COMMENT, comment, ModerationErrorCode.REPORT_TARGET_NOT_FOUND, "팔로워글댓글");
+
+        jdbc.update("DELETE FROM follows WHERE follower_id = ? AND followee_id = ?", follower, feedAuthor);
+        jdbc.update("DELETE FROM reports WHERE reporter_id = ?", follower);
+        assertRejected(follower, ReportTargetType.FEED, followersFeed, ModerationErrorCode.REPORT_TARGET_NOT_FOUND, "팔로워글");
+    }
+
     private void assertRejected(
             long reporterId, ReportTargetType type, long targetId, ModerationErrorCode code, String secret) {
         assertThatThrownBy(() -> reports.report(new ReportCommand(reporterId, type, targetId, "SPAM", null)))

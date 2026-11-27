@@ -72,7 +72,7 @@ class ReportSnapshotJsonAdapterIntegrationTest {
         long reporter = insertUser();
         String original = "snapshot-it-안녕하세요.\n부적절한 내용입니다.";
         long feed = insertFeed(author, original);
-        String snapshot = writer.write(ReportSnapshots.from(new ReportTargetLookup(ReportTargetType.FEED, feed, author, original)));
+        String snapshot = writer.write(ReportSnapshots.from(new ReportTargetLookup(ReportTargetType.FEED, feed, author, original, 1L)));
         long reportId = insertPending(reporter, "FEED", feed, snapshot);
         jdbc.update("UPDATE feeds SET content = ? WHERE id = ?", "snapshot-it-안녕하세요.\n수정된 내용입니다.", feed);
 
@@ -102,7 +102,7 @@ class ReportSnapshotJsonAdapterIntegrationTest {
         String original = "snapshot-it-첫 줄\n같은 끝";
         long comment = insertComment(feed, commentAuthor, original);
         String snapshot = writer.write(ReportSnapshots.from(
-                new ReportTargetLookup(ReportTargetType.COMMENT, comment, commentAuthor, original)));
+                new ReportTargetLookup(ReportTargetType.COMMENT, comment, commentAuthor, original, 1L)));
         long reportId = insertPending(reporter, "COMMENT", comment, snapshot);
 
         JsonNode item = find(pendingItems(), reportId);
