@@ -9,6 +9,8 @@ import com.pickong.feed.application.port.in.CommentUseCase;
 import com.pickong.feed.application.port.out.CommentRepository;
 import com.pickong.feed.application.port.out.FeedRepository;
 import com.pickong.feed.domain.model.Comment;
+import com.pickong.feed.domain.model.Feed;
+import com.pickong.social.application.port.in.RelationQueryUseCase;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,10 +21,13 @@ public class CommentService implements CommentUseCase {
 
     private final CommentRepository commentRepository;
     private final FeedRepository feedRepository;
+    private final RelationQueryUseCase relationQueryUseCase;
 
-    public CommentService(CommentRepository commentRepository, FeedRepository feedRepository) {
+    public CommentService(CommentRepository commentRepository, FeedRepository feedRepository,
+                          RelationQueryUseCase relationQueryUseCase) {
         this.commentRepository = commentRepository;
         this.feedRepository = feedRepository;
+        this.relationQueryUseCase = relationQueryUseCase;
     }
 
     @Override
@@ -34,7 +39,7 @@ public class CommentService implements CommentUseCase {
     @Override
     @Transactional(readOnly = true)
     public CommentPage getComments(Long feedId, Long cursor, int limit, Long viewerId, boolean admin) {
-        feedRepository.findById(feedId).ensureReadable(viewerId, admin);
+        ensureFeedReadable(feedRepository.findById(feedId), viewerId, admin);
         List<Comment> comments = commentRepository.findByFeedId(feedId, cursor, limit + 1, viewerId, admin);
         return toPage(comments, limit);
     }
@@ -48,7 +53,7 @@ public class CommentService implements CommentUseCase {
     @Override
     @Transactional(readOnly = true)
     public CommentPage getReplies(Long feedId, Long commentId, Long cursor, int limit, Long viewerId, boolean admin) {
-        feedRepository.findById(feedId).ensureReadable(viewerId, admin);
+        ensureFeedReadable(feedRepository.findById(feedId), viewerId, admin);
         // 부모 댓글이 해당 피드에 속하는지 확인
         Comment parent = commentRepository.findById(commentId);
         if (!parent.getFeedId().equals(feedId)) {
@@ -62,8 +67,9 @@ public class CommentService implements CommentUseCase {
     @Override
     @Transactional
     public Comment createComment(Long feedId, CreateCommentCommand command) {
-        // 존재하지 않는 feedId면 FEED_NOT_FOUND 예외 발생
-        feedRepository.findByIdForUpdate(feedId).ensureAcceptsInteraction();
+        // 볼 수 없거나 숨김인 게시물이면 FEED_NOT_FOUND (공개 범위 포함)
+        Feed feed = feedRepository.findByIdForUpdate(feedId);
+        feed.ensureAcceptsInteraction(relationQueryUseCase.relationOf(command.getUserId(), feed.getUserId()));
 
         // 대댓글인 경우 부모 댓글 검증
         if (command.getParentId() != null) {
@@ -89,7 +95,9 @@ public class CommentService implements CommentUseCase {
     @Override
     @Transactional
     public Comment updateComment(Long feedId, Long commentId, Long userId, UpdateCommentCommand command) {
-        feedRepository.findByIdForUpdate(feedId);
+        // 1. 게시물을 볼 수 있는지 → 2. 댓글이 이 게시물 것인지 → 3. 본인 댓글인지
+        // 1번을 먼저 해야 볼 수 없는 글에서 COMMENT_NOT_OWNER 같은 다른 오류로 글의 존재가 드러나지 않음
+        ensureFeedReadable(feedRepository.findByIdForUpdate(feedId), userId, false);
         Comment comment = commentRepository.findByIdForUpdate(commentId);
         // 댓글이 해당 피드에 속하는지 확인 — 잘못된 feedId로 다른 피드 댓글 수정 방지
         if (!comment.getFeedId().equals(feedId)) {
@@ -106,7 +114,8 @@ public class CommentService implements CommentUseCase {
     @Override
     @Transactional
     public void deleteComment(Long feedId, Long commentId, Long userId) {
-        feedRepository.findByIdForUpdate(feedId);
+        // 수정과 같은 순서: 게시물 열람 가능 → 댓글 소속 → 본인 댓글
+        ensureFeedReadable(feedRepository.findByIdForUpdate(feedId), userId, false);
         Comment comment = commentRepository.findByIdForUpdate(commentId);
         // 댓글이 해당 피드에 속하는지 확인 — 잘못된 feedId로 다른 피드 댓글 삭제 방지
         if (!comment.getFeedId().equals(feedId)) {
@@ -117,6 +126,11 @@ public class CommentService implements CommentUseCase {
             throw new BusinessException(FeedErrorCode.COMMENT_NOT_OWNER);
         }
         commentRepository.deleteById(commentId);
+    }
+
+    // 관리자면 관계를 계산하지 않고 통과, 아니면 보는 사람과 작성자의 관계로 공개 범위 판정
+    private void ensureFeedReadable(Feed feed, Long viewerId, boolean admin) {
+        feed.ensureReadable(admin ? null : relationQueryUseCase.relationOf(viewerId, feed.getUserId()), admin);
     }
 
     // limit+1개 조회 결과로 CommentPage 생성 (hasNext, nextCursor 계산)
