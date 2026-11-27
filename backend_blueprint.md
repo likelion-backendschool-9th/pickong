@@ -525,6 +525,14 @@ STOMP 메시지 형식(보내기 · 이벤트 · 오류)은 [common_blueprint.md
 - 응답 필드는 프론트 DTO에 맞췄습니다. `ConversationDto { id, partner { id, username, nickname, profileImageUrl }, lastMessage, unreadCount, updatedAt }`, `MessageDto { id, conversationId, senderId, isMine, text, attachment, createdAt }`. `partner.id` · `senderId`는 회원 공개 id(`users.public_id`), `nickname`은 이름이 없으면 아이디, `attachment`는 첨부를 만들 때까지 항상 null, 대화방 · 메시지 id는 문자열입니다.
 - 남은 것: 차단 관계 확인(`user_blocks`, #179 이후), 첨부, 그룹. 프론트는 아직 mock 계약(`POST /conversations`, 배열 내역, 조회 시 읽음)을 쓰므로 `BACKEND_PATHS`에 넣지 않았습니다. 프론트 연동 이슈에서 이 계약으로 바꿉니다.
 
+#### 메시지 보내기 · 실시간 전달 구현 현황 (2026-11-28, #190)
+
+- **STOMP:** `/api/v1/ws`(SockJS 없음)에서 `/app/dm.send` · `/app/dm.read`를 받고 `/user/queue/dm` · `/user/queue/errors`로 보냅니다. 형식은 common 5.9, 구조는 5.4입니다.
+- **보내기 순서:** 본문 확인 → 대화방 행 `FOR UPDATE` → 참여 확인 → 같은 `clientMessageId`면 저장 없이 보낸 사람에게만 다시 확인(다른 대화방에서 쓴 값이면 400 `INVALID_INPUT`) → 1:1에서 나간 상대 다시 참여 → 저장 · `conversations.updated_at` · 보낸 사람 읽음 위치 → 커밋 후 전달.
+- **읽음:** `PATCH /read`와 `/app/dm.read` 모두 읽음 위치가 실제로 앞으로 갔을 때만 참여 중인 회원(내 다른 탭 포함)에게 `READ_UPDATED`를 보냅니다.
+- **Redis:** `REDIS_HOST`가 있을 때만 켜집니다(5.4.5). 로컬 compose에는 `--profile redis`로 띄우는 선택 서비스로 넣었습니다. `compose.prod.yml`은 아직 비어 있어 운영 Redis는 배포 설정에서 띄우고 `REDIS_HOST`를 넣어야 합니다.
+- **남은 것:** 첨부(400 `ATTACHMENT_NOT_SUPPORTED`로 거절 중), 차단 확인(#179 이후), 입력 중 표시 같은 추가 이벤트, 그룹 채팅, 프론트 연동.
+
 ### notification
 | 메서드 | 경로 | 입력 포트 · 메서드 |
 | --- | --- | --- |
@@ -1403,11 +1411,13 @@ conversation/
 └── adapter/
     ├── in/web/ConversationController.java  # + request/ · response/
     ├── in/websocket/
-    │   ├── DmStompController.java          # @MessageMapping("dm.send" · "dm.read"), @MessageExceptionHandler(보내기 오류에 clientMessageId)
-    │   └── payload/                        # SendMessagePayload, ReadPayload, DmEventPayload({type, data}) (STOMP 전용 DTO)
+    │   ├── DmStompController.java          # @MessageMapping("/dm.send" · "/dm.read"). 업무 오류를 StompRequestException(+ clientMessageId)으로 바꿔 던짐
+    │   └── payload/                        # SendMessagePayload, ReadPayload (문자열 ID → 내부 id, 첨부는 아직 거절)
     ├── out/persistence/                    # ConversationPersistenceAdapter(1:1은 INSERT … ON CONFLICT), MessagePersistenceAdapter
     │   └── query/ConversationQueryAdapter.java  # 목록 · 상세 · 내역 · 안 읽은 수 SQL (users는 JOIN으로 읽기만)
-    └── out/websocket/StompMessagePushAdapter.java   # 커밋 후(TransactionSynchronization) UserPushRelay.publish
+    └── out/websocket/
+        ├── StompMessagePushAdapter.java    # 커밋 후(TransactionSynchronization) sendLocal(보낸 사람) + publish(참여자). 받는 사람마다 isMine
+        └── payload/DmEventPayload.java     # {type, data}: MESSAGE_CREATED · READ_UPDATED
 ```
 
 ```
@@ -1420,11 +1430,18 @@ common/websocket/
 │                                 # — 모듈의 Push 어댑터가 쓰는 유일한 출구
 ├── RedisUserPushRelay.java       # REDIS_HOST가 있을 때: Redis 채널에 발행 + 구독해서 이 서버의 사용자에게 convertAndSendToUser
 ├── LocalUserPushRelay.java       # REDIS_HOST가 없을 때: 발행 없이 이 서버의 사용자에게 바로 (서버 1대 전제, 로컬 · 테스트)
-└── StompExceptionHandler.java    # @ControllerAdvice + @MessageExceptionHandler. 모듈이 따로 처리하지 않은 오류 → /user/queue/errors
+├── UserPushRelayConfig.java      # pickong.redis.host(REDIS_HOST)로 둘 중 하나를 고르고, Redis일 때만 연결 · 구독을 만듦
+├── StompExceptionHandler.java    # @ControllerAdvice + @MessageExceptionHandler. 요청 오류 → 보낸 세션의 /user/queue/errors
+├── StompRequestException.java · StompErrorPayload.java   # 요청 오류(+ clientMessageId)와 그 응답 형식
+├── StompSessionRejector.java     # 연결 단위 거절: ERROR 프레임(message = 코드)을 clientOutboundChannel로 보내고 연결 종료
+├── ExpiredSessionCloser.java     # 30초마다 Access Token 만료 시각이 지난 연결을 닫음 (받기만 하는 연결 포함)
+└── StompPrincipal.java · UserIdHandshakeHandler.java · WebSocketSessionAttributes.java   # Principal = 회원 내부 id
 ```
 
 - `common`은 `auth`를 import하지 않습니다. 인증 인터셉터는 `auth`가 Spring 타입(`HandshakeInterceptor`, `ChannelInterceptor`) 빈으로 등록하고, `WebSocketConfig`는 그 빈들을 받아 붙이기만 합니다.
 - 모듈은 `SimpMessagingTemplate`을 직접 쓰지 않고 `UserPushRelay`만 씁니다. 직접 쓰면 그 서버에 붙은 사용자에게만 가서, 서버가 여러 대일 때 메시지가 빠집니다.
+- **한 연결의 프레임은 받은 순서대로 처리합니다**(`setPreserveReceiveOrder(true)`). 빠르게 연달아 보낸 메시지가 뒤바뀌거나 구독보다 보내기가 먼저 처리되지 않게 하려는 것입니다. 이 설정에서는 ChannelInterceptor가 예외를 던지면 Spring이 삼켜 ERROR 프레임이 가지 않으므로([spring-framework#33937](https://github.com/spring-projects/spring-framework/issues/33937)), 인터셉터는 예외 대신 `StompSessionRejector`로 ERROR를 보내고 프레임을 버립니다(`null` 반환).
+- Spring Boot의 Redis 자동 설정은 `application.yml`에서 끕니다. 켜 두면 Redis가 없을 때 `/actuator/health`가 DOWN이 됩니다.
 
 #### 5.4.3 연결 인증 · 권한
 
@@ -1437,7 +1454,7 @@ common/websocket/
 | 구독 (SUBSCRIBE) | `auth/adapter/in/websocket/StompDestinationGuard` | `/user/queue/**` 외 목적지 구독 거부. 사용자 목적지는 본인에게만 전달되므로 대화방별 구독 권한 검사가 필요 없음 |
 | 보내기 (SEND) | `StompDestinationGuard` → `MessageService` | 목적지는 `/app/**`만 허용. 대화방 참여 · 차단 · 첨부 권한은 서비스가 검사 (HTTP와 같은 코드) |
 | 토큰 만료 | `StompDestinationGuard` + 세션 만료 확인 | Access Token 만료 시각이 지난 연결은 다음 프레임을 받을 때 STOMP ERROR(`TOKEN_EXPIRED`)를 보내고 닫습니다. 수신만 하는 연결도 만료 시각이 지나면 서버가 닫습니다. 프론트는 `/auth/refresh`로 재발급한 뒤 다시 연결하고 빠진 메시지를 보충합니다(5.4.6). 로그아웃 · 탈퇴 후에도 연결이 남는 시간은 Access Token 수명 이하입니다. 참고: 수명이 15분이라 모든 연결이 15분마다 재연결 → 목록 재조회를 합니다. 동시 접속이 늘어 부하가 되면 재연결 때 다시 맞추는 범위를 줄이거나(열린 대화방만) 연결 수명을 따로 두는 것을 검토합니다 |
-| 회원 상태 | 핸드셰이크 인터셉터 · `MessageService` | HTTP 요청과 같은 계정 상태 확인을 핸드셰이크에서 하고, 보낼 때마다 다시 확인합니다. SUSPENDED · BANNED는 회원 기능을 쓸 수 없으므로(common 5.8) 연결과 보내기 모두 거절합니다 |
+| 회원 상태 | 보안 필터 체인 · `StompDestinationGuard` | 핸드셰이크는 HTTP 요청과 같은 계정 상태 확인(`canLogin`)을 거치고, SEND 프레임마다 다시 확인해 ACTIVE가 아니면 ERROR(`ACCOUNT_UNAVAILABLE`) 후 연결을 닫습니다. SUSPENDED · BANNED는 회원 기능을 쓸 수 없습니다(common 5.8) |
 
 #### 5.4.4 보내기 · 전송 확인 · 오류
 

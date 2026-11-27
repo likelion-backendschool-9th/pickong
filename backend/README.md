@@ -134,6 +134,15 @@ Gradle을 따로 설치하지 않아도 `./gradlew`가 필요한 버전(9.8.2)�
 | `GET /api/v1/actuator/health` | 상태 확인 (servlet path가 `/api/v1`이라 actuator도 그 아래에 있습니다) |
 | `/api/v1/swagger-ui.html` | API 문서. POST · PATCH · DELETE를 보낼 때 CSRF 헤더를 자동으로 붙입니다 |
 | `/api/v1/v3/api-docs` | OpenAPI 스펙 JSON. 프론트는 이 스펙으로 DTO 타입을 생성할 수 있습니다 |
+| `ws://localhost:8080/api/v1/ws` | 채팅 STOMP 엔드포인트 (아래 '채팅 실시간') |
+
+### 채팅 실시간 (WebSocket · STOMP · Redis)
+
+- 연결: `ws://localhost:8080/api/v1/ws` (STOMP, SockJS 없음). 서블릿 경로가 `/api/v1`이라 엔드포인트도 그 아래에 있고, REST와 같은 로그인 쿠키 · 약관 · 계정 상태 확인을 거칩니다. Origin은 `FRONTEND_BASE_URL`만 받습니다.
+- 보내기 `/app/dm.send` · `/app/dm.read`, 받기 `/user/queue/dm` · `/user/queue/errors`. 메시지 형식은 `common_blueprint.md` 5.9, 서버 구조는 `backend_blueprint.md` 5.4입니다.
+- **Redis는 선택입니다.** `REDIS_HOST`가 없으면 Redis 없이 서버 안에서만 전달합니다(로컬 · 서버 1대). `bootRun`과 테스트에 Redis가 필요 없습니다.
+- 서버 간 중계를 써 보려면 저장소 루트에서 `docker compose --profile redis up -d redis`를 실행하고 `backend/.env`에 `REDIS_HOST=localhost`(Docker로 띄운 백엔드는 `redis`)를 넣습니다. 서버가 여러 대인 운영에서는 반드시 켭니다.
+- 테스트에서는 Redis 중계 테스트(`RedisUserPushRelayIntegrationTest`)만 Redis 컨테이너를 따로 띄웁니다.
 
 ## 인증 · 보안
 
