@@ -4,9 +4,15 @@ spring:
   # 로컬 비밀값(JWT_SECRET 등)은 git에 올라가지 않는 backend/.env에서 읽습니다. 운영은 환경변수로 넣습니다.
   config:
     import: optional:file:.env[.properties]
-  # 아이디 · 비밀번호 로그인을 쓰지 않으므로, Spring Boot가 만드는 임시 계정(로그에 비밀번호 출력)을 끕니다.
   autoconfigure:
-    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+    exclude:
+      # 아이디 · 비밀번호 로그인을 쓰지 않으므로, Spring Boot가 만드는 임시 계정(로그에 비밀번호 출력)을 끕니다.
+      - org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+      # Redis는 선택이라 자동 설정을 끄고, REDIS_HOST가 있을 때만 common/websocket의 RedisRelayConfig가 연결을 만듭니다.
+      # (자동 설정을 켜 두면 Redis가 없을 때 /actuator/health가 DOWN이 됩니다)
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisReactiveAutoConfiguration
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisRepositoriesAutoConfiguration
   mvc:
     servlet:
       path: /api/v1
@@ -57,7 +63,13 @@ spring:
 pickong:
   frontend:
     # 프론트 기준 주소: 소셜 로그인 콜백 주소와 로그인 후 이동할 화면 주소에 씁니다.
+    # WebSocket 핸드셰이크의 허용 Origin도 이 값입니다. (common/websocket/WebSocketConfig)
     base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
+  # 채팅 실시간 전달의 서버 간 중계 (blueprint 5.4.5). host를 비우면 Redis 없이 서버 안에서만 전달합니다(서버 1대).
+  redis:
+    host: ${REDIS_HOST:}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
   user:
     withdrawal:
       # 탈퇴 신청 후 30일이 지난 회원을 매일 04:30(한국 시간)에 익명화합니다. (WithdrawalAnonymizationScheduler)
