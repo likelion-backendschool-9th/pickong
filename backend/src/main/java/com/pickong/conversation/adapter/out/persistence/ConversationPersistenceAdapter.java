@@ -24,8 +24,22 @@ public class ConversationPersistenceAdapter implements ConversationPersistencePo
 
     @Override
     public Optional<Conversation> findById(long conversationId) {
-        return conversations.findById(conversationId).map(c -> c.toDomain(
-                members.findByConversationIdOrderByIdAsc(c.getId()).stream().map(ConversationMemberJpaEntity::toDomain).toList()));
+        return conversations.findById(conversationId).map(this::withMembers);
+    }
+
+    @Override
+    public Optional<Conversation> findByIdForUpdate(long conversationId) {
+        return conversations.findByIdForUpdate(conversationId).map(this::withMembers);
+    }
+
+    @Override
+    public void touch(long conversationId, OffsetDateTime at) {
+        conversations.touch(conversationId, at);
+    }
+
+    private Conversation withMembers(ConversationJpaEntity c) {
+        return c.toDomain(members.findByConversationIdOrderByIdAsc(c.getId()).stream()
+                .map(ConversationMemberJpaEntity::toDomain).toList());
     }
 
     @Override
@@ -53,7 +67,7 @@ public class ConversationPersistenceAdapter implements ConversationPersistencePo
     }
 
     @Override
-    public void advanceLastRead(long memberId, long messageId) {
-        members.advanceLastRead(memberId, messageId);
+    public boolean advanceLastRead(long memberId, long messageId) {
+        return members.advanceLastRead(memberId, messageId) == 1;
     }
 }

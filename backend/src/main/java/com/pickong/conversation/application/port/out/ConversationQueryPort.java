@@ -2,9 +2,11 @@ package com.pickong.conversation.application.port.out;
 
 import com.pickong.conversation.application.dto.ConversationSummaryResult;
 import com.pickong.conversation.application.dto.MessageResult;
+import com.pickong.conversation.application.dto.SentMessage;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * 대화 화면 조회. 상대 · 보낸 사람 정보를 위해 users를 읽기만 합니다(JOIN, blueprint 6.1).
@@ -27,4 +29,10 @@ public interface ConversationQueryPort {
     /** {@code afterId}보다 새 메시지를 id 오름차순으로 최대 {@code limit}개 */
     List<MessageResult> findMessagesAfter(long viewerId, long conversationId, OffsetDateTime visibleFrom,
                                           long afterId, int limit);
+
+    /** 실시간으로 보낼 메시지 (보낸 사람 공개 id 포함) */
+    Optional<SentMessage> findSentMessage(long messageId);
+
+    /** 회원 공개 id (users.public_id) */
+    Optional<UUID> findUserPublicId(long userId);
 }

@@ -3,6 +3,7 @@ package com.pickong.conversation.adapter.out.persistence.query;
 import com.pickong.conversation.application.dto.ConversationPartner;
 import com.pickong.conversation.application.dto.ConversationSummaryResult;
 import com.pickong.conversation.application.dto.MessageResult;
+import com.pickong.conversation.application.dto.SentMessage;
 import com.pickong.conversation.application.port.out.ConversationQueryPort;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -76,6 +77,14 @@ public class ConversationQueryAdapter implements ConversationQueryPort {
                AND m.created_at >= :visibleFrom
             """;
 
+    private static final String SELECT_SENT_MESSAGE = """
+            SELECT m.id, m.conversation_id, m.sender_id, s.public_id AS sender_public_id, m.client_message_id,
+                   m.content, m.created_at
+              FROM messages m
+              JOIN users s ON s.id = m.sender_id
+             WHERE m.id = :id
+            """;
+
     private final NamedParameterJdbcTemplate jdbc;
 
     public ConversationQueryAdapter(NamedParameterJdbcTemplate jdbc) {
@@ -118,6 +127,24 @@ public class ConversationQueryAdapter implements ConversationQueryPort {
         String sql = SELECT_MESSAGES + " AND m.id > :afterId ORDER BY m.id ASC LIMIT :limit";
         MapSqlParameterSource params = messageParams(conversationId, visibleFrom, limit).addValue("afterId", afterId);
         return jdbc.query(sql, params, (rs, rowNum) -> toMessage(rs, viewerId));
+    }
+
+    @Override
+    public Optional<SentMessage> findSentMessage(long messageId) {
+        return jdbc.query(SELECT_SENT_MESSAGE, new MapSqlParameterSource("id", messageId), (rs, rowNum) -> new SentMessage(
+                rs.getLong("id"),
+                rs.getLong("conversation_id"),
+                rs.getLong("sender_id"),
+                rs.getObject("sender_public_id", UUID.class),
+                rs.getObject("client_message_id", UUID.class),
+                rs.getString("content"),
+                rs.getObject("created_at", OffsetDateTime.class))).stream().findFirst();
+    }
+
+    @Override
+    public Optional<UUID> findUserPublicId(long userId) {
+        return jdbc.queryForList("SELECT public_id FROM users WHERE id = :id", new MapSqlParameterSource("id", userId),
+                UUID.class).stream().findFirst();
     }
 
     private static MapSqlParameterSource messageParams(long conversationId, OffsetDateTime visibleFrom, int limit) {

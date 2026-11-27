@@ -11,6 +11,15 @@ public interface ConversationPersistencePort {
     Optional<Conversation> findById(long conversationId);
 
     /**
+     * 대화방 행을 SELECT … FOR UPDATE로 잠근 뒤 참여자와 함께 읽습니다. 메시지를 저장하기 전에 잠가서, 같은 대화방 안에서는
+     * 메시지 id 순서와 커밋 순서가 같게 합니다(늦게 커밋된 메시지를 after 보충에서 놓치지 않음, blueprint 5.4.4).
+     */
+    Optional<Conversation> findByIdForUpdate(long conversationId);
+
+    /** 마지막 메시지 시각으로 updated_at을 바꿉니다. */
+    void touch(long conversationId, OffsetDateTime at);
+
+    /**
      * 새 1:1 대화방을 저장합니다. 같은 {@code directKey}의 대화방이 이미 있으면(동시에 만든 경우 포함) 저장하지 않습니다.
      * 참여자는 대화방을 새로 만들었을 때만 저장합니다.
      */
@@ -22,8 +31,12 @@ public interface ConversationPersistencePort {
     /** 참여자를 나가게 합니다. 이미 나갔으면 아무것도 하지 않습니다. */
     void leave(long memberId, OffsetDateTime leftAt);
 
-    /** 읽음 위치를 앞으로만 옮깁니다. 동시에 들어와도 지금 값보다 작으면 바꾸지 않습니다. */
-    void advanceLastRead(long memberId, long messageId);
+    /**
+     * 읽음 위치를 앞으로만 옮깁니다. 동시에 들어와도 지금 값보다 작으면 바꾸지 않습니다.
+     *
+     * @return 실제로 옮겼으면 true
+     */
+    boolean advanceLastRead(long memberId, long messageId);
 
     /**
      * @param created 이번에 새로 만들었으면 true

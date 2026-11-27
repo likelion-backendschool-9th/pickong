@@ -52,6 +52,30 @@ public class Conversation {
         return List.copyOf(members);
     }
 
+    public boolean isDirect() {
+        return type == ConversationType.DIRECT;
+    }
+
+    /**
+     * 새 메시지가 오면 다시 참여시킬 참여자. 1:1에서 나간 상대는 새 메시지를 받으면 대화방이 다시 보여야 하므로 다시 참여합니다
+     * (다시 참여한 시각 이후의 메시지만 보임). 그룹에서 나간 사람은 다시 넣지 않습니다.
+     */
+    public List<ConversationMember> membersToRejoinOnNewMessage() {
+        return isDirect() ? members.stream().filter(m -> !m.isActive()).toList() : List.of();
+    }
+
+    /** 새 메시지를 받을 회원: 참여 중인 회원 + 이번에 다시 참여할 회원 (보낸 사람 포함) */
+    public List<Long> recipientsOfNewMessage() {
+        return isDirect()
+                ? members.stream().map(ConversationMember::getUserId).toList()
+                : activeMemberIds();
+    }
+
+    /** 지금 참여 중인 회원 (읽음 알림을 받을 회원) */
+    public List<Long> activeMemberIds() {
+        return members.stream().filter(ConversationMember::isActive).map(ConversationMember::getUserId).toList();
+    }
+
     /** 나간 참여자도 포함합니다. */
     public Optional<ConversationMember> memberOf(long userId) {
         return members.stream().filter(m -> m.getUserId() == userId).findFirst();

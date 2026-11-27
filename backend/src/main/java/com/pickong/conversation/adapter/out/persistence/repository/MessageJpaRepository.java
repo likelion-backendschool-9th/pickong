@@ -3,6 +3,7 @@ package com.pickong.conversation.adapter.out.persistence.repository;
 import com.pickong.conversation.adapter.out.persistence.entity.MessageJpaEntity;
 import java.time.OffsetDateTime;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -19,4 +20,6 @@ public interface MessageJpaRepository extends JpaRepository<MessageJpaEntity, Lo
             + "and m.deletedAt is null and m.createdAt >= :visibleFrom")
     boolean existsVisible(@Param("conversationId") long conversationId, @Param("id") long id,
                           @Param("visibleFrom") OffsetDateTime visibleFrom);
+
+    Optional<MessageJpaEntity> findBySenderIdAndClientMessageId(Long senderId, UUID clientMessageId);
 }

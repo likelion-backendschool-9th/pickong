@@ -12,7 +12,13 @@ public enum ConversationErrorCode implements ErrorCode {
     /** 나와의 1:1 대화방을 열려고 함 */
     SELF_CONVERSATION_NOT_ALLOWED(400, "나에게는 메시지를 보낼 수 없어요."),
     /** 읽음 위치로 보낸 메시지가 이 대화방에 없거나, 내가 볼 수 없는 메시지 */
-    MESSAGE_NOT_FOUND(404, "메시지를 찾을 수 없어요.");
+    MESSAGE_NOT_FOUND(404, "메시지를 찾을 수 없어요."),
+    /** 본문이 비어 있거나 공백뿐 */
+    EMPTY_MESSAGE(400, "메시지를 입력해 주세요."),
+    /** 본문이 2,000자(코드 포인트)를 넘음 */
+    MESSAGE_TOO_LONG(400, "메시지는 2,000자까지 보낼 수 있어요."),
+    /** 첨부(사진 · 장소 · 게시물)는 아직 보낼 수 없음 (별도 이슈) */
+    ATTACHMENT_NOT_SUPPORTED(400, "아직 사진이나 장소는 보낼 수 없어요.");
 
     private final int status;
     private final String message;
