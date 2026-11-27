@@ -85,7 +85,7 @@ class SavedPlaceCommandIntegrationTest {
             saveRow(me, already.id());
 
             mvc.perform(write(post("/api/v1/saved-places"), me, """
-                            {"placeIds":["%s","%s","%s"],"collectionIds":["c-1"]}
+                            {"placeIds":["%s","%s","%s"],"collectionIds":[]}
                             """.formatted(already.publicId(), fresh.publicId(), fresh.publicId())))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.createdPlaceIds", contains(fresh.publicId().toString())))
@@ -105,6 +105,7 @@ class SavedPlaceCommandIntegrationTest {
             long author = insertUser();
             Place place = insertPlace("게시물 장소", "PUBLIC", null);
             Feed feed = insertFeed(author);
+            linkFeedPlace(feed.id(), place.id());
 
             mvc.perform(write(post("/api/v1/saved-places"), me, """
                             {"placeIds":["%s"],"collectionIds":[],"source":{"type":"POST","refId":"%s","label":"민지님 게시물"}}
@@ -128,6 +129,7 @@ class SavedPlaceCommandIntegrationTest {
             long owner = insertUser();
             Place place = insertPlace("컬렉션 장소", "PUBLIC", null);
             Ref collection = insertCollection(owner);
+            addToCollection(collection.id(), saveRow(owner, place.id()), place.id());
 
             mvc.perform(write(post("/api/v1/saved-places"), me, """
                             {"placeIds":["%s"],"source":{"type":"COLLECTION","refId":"%s","label":"성수 카페 모음"}}
@@ -230,6 +232,144 @@ class SavedPlaceCommandIntegrationTest {
     }
 
     @Nested
+    @DisplayName("출처 접근 권한 (게시물 · 컬렉션)")
+    class SourceAccess {
+
+        @Test
+        @DisplayName("볼 수 없는 게시물(남의 비공개, 팔로우하지 않은 팔로워 공개, 숨김)은 출처로 연결하지 않고, 팔로워면 연결한다")
+        void feedReadability() throws Exception {
+            long me = insertUser();
+            long author = insertUser();
+            Place privatePlace = insertPlace("비공개 게시물", "PUBLIC", null);
+            Place followersPlace = insertPlace("팔로워 게시물", "PUBLIC", null);
+            Place hiddenPlace = insertPlace("숨김 게시물", "PUBLIC", null);
+            Feed privateFeed = insertFeed(author, "PRIVATE", privatePlace);
+            Feed followersFeed = insertFeed(author, "FOLLOWERS", followersPlace);
+            Feed hiddenFeed = insertFeed(author, "PUBLIC", hiddenPlace);
+            jdbc.update("UPDATE feeds SET hidden_at = now() WHERE id = ?", hiddenFeed.id());
+
+            saveVia(me, privatePlace, feedSource(privateFeed));
+            saveVia(me, followersPlace, feedSource(followersFeed));
+            saveVia(me, hiddenPlace, feedSource(hiddenFeed));
+
+            assertThat(sourceFeedIdOf(me, privatePlace)).isNull();
+            assertThat(sourceFeedIdOf(me, followersPlace)).isNull();
+            assertThat(sourceFeedIdOf(me, hiddenPlace)).isNull();
+            assertThat(jdbc.queryForList("SELECT source_type FROM saved_places WHERE user_id = ?", String.class, me))
+                    .containsOnly("FEED");
+
+            long follower = insertUser();
+            jdbc.update("INSERT INTO follows (follower_id, followee_id) VALUES (?, ?)", follower, author);
+            saveVia(follower, followersPlace, feedSource(followersFeed));
+            assertThat(sourceFeedIdOf(follower, followersPlace)).isEqualTo(followersFeed.id());
+        }
+
+        @Test
+        @DisplayName("출처 게시물에 없는 장소에는 게시물을 연결하지 않는다")
+        void placeMustBelongToFeed() throws Exception {
+            long me = insertUser();
+            Place inFeed = insertPlace("게시물 속 장소", "PUBLIC", null);
+            Place notInFeed = insertPlace("다른 장소", "PUBLIC", null);
+            Feed feed = insertFeed(insertUser(), "PUBLIC", inFeed);
+
+            mvc.perform(write(post("/api/v1/saved-places"), me, """
+                            {"placeIds":["%s","%s"],"source":{"type":"POST","refId":"%s"}}
+                            """.formatted(inFeed.publicId(), notInFeed.publicId(), feed.publicId())))
+                    .andExpect(status().isOk());
+
+            assertThat(sourceFeedIdOf(me, inFeed)).isEqualTo(feed.id());
+            assertThat(sourceFeedIdOf(me, notInFeed)).isNull();
+        }
+
+        @Test
+        @DisplayName("남의 비공개 컬렉션과 유료 컬렉션은 출처로 연결하지 않는다 (구매 기록이 생기기 전까지)")
+        void collectionReadability() throws Exception {
+            long me = insertUser();
+            long owner = insertUser();
+            Place privatePlace = insertPlace("비공개 컬렉션 장소", "PUBLIC", null);
+            Place paidPlace = insertPlace("유료 컬렉션 장소", "PUBLIC", null);
+            Ref privateCollection = insertCollection(owner);
+            Ref paidCollection = insertCollection(owner);
+            jdbc.update("UPDATE collections SET visibility = 'PRIVATE' WHERE id = ?", privateCollection.id());
+            jdbc.update("UPDATE collections SET price = 3000 WHERE id = ?", paidCollection.id());
+            addToCollection(privateCollection.id(), saveRow(owner, privatePlace.id()), privatePlace.id());
+            addToCollection(paidCollection.id(), saveRow(owner, paidPlace.id()), paidPlace.id());
+
+            saveVia(me, privatePlace, "{\"type\":\"COLLECTION\",\"refId\":\"%s\"}".formatted(privateCollection.publicId()));
+            saveVia(me, paidPlace, "{\"type\":\"COLLECTION\",\"refId\":\"%s\"}".formatted(paidCollection.publicId()));
+
+            assertThat(jdbc.queryForList("SELECT source_collection_id FROM saved_places WHERE user_id = ?", Long.class, me))
+                    .hasSize(2).containsOnlyNulls();
+        }
+
+        @Test
+        @DisplayName("저장 뒤 출처 게시물을 볼 수 없게 되면 refId는 내보내지 않고 출처 종류 · 문구는 남긴다")
+        void refIdFollowsCurrentReadability() throws Exception {
+            long me = insertUser();
+            Place place = insertPlace("공개 범위가 바뀌는 게시물", "PUBLIC", null);
+            Feed feed = insertFeed(insertUser(), "PUBLIC", place);
+            saveVia(me, place, "{\"type\":\"POST\",\"refId\":\"%s\",\"label\":\"민지님 게시물\"}".formatted(feed.publicId()));
+
+            jdbc.update("UPDATE feeds SET visibility = 'PRIVATE' WHERE id = ?", feed.id());
+            mvc.perform(api(get("/api/v1/saved-places")).with(authentication(member(me))))
+                    .andExpect(jsonPath("$[0].source.type").value("POST"))
+                    .andExpect(jsonPath("$[0].source.refId").value(nullValue()))
+                    .andExpect(jsonPath("$[0].source.label").value("민지님 게시물"));
+
+            jdbc.update("UPDATE feeds SET visibility = 'PUBLIC' WHERE id = ?", feed.id());
+            mvc.perform(api(get("/api/v1/saved-places")).with(authentication(member(me))))
+                    .andExpect(jsonPath("$[0].source.refId").value(feed.publicId().toString()));
+        }
+
+        private void saveVia(long me, Place place, String sourceJson) throws Exception {
+            mvc.perform(write(post("/api/v1/saved-places"), me,
+                            "{\"placeIds\":[\"%s\"],\"source\":%s}".formatted(place.publicId(), sourceJson)))
+                    .andExpect(status().isOk());
+        }
+
+        private String feedSource(Feed feed) {
+            return "{\"type\":\"POST\",\"refId\":\"%s\"}".formatted(feed.publicId());
+        }
+
+        private Long sourceFeedIdOf(long userId, Place place) {
+            return jdbc.queryForObject("SELECT source_feed_id FROM saved_places WHERE user_id = ? AND place_id = ?",
+                    Long.class, userId, place.id());
+        }
+    }
+
+    @Nested
+    @DisplayName("컬렉션에 담기 (아직 지원하지 않음)")
+    class CollectionFields {
+
+        @Test
+        @DisplayName("collectionIds나 add · set · removeCollectionIds에 값이 있으면 400이고 아무것도 바꾸지 않는다. 빈 목록은 받는다")
+        void rejectsUntilSupported() throws Exception {
+            long me = insertUser();
+            Place place = insertPlace("컬렉션 담기", "PUBLIC", null);
+
+            mvc.perform(write(post("/api/v1/saved-places"), me,
+                            "{\"placeIds\":[\"%s\"],\"collectionIds\":[\"c-1\"]}".formatted(place.publicId())))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("COLLECTION_LINK_NOT_SUPPORTED"));
+            assertThat(count("SELECT count(*) FROM saved_places WHERE user_id = ?", me)).isZero();
+
+            mvc.perform(write(post("/api/v1/saved-places"), me,
+                            "{\"placeIds\":[\"%s\"],\"collectionIds\":[]}".formatted(place.publicId())))
+                    .andExpect(status().isOk());
+            long saved = jdbc.queryForObject("SELECT id FROM saved_places WHERE user_id = ?", Long.class, me);
+
+            for (String field : List.of("addCollectionIds", "setCollectionIds", "removeCollectionIds")) {
+                mvc.perform(write(patch("/api/v1/saved-places"), me,
+                                "{\"ids\":[\"%d\"],\"visitStatus\":\"VISITED\",\"%s\":[\"c-1\"]}".formatted(saved, field)))
+                        .andExpect(status().isBadRequest())
+                        .andExpect(jsonPath("$.code").value("COLLECTION_LINK_NOT_SUPPORTED"));
+            }
+            assertThat(jdbc.queryForObject("SELECT visit_status FROM saved_places WHERE id = ?", String.class, saved))
+                    .isEqualTo("WANT_TO_GO");
+        }
+    }
+
+    @Nested
     @DisplayName("PATCH /saved-places")
     class Update {
 
@@ -256,7 +396,7 @@ class SavedPlaceCommandIntegrationTest {
         }
 
         @Test
-        @DisplayName("메모는 보낸 때만 바꾸고, 빈 문자열은 메모 없음이다. 500자를 넘으면 400")
+        @DisplayName("메모는 보낸 때만 바꾸고(생략 · null은 그대로), 빈 문자열은 메모 삭제다. 500자를 넘으면 400")
         void memo() throws Exception {
             long me = insertUser();
             long saved = saveRow(me, insertPlace("메모 장소", "PUBLIC", null).id());
@@ -264,6 +404,8 @@ class SavedPlaceCommandIntegrationTest {
             mvc.perform(write(patch("/api/v1/saved-places"), me, "{\"ids\":[\"%d\"],\"memo\":\"  창가 자리  \"}".formatted(saved)))
                     .andExpect(jsonPath("$[0].memo").value("창가 자리"));
             mvc.perform(write(patch("/api/v1/saved-places"), me, "{\"ids\":[\"%d\"],\"visitStatus\":\"VISITED\"}".formatted(saved)))
+                    .andExpect(jsonPath("$[0].memo").value("창가 자리"));
+            mvc.perform(write(patch("/api/v1/saved-places"), me, "{\"ids\":[\"%d\"],\"memo\":null}".formatted(saved)))
                     .andExpect(jsonPath("$[0].memo").value("창가 자리"));
             mvc.perform(write(patch("/api/v1/saved-places"), me, "{\"ids\":[\"%d\"],\"memo\":\"\"}".formatted(saved)))
                     .andExpect(jsonPath("$[0].memo").value(nullValue()));
@@ -282,7 +424,7 @@ class SavedPlaceCommandIntegrationTest {
             long theirs = saveRow(other, insertPlace("남의 것", "PUBLIC", null).id());
 
             mvc.perform(write(patch("/api/v1/saved-places"), me,
-                            "{\"ids\":[\"%d\",\"%d\",\"999999999\",\"abc\"],\"visitStatus\":\"VISITED\",\"setCollectionIds\":[\"c-1\"]}"
+                            "{\"ids\":[\"%d\",\"%d\",\"999999999\",\"abc\"],\"visitStatus\":\"VISITED\",\"setCollectionIds\":[]}"
                                     .formatted(mine, theirs)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[*].id", contains(String.valueOf(mine))));
@@ -414,6 +556,18 @@ class SavedPlaceCommandIntegrationTest {
                 RETURNING id, public_id
                 """, (rs, n) -> new Place(rs.getLong("id"), rs.getObject("public_id", UUID.class)),
                 ownerId == null ? "SYSTEM" : "CUSTOM", name, visibility, ownerId);
+    }
+
+    private Feed insertFeed(long authorId, String visibility, Place place) {
+        Feed feed = jdbc.queryForObject(
+                "INSERT INTO feeds (user_id, content, visibility) VALUES (?, 'saved-place-test', ?) RETURNING id, public_id",
+                (rs, n) -> new Feed(rs.getLong("id"), rs.getObject("public_id", UUID.class)), authorId, visibility);
+        linkFeedPlace(feed.id(), place.id());
+        return feed;
+    }
+
+    private void linkFeedPlace(long feedId, long placeId) {
+        jdbc.update("INSERT INTO feed_places (feed_id, place_id) VALUES (?, ?)", feedId, placeId);
     }
 
     private Feed insertFeed(long authorId) {

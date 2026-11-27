@@ -18,6 +18,7 @@ import com.pickong.savedplace.application.dto.UpdateSavedPlacesCommand;
 import com.pickong.savedplace.application.port.out.SavedPlacePersistencePort;
 import com.pickong.savedplace.application.port.out.SavedPlaceQueryPort;
 import com.pickong.savedplace.application.port.out.SavedPlaceTargetLookupPort;
+import com.pickong.savedplace.application.port.out.SavedPlaceTargetLookupPort.SourceRef;
 import com.pickong.savedplace.domain.SavedPlaceErrorCode;
 import com.pickong.savedplace.domain.event.SavedPlaceDeletingEvent;
 import com.pickong.savedplace.domain.model.SavedPlace;
@@ -31,6 +32,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
@@ -108,11 +110,11 @@ class SavedPlaceCommandServiceTest {
     }
 
     @Test
-    @DisplayName("게시물 출처는 공개 id로 게시물 내부 id를 찾아 연결하고, 공개 id가 UUID가 아니면 연결하지 않는다")
+    @DisplayName("게시물 출처는 연결할 수 있는 게시물을 찾아 연결하고, 공개 id가 UUID가 아니면 조회 없이 연결하지 않는다")
     void feedOrigin() {
         UUID feed = UUID.randomUUID();
         given(targets.findVisiblePlaceIds(eq(ME), any())).willReturn(Map.of(A, 10L));
-        given(targets.findFeedId(feed)).willReturn(Optional.of(77L));
+        given(targets.findLinkableFeed(ME, feed)).willReturn(Optional.of(new SourceRef(77L, Set.of(10L))));
         given(savedPlaces.saveIfAbsent(any())).willReturn(true);
         ArgumentCaptor<SavedPlace> saved = ArgumentCaptor.forClass(SavedPlace.class);
 
@@ -122,6 +124,27 @@ class SavedPlaceCommandServiceTest {
         verify(savedPlaces, org.mockito.Mockito.times(2)).saveIfAbsent(saved.capture());
         assertThat(saved.getAllValues()).extracting(SavedPlace::getSourceFeedId).containsExactly(77L, null);
         assertThat(saved.getAllValues().getFirst().getSourceLabel()).isEqualTo("게시물");
+        verify(targets).findLinkableFeed(eq(ME), any());
+    }
+
+    @Test
+    @DisplayName("출처 id는 출처에 실제로 들어 있는 장소에만 연결하고, 볼 수 없는 출처는 종류 · 문구만 남긴다")
+    void sourceOnlyForContainedPlaces() {
+        UUID feed = UUID.randomUUID();
+        UUID hidden = UUID.randomUUID();
+        given(targets.findVisiblePlaceIds(eq(ME), any())).willReturn(Map.of(A, 10L, B, 20L));
+        given(targets.findLinkableFeed(ME, feed)).willReturn(Optional.of(new SourceRef(77L, Set.of(10L))));
+        given(targets.findLinkableFeed(ME, hidden)).willReturn(Optional.empty());
+        given(savedPlaces.saveIfAbsent(any())).willReturn(true);
+        ArgumentCaptor<SavedPlace> saved = ArgumentCaptor.forClass(SavedPlace.class);
+
+        service.save(new SaveSavedPlacesCommand(ME, List.of(A, B), SavedPlaceSource.FEED, feed.toString(), null));
+        service.save(new SaveSavedPlacesCommand(ME, List.of(A), SavedPlaceSource.FEED, hidden.toString(), "숨은 게시물"));
+
+        verify(savedPlaces, org.mockito.Mockito.times(3)).saveIfAbsent(saved.capture());
+        assertThat(saved.getAllValues()).extracting(SavedPlace::getSourceFeedId).containsExactly(77L, null, null);
+        assertThat(saved.getAllValues()).allSatisfy(s -> assertThat(s.getSourceType()).isEqualTo(SavedPlaceSource.FEED));
+        assertThat(saved.getAllValues().getLast().getSourceLabel()).isEqualTo("숨은 게시물");
     }
 
     @Test
@@ -129,7 +152,7 @@ class SavedPlaceCommandServiceTest {
     void collectionOrigin() {
         UUID collection = UUID.randomUUID();
         given(targets.findVisiblePlaceIds(eq(ME), any())).willReturn(Map.of(A, 10L));
-        given(targets.findCollectionId(collection)).willReturn(Optional.of(55L));
+        given(targets.findLinkableCollection(ME, collection)).willReturn(Optional.of(new SourceRef(55L, Set.of(10L))));
         given(savedPlaces.saveIfAbsent(any())).willReturn(true);
         ArgumentCaptor<SavedPlace> saved = ArgumentCaptor.forClass(SavedPlace.class);
 
