@@ -80,6 +80,18 @@ pickong:
       secure: ${COOKIE_SECURE:true}
       # 비우면 지금 도메인에만 저장. 백엔드 하위 도메인과 쿠키를 나눠 써야 할 때만 .pickong.app처럼 넣습니다.
       domain: ${COOKIE_DOMAIN:}
+  media:
+    # Cloudflare R2 (사진 업로드). 값은 backend/.env 또는 환경변수에서 받음 (backend/.env.example 참고)
+    # 키가 없어도 앱은 시작함. 업로드 API를 부를 때만 R2 오류가 남
+    r2:
+      account-id: ${R2_ACCOUNT_ID:not-configured}
+      access-key-id: ${R2_ACCESS_KEY_ID:not-configured}
+      secret-access-key: ${R2_SECRET_ACCESS_KEY:not-configured}
+      bucket: ${R2_BUCKET:not-configured}
+      # 사진을 보여 줄 공개 주소. 로컬은 r2.dev 주소, 운영은 버킷에 연결한 도메인
+      public-base-url: ${R2_PUBLIC_BASE_URL:http://localhost/not-configured}
+      # 업로드용 Presigned URL 유효 시간. 길수록 URL이 유출됐을 때 같은 key를 덮어쓸 수 있는 시간이 늘어남
+      upload-url-ttl: 5m
 
 server:
   port: 8080
