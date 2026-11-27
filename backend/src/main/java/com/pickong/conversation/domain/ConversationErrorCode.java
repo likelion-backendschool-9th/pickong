@@ -1,0 +1,24 @@
+package com.pickong.conversation.domain;
+
+import com.pickong.common.error.ErrorCode;
+import lombok.Getter;
+
+/** 대화(conversation) 모듈 오류 코드. */
+@Getter
+public enum ConversationErrorCode implements ErrorCode {
+
+    /** 없는 대화방이거나, 참여하지 않았거나 나간 대화방 (참여하지 않은 대화방은 있다는 것도 알리지 않음) */
+    CONVERSATION_NOT_FOUND(404, "대화를 찾을 수 없어요."),
+    /** 나와의 1:1 대화방을 열려고 함 */
+    SELF_CONVERSATION_NOT_ALLOWED(400, "나에게는 메시지를 보낼 수 없어요."),
+    /** 읽음 위치로 보낸 메시지가 이 대화방에 없거나, 내가 볼 수 없는 메시지 */
+    MESSAGE_NOT_FOUND(404, "메시지를 찾을 수 없어요.");
+
+    private final int status;
+    private final String message;
+
+    ConversationErrorCode(int status, String message) {
+        this.status = status;
+        this.message = message;
+    }
+}
