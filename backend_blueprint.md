@@ -457,6 +457,14 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | GET | `/users/{username}/feeds` | `FeedQueryUseCase.feedsOf` | |
 | GET | `/users/{username}/visits` | `FeedQueryUseCase.visitedPlacesOf` | 기준 미정 (8.3 #3) |
 
+**게시물 단건 접근의 공개 범위 (이슈 #175):** 게시물 하나에 접근하는 모든 API는 같은 판정(`Feed.ensureReadable`)을 거칩니다. 상세, 댓글 · 대댓글 조회, 좋아요 · 북마크 추가와 취소, 댓글 작성 · 수정 · 삭제, 댓글 좋아요와 취소, 게시물 수정 · 삭제가 대상입니다.
+- 관계(`ViewerRelation`)는 social의 `RelationQueryUseCase.relationOf`가 계산합니다. 비로그인 ANONYMOUS, 작성자 OWNER, `follows`에 행이 있으면 FOLLOWER, 그 외 OTHER입니다. 요청마다 새로 읽어서 팔로우를 끊으면 바로 반영됩니다.
+- 판정 순서: 삭제됨 → 관리자 통과 → 숨김 글은 작성자만 → `Visibility.allows(관계)`. 볼 수 없으면 모두 404 `FEED_NOT_FOUND`이고, 공개 범위를 알 수 없으면 열지 않습니다.
+- 반응 추가와 댓글 작성(`ensureAcceptsInteraction`)은 여기에 더해 작성자도 숨김 글에는 할 수 없습니다.
+- 취소 · 수정 · 삭제도 먼저 판정합니다. 볼 수 없는 게시물에서 `LIKE_NOT_FOUND` · `COMMENT_NOT_OWNER` · `FEED_NOT_OWNER` 같은 다른 오류가 나가면 게시물이 있다는 사실이 드러나기 때문입니다.
+- 그래서 게시물이 PRIVATE로 바뀌면 다른 회원이 전에 남긴 좋아요 · 북마크 · 댓글은 남고, 그 회원도 취소하거나 지울 수 없습니다.
+- 목록(팔로잉 탭, 프로필 피드, 피드 지도)은 아직 PUBLIC만 보여 줍니다. FOLLOWERS 게시물을 목록에 넣는 것은 후속입니다.
+
 ### collection
 | 메서드 | 경로 | 입력 포트 · 메서드 | 비고 |
 | --- | --- | --- | --- |
@@ -1672,7 +1680,7 @@ class ArchitectureTest {
 | 4 | 보류 테이블(tags 등)을 Flyway 초기 스크립트에 포함할지 (제안: 보류를 풀 때 마이그레이션 추가) |
 | 5 | R2 파일 접근 방식: 공개 버킷이면 비공개 게시물 · 유료 컬렉션 사진이 URL만으로 열림 → 비공개 버킷 + 서명 URL(GET) 여부 |
 | 6 | DM으로 공유한 FOLLOWERS 게시물을 팔로워가 아닌 상대가 볼 수 있는지 (제안: 열람 시점에 공개 범위 다시 확인) |
-| 7 | 피드 상세 조회는 공개 범위를 검사하지 않습니다. 신고 접수는 다른 회원에게 `PUBLIC`만 허용하고, 상세가 열려 있다는 이유로 `FOLLOWERS`·`PRIVATE` 신고를 허용하지 않습니다. `follows` 마이그레이션이 생기고 피드 목록이 팔로워 글을 실제로 보여 주면 신고 조건을 맞춥니다 |
+| 7 | 피드 단건 접근(상세, 댓글, 반응, 수정 · 삭제)은 공개 범위를 검사합니다(이슈 #175, 위 feed 절). 신고 접수는 여전히 다른 회원에게 `PUBLIC`만 허용합니다. 팔로워는 이제 `FOLLOWERS` 게시물을 상세로 볼 수 있지만 신고할 수 없습니다. 피드 목록이 팔로워 글을 보여 주면(후속) 신고 조건을 같은 기준으로 맞춥니다 |
 
 ---
 
