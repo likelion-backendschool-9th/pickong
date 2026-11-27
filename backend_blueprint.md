@@ -329,9 +329,11 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 
 **사진 업로드 구현 현황:** 발급(`presigned`) · 확인(`confirm`)은 구현됨. `DELETE`, 이미지 처리(`PROCESSED`), 정리 스케줄러는 아직 없음.
 - 흐름: 발급 → 브라우저가 R2에 직접 PUT → 확인. 로그인 필수(비로그인 401). 서버는 파일 내용을 받지 않음
-- 발급: 요청 `{contentType, sizeBytes}`, 응답 201 `{mediaId, uploadUrl, contentType}`. `image/jpeg` · `image/png` · `image/webp`만, 10MB 이하(`MediaFile.issue`). 그 외 400 `MEDIA_TYPE_NOT_ALLOWED` · `MEDIA_TOO_LARGE`. `media_files`(V21)에 PENDING 저장. 파일 이름은 `feeds/{랜덤 UUID}.{확장자}`이고 회원 id를 넣지 않음. Presigned URL은 5분(`pickong.media.r2.upload-url-ttl`)이고 종류 · 크기가 서명에 들어감. 브라우저는 PUT의 `Content-Type`에 응답의 `contentType`을 그대로 넣어야 함
-- 확인: 응답 200 `{mediaId, url, contentType, sizeBytes}`. 행을 잠그고 읽은 뒤 R2에 HEAD로 실제 크기 · 종류를 비교함. 남의 사진 · 없는 사진 404 `MEDIA_NOT_FOUND`, 이미 확인된 사진은 같은 결과(멱등), R2에 파일 없음 400 `MEDIA_NOT_UPLOADED`(PENDING 유지), 종류 · 크기가 다르면 FAILED로 커밋하고 R2 파일을 지운 뒤 400 `MEDIA_FILE_MISMATCH`, 이미 실패한 사진 409 `MEDIA_UPLOAD_FAILED`
-- 설정: `R2_ACCOUNT_ID` · `R2_ACCESS_KEY_ID` · `R2_SECRET_ACCESS_KEY` · `R2_BUCKET` · `R2_PUBLIC_BASE_URL`(`backend/.env.example`). 값이 없어도 앱은 시작하고 업로드 API만 실패함
+- 발급: 요청 `{contentType, sizeBytes}`, 응답 201 `{mediaId, uploadUrl, uploadHeaders}`. R2 설정값이 하나라도 없으면 503 `MEDIA_STORAGE_UNAVAILABLE`이고 기록을 만들지 않음. `image/jpeg` · `image/png` · `image/webp`만, 10MB 이하(`MediaFile.issue`). 그 외 400 `MEDIA_TYPE_NOT_ALLOWED` · `MEDIA_TOO_LARGE`. `media_files`(V21)에 PENDING 저장. 파일 이름은 `feeds/{랜덤 UUID}.{확장자}`이고 회원 id를 넣지 않음
+- Presigned PUT URL: 5분(`pickong.media.r2.upload-url-ttl`) 유효하고 `Content-Type` · `Content-Length` · `If-None-Match: *`가 서명에 들어감. 브라우저는 `uploadHeaders`(`Content-Type`, `If-None-Match`)를 그대로 넣어 PUT해야 하고, 빠지거나 다르면 403. Presigned URL은 일회용이 아니어서 `If-None-Match: *`(key에 객체가 없을 때만 저장)로 같은 URL의 두 번째 PUT을 412로 막음. 그래서 업로드 확인이 끝난 사진은 바꿔치기할 수 없음(실제 R2로 확인)
+- 확인: 응답 200 `{mediaId, url, contentType, sizeBytes}`. 행을 잠그고 읽은 뒤 R2에 HEAD로 실제 크기 · 종류를 비교함. 남의 사진 · 없는 사진 404 `MEDIA_NOT_FOUND`, 이미 확인된 사진은 같은 결과(멱등), R2에 파일 없음 400 `MEDIA_NOT_UPLOADED`(PENDING 유지), 종류 · 크기가 다르면 FAILED로 커밋하고 R2 파일을 지운 뒤 400 `MEDIA_FILE_MISMATCH`, 이미 실패한 사진 409 `MEDIA_UPLOAD_FAILED`. R2 삭제가 실패해도 FAILED는 커밋하고 경고 로그만 남김(남은 파일은 정리 스케줄러 대상)
+- 파일 내용이 실제 이미지인지(디코딩), EXIF 제거, 픽셀 수 제한은 아직 서버에서 확인하지 않음. 프론트 재인코딩과 별개로 서버 측 이미지 처리에서 다룸
+- 설정: `R2_ACCOUNT_ID` · `R2_ACCESS_KEY_ID` · `R2_SECRET_ACCESS_KEY` · `R2_BUCKET` · `R2_PUBLIC_BASE_URL`(`backend/.env.example`). 값이 없어도 앱은 시작하고 업로드 API만 503. 버킷 CORS는 PUT과 `Content-Type` · `If-None-Match` 헤더를 허용해야 함
 - 공개 방식은 8.7 #5 참고
 
 ### place
