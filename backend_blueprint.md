@@ -1416,7 +1416,7 @@ common/websocket/
 | 단계 | 위치 | 내용 |
 | --- | --- | --- |
 | 연결 (`/api/v1/ws` 핸드셰이크) | `common/websocket/WebSocketConfig` | **Origin이 허용 목록(`pickong.frontend.base-url`)에 없으면 거절.** 쿠키로 인증하므로 다른 사이트가 사용자 브라우저로 연결하는 것(CSWSH)을 막습니다. SameSite=Lax 쿠키도 다른 사이트의 핸드셰이크에는 실리지 않지만, 같은 사이트의 다른 하위 도메인까지 막으려고 Origin을 확인합니다 |
-| 연결 (`/api/v1/ws` 핸드셰이크) | 보안 필터 체인 + `auth/adapter/in/websocket/WebSocketAuthHandshakeInterceptor` | 핸드셰이크는 REST와 같은 `/api/v1/**` 보안 필터를 거칩니다: 비로그인 · 만료 · ACTIVE가 아닌 계정 401, 필수 약관 재동의 필요 403 `TERMS_RECONSENT_REQUIRED`. 그다음 인터셉터가 | httpOnly 쿠키의 Access Token 검증 → Principal. 실패하면 401로 핸드셰이크 거절. JS가 토큰을 읽을 수 없으므로 CONNECT 헤더 대신 핸드셰이크 쿠키를 씀. 토큰 만료 시각을 세션 속성에 저장 |
+| 연결 (`/api/v1/ws` 핸드셰이크) | 보안 필터 체인 + `auth/adapter/in/websocket/WebSocketAuthHandshakeInterceptor` | 핸드셰이크는 REST와 같은 `/api/v1/**` 보안 필터를 거칩니다(비로그인 · 만료 · ACTIVE가 아닌 계정 401, 필수 약관 재동의 필요 403 `TERMS_RECONSENT_REQUIRED`). 그다음 인터셉터가 httpOnly 쿠키의 Access Token을 검증해 Principal을 만듭니다. JS가 토큰을 읽을 수 없으므로 CONNECT 헤더 대신 핸드셰이크 쿠키를 씀. 토큰 만료 시각을 세션 속성에 저장 |
 | Principal 이름 | 위와 같음 | **회원 내부 id 문자열.** 아이디(`username`)는 바꿀 수 있어 사용자 목적지 키로 쓰지 않습니다. 응답에는 내부 id 대신 `username`을 씁니다(8.6) |
 | CSRF | — | STOMP CONNECT에 CSRF 토큰을 요구하지 않습니다(Spring Security 메시지 보안 미사용). 위의 Origin 확인과 SameSite 쿠키가 같은 역할을 합니다 |
 | 구독 (SUBSCRIBE) | `auth/adapter/in/websocket/StompDestinationGuard` | `/user/queue/**` 외 목적지 구독 거부. 사용자 목적지는 본인에게만 전달되므로 대화방별 구독 권한 검사가 필요 없음 |
