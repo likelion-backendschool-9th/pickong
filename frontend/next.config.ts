@@ -24,8 +24,9 @@ const BACKEND_PATHS = [
   "/api/v1/admin/users/:path*",
   "/api/v1/admin/feeds/:path*",
   "/api/v1/admin/reports/:path*",
-  // 프로필 상단(사용자 정보)만. 게시물 · 컬렉션 · 방문 탭(/users/:username/*)은 아직 mock입니다.
+  // 프로필 상단(사용자 정보)과 컬렉션 탭. 게시물 · 방문 탭은 아직 mock입니다.
   "/api/v1/users/:username",
+  "/api/v1/users/:username/collections",
   // 장소 제보 화면은 관리자 로그인이 없어 mock에 둡니다. 백엔드로 보내면 목록이 비거나 로그인으로 이동합니다.
 ];
 

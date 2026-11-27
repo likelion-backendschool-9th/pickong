@@ -41,14 +41,24 @@ const feedPosts = (tab: string, region?: string | null) => {
 export const postRoutes: Route[] = [
   {
     method: "GET",
-    path: "/api/v1/feed",
+    path: "/api/v1/feeds",
     delay: 300,
-    handler: ({ query }) => feedPosts(query.get("tab") ?? "following", query.get("region")).map(postDto),
+    handler: ({ query }) => {
+      // limit: 백엔드 필수 파라미터 (1~50). cursor: 이전 페이지의 다음 시작 인덱스 (숫자)
+      const limit = Math.min(50, Math.max(1, Number(query.get("limit") ?? "10")));
+      const startIdx = query.get("cursor") ? Number(query.get("cursor")) : 0;
+      const all = feedPosts(query.get("tab") ?? "following", query.get("region")).map(postDto);
+      const feeds = all.slice(startIdx, startIdx + limit);
+      const nextIdx = startIdx + limit;
+      const hasNext = nextIdx < all.length;
+      // nextCursor는 다음 페이지 시작 인덱스. 더 이상 없으면 null
+      return { feeds, nextCursor: hasNext ? nextIdx : null, hasNext };
+    },
   },
   {
     /** 피드 지도: 피드 탭(팔로잉 · 추천)과 같은 기준의 게시물에 연결된 장소 (내 지도와 별개). postIds는 최신순 */
     method: "GET",
-    path: "/api/v1/feed/places",
+    path: "/api/v1/feeds/places",
     delay: 300,
     handler: ({ query }) => {
       const byPlace = new Map<string, string[]>();
@@ -67,10 +77,10 @@ export const postRoutes: Route[] = [
       }));
     },
   },
-  { method: "GET", path: "/api/v1/posts/:id", handler: ({ params }) => postDto(postOr404(params.id)) },
+  { method: "GET", path: "/api/v1/feeds/:id", handler: ({ params }) => postDto(postOr404(params.id)) },
   {
     method: "POST",
-    path: "/api/v1/posts",
+    path: "/api/v1/feeds",
     delay: 600,
     handler: ({ body }) => {
       const photos = Array.isArray(body?.photos) ? body.photos : [];
@@ -95,7 +105,7 @@ export const postRoutes: Route[] = [
   },
   {
     method: "POST",
-    path: "/api/v1/posts/:id/like",
+    path: "/api/v1/feeds/:id/likes",
     handler: ({ params }) => {
       const post = postOr404(params.id);
       if (!post.likedByMe) {
@@ -107,7 +117,7 @@ export const postRoutes: Route[] = [
   },
   {
     method: "DELETE",
-    path: "/api/v1/posts/:id/like",
+    path: "/api/v1/feeds/:id/likes",
     handler: ({ params }) => {
       const post = postOr404(params.id);
       if (post.likedByMe) {
@@ -119,7 +129,7 @@ export const postRoutes: Route[] = [
   },
   {
     method: "POST",
-    path: "/api/v1/posts/:id/bookmark",
+    path: "/api/v1/feeds/:id/bookmarks",
     handler: ({ params }) => {
       const post = postOr404(params.id);
       post.bookmarkedByMe = true;
@@ -128,7 +138,7 @@ export const postRoutes: Route[] = [
   },
   {
     method: "DELETE",
-    path: "/api/v1/posts/:id/bookmark",
+    path: "/api/v1/feeds/:id/bookmarks",
     handler: ({ params }) => {
       const post = postOr404(params.id);
       post.bookmarkedByMe = false;
@@ -137,7 +147,7 @@ export const postRoutes: Route[] = [
   },
   {
     method: "GET",
-    path: "/api/v1/posts/:id/comments",
+    path: "/api/v1/feeds/:id/comments",
     handler: ({ params }) => {
       postOr404(params.id);
       return db.comments
@@ -148,7 +158,7 @@ export const postRoutes: Route[] = [
   },
   {
     method: "POST",
-    path: "/api/v1/posts/:id/comments",
+    path: "/api/v1/feeds/:id/comments",
     handler: ({ params, body }) => {
       postOr404(params.id);
       const content = String(body?.content ?? "").trim();
@@ -168,7 +178,7 @@ export const postRoutes: Route[] = [
   },
   {
     method: "PUT",
-    path: "/api/v1/posts/:id/comments/:commentId",
+    path: "/api/v1/feeds/:id/comments/:commentId",
     handler: ({ params, body }) => {
       postOr404(params.id);
       const idx = db.comments.findIndex((c) => c.id === params.commentId && c.postId === params.id);
@@ -182,7 +192,7 @@ export const postRoutes: Route[] = [
   },
   {
     method: "DELETE",
-    path: "/api/v1/posts/:id/comments/:commentId",
+    path: "/api/v1/feeds/:id/comments/:commentId",
     handler: ({ params }) => {
       postOr404(params.id);
       const idx = db.comments.findIndex((c) => c.id === params.commentId && c.postId === params.id);

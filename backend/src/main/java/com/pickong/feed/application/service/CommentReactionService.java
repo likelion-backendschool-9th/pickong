@@ -7,6 +7,8 @@ import com.pickong.feed.application.port.out.CommentReactionRepository;
 import com.pickong.feed.application.port.out.CommentRepository;
 import com.pickong.feed.application.port.out.FeedRepository;
 import com.pickong.feed.domain.model.Comment;
+import com.pickong.feed.domain.model.Feed;
+import com.pickong.social.application.port.in.RelationQueryUseCase;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,20 +18,24 @@ public class CommentReactionService implements CommentReactionUseCase {
     private final FeedRepository feedRepository;
     private final CommentRepository commentRepository;
     private final CommentReactionRepository commentReactionRepository;
+    private final RelationQueryUseCase relationQueryUseCase;
 
     public CommentReactionService(FeedRepository feedRepository,
                                    CommentRepository commentRepository,
-                                   CommentReactionRepository commentReactionRepository) {
+                                   CommentReactionRepository commentReactionRepository,
+                                   RelationQueryUseCase relationQueryUseCase) {
         this.feedRepository = feedRepository;
         this.commentRepository = commentRepository;
         this.commentReactionRepository = commentReactionRepository;
+        this.relationQueryUseCase = relationQueryUseCase;
     }
 
     @Override
     @Transactional
     public void likeComment(Long feedId, Long commentId, Long userId) {
-        // 피드 존재 확인 — 없으면 FEED_NOT_FOUND 예외
-        feedRepository.findByIdForUpdate(feedId).ensureAcceptsInteraction();
+        // 게시물을 볼 수 있고 반응을 받는 상태인지 확인 — 아니면 FEED_NOT_FOUND (공개 범위 포함)
+        Feed feed = feedRepository.findByIdForUpdate(feedId);
+        feed.ensureAcceptsInteraction(relationQueryUseCase.relationOf(userId, feed.getUserId()));
 
         // 댓글 존재 확인 — 없으면 COMMENT_NOT_FOUND 예외
         Comment comment = commentRepository.findByIdForUpdate(commentId);
@@ -61,8 +67,9 @@ public class CommentReactionService implements CommentReactionUseCase {
     @Override
     @Transactional
     public void unlikeComment(Long feedId, Long commentId, Long userId) {
-        // 피드 존재 확인
-        feedRepository.findByIdForUpdate(feedId);
+        // 게시물을 볼 수 있는지 먼저 확인 — 볼 수 없는 글에서 COMMENT_LIKE_NOT_FOUND 같은 다른 오류가 나면 글이 있다는 게 드러남
+        Feed feed = feedRepository.findByIdForUpdate(feedId);
+        feed.ensureReadable(relationQueryUseCase.relationOf(userId, feed.getUserId()), false);
 
         // 댓글 존재 확인
         Comment comment = commentRepository.findById(commentId);

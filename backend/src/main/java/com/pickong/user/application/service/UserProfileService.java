@@ -4,6 +4,7 @@ import com.pickong.common.error.BusinessException;
 import com.pickong.user.application.dto.MyProfile;
 import com.pickong.user.application.dto.UpdateProfileCommand;
 import com.pickong.user.application.dto.UserProfile;
+import com.pickong.user.application.dto.UserSummary;
 import com.pickong.user.application.port.in.UserCommandUseCase;
 import com.pickong.user.application.port.in.UserCounterUseCase;
 import com.pickong.user.application.port.in.UserQueryUseCase;
@@ -45,12 +46,24 @@ public class UserProfileService implements UserQueryUseCase, UserCommandUseCase,
     /** 정상(ACTIVE) 회원만 보여 줍니다. 탈퇴 중인 회원의 프로필은 숨긴다는 탈퇴 정책을 따르고, 정지 · 영구 정지 회원도 같이 숨깁니다. */
     @Override
     public UserProfile getProfile(Long viewerId, String username) {
-        User user = userPersistencePort.findByUsername(username)
-                .filter(u -> u.getStatus() == UserStatus.ACTIVE)
-                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+        User user = loadActive(username);
         return new UserProfile(user.getPublicId(), user.getUsername(), user.getDisplayName(), user.getProfileImageUrl(),
                 user.getBio(), user.getRegion(), user.getFeedCount(), user.getFollowerCount(), user.getFollowingCount(),
                 user.getId().equals(viewerId));
+    }
+
+    /** 프로필 조회(getProfile)와 같은 기준으로 정상(ACTIVE) 회원만 돌려줍니다. */
+    @Override
+    public UserSummary getActiveByUsername(String username) {
+        User user = loadActive(username);
+        return new UserSummary(user.getId(), user.getPublicId(), user.getUsername(), user.getDisplayName(),
+                user.getProfileImageUrl());
+    }
+
+    private User loadActive(String username) {
+        return userPersistencePort.findByUsername(username)
+                .filter(u -> u.getStatus() == UserStatus.ACTIVE)
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
     }
 
     /** 형식이 틀리면 400, 예약어이거나 누가 쓰고 있으면 false */

@@ -39,7 +39,9 @@ class ModerationSchemaMigrationTest {
 
     @Test
     void emptyDatabaseMigratesValidatesAndReplaysWithoutCreatingAnAdminAccount() {
-        assertThat(flyway(null).migrate().migrationsExecuted).isEqualTo(16);
+        // 마이그레이션이 추가될 때마다 숫자를 고치지 않도록, 저장소에 있는 마이그레이션 수와 비교합니다.
+        int resolved = flyway(null).info().pending().length;
+        assertThat(flyway(null).migrate().migrationsExecuted).isEqualTo(resolved);
         flyway(null).validate();
         assertThat(flyway(null).migrate().migrationsExecuted).isZero();
         for (String table : List.of("admins", "admin_action_logs", "user_sanctions")) {
@@ -68,7 +70,8 @@ class ModerationSchemaMigrationTest {
                 "users", rows("users"), "reports", rows("reports"), "feeds", rows("feeds"), "comments", rows("comments"));
         String pendingIndex = index("ux_reports_pending_reporter_target");
 
-        assertThat(flyway(null).migrate().migrationsExecuted).isEqualTo(3);
+        int pending = flyway(null).info().pending().length;
+        assertThat(flyway(null).migrate().migrationsExecuted).isEqualTo(pending);
         flyway(null).validate();
 
         before.forEach((table, data) -> assertThat(rows(table)).as(table + " 전체 컬럼 보존").isEqualTo(data));

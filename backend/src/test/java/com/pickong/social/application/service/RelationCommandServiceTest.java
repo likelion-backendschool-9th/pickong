@@ -1,5 +1,6 @@
 package com.pickong.social.application.service;
 
+import com.pickong.common.domain.ViewerRelation;
 import com.pickong.common.error.BusinessException;
 import com.pickong.social.application.port.out.RelationRepository;
 import com.pickong.social.domain.SocialErrorCode;
@@ -15,9 +16,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class RelationCommandServiceTest {
@@ -106,5 +109,33 @@ class RelationCommandServiceTest {
         assertThatThrownBy(() -> relationCommandService.unfollow(1L, "targetUser"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage(SocialErrorCode.FOLLOW_NOT_FOUND.getMessage());
+    }
+
+    // ── relationOf: 공개 범위 판정에 쓰는 관계 ─────────────────
+
+    @Test
+    void relationOf_비로그인이면_ANONYMOUS_팔로우조회안함() {
+        assertThat(relationCommandService.relationOf(null, 2L)).isEqualTo(ViewerRelation.ANONYMOUS);
+        verifyNoInteractions(relationRepository);
+    }
+
+    @Test
+    void relationOf_본인이면_OWNER_팔로우조회안함() {
+        assertThat(relationCommandService.relationOf(2L, 2L)).isEqualTo(ViewerRelation.OWNER);
+        verifyNoInteractions(relationRepository);
+    }
+
+    @Test
+    void relationOf_소유자를팔로우하면_FOLLOWER() {
+        given(relationRepository.existsFollow(1L, 2L)).willReturn(true);
+
+        assertThat(relationCommandService.relationOf(1L, 2L)).isEqualTo(ViewerRelation.FOLLOWER);
+    }
+
+    @Test
+    void relationOf_팔로우하지않으면_OTHER() {
+        given(relationRepository.existsFollow(1L, 2L)).willReturn(false);
+
+        assertThat(relationCommandService.relationOf(1L, 2L)).isEqualTo(ViewerRelation.OTHER);
     }
 }

@@ -1,15 +1,18 @@
 package com.pickong.media.adapter.out.persistence.entity;
 
+import com.pickong.media.domain.model.MediaFile;
+import com.pickong.media.domain.vo.MediaStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 
 /**
- * media_files 테이블 JPA 엔티티.
- * 업로드된 미디어 파일 메타데이터를 저장한다.
+ * media_files 테이블 JPA 엔티티 (V21)
+ * 업로드한 사진 한 장의 기록을 저장함
  */
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -56,4 +59,41 @@ public class MediaFileJpaEntity {
 
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    /** 도메인 → 엔티티. 새 기록이면 생성 시각을 채우고, 저장할 때마다 수정 시각을 바꿈 */
+    public static MediaFileJpaEntity from(MediaFile media) {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        MediaFileJpaEntity entity = new MediaFileJpaEntity();
+        entity.id = media.getId();
+        entity.userId = media.getUserId();
+        entity.status = media.getStatus().name();
+        entity.storageKey = media.getStorageKey();
+        entity.url = media.getUrl();
+        entity.mimeType = media.getMimeType();
+        entity.sizeBytes = media.getSizeBytes();
+        entity.width = media.getWidth();
+        entity.height = media.getHeight();
+        entity.retryCount = media.getRetryCount();
+        entity.createdAt = media.getCreatedAt() != null ? media.getCreatedAt() : now;
+        entity.updatedAt = now;
+        return entity;
+    }
+
+    /** 엔티티 → 도메인 */
+    public MediaFile toDomain() {
+        return MediaFile.builder()
+                .id(id)
+                .userId(userId)
+                .status(MediaStatus.valueOf(status))
+                .storageKey(storageKey)
+                .url(url)
+                .mimeType(mimeType)
+                .sizeBytes(sizeBytes)
+                .width(width)
+                .height(height)
+                .retryCount(retryCount)
+                .createdAt(createdAt)
+                .updatedAt(updatedAt)
+                .build();
+    }
 }
