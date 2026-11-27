@@ -72,7 +72,8 @@ class MediaUploadIntegrationTest {
     void issue() throws Exception {
         String body = issue(me, "image/jpeg", 2048)
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.contentType").value("image/jpeg"))
+                .andExpect(jsonPath("$.uploadHeaders['Content-Type']").value("image/jpeg"))
+                .andExpect(jsonPath("$.uploadHeaders['If-None-Match']").value("*"))
                 .andReturn().getResponse().getContentAsString();
         long mediaId = ((Number) JsonPath.read(body, "$.mediaId")).longValue();
 
@@ -94,6 +95,20 @@ class MediaUploadIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("MEDIA_TOO_LARGE"));
 
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM media_files WHERE user_id = ?", Integer.class, me)).isZero();
+    }
+
+    @Test
+    @DisplayName("발급: R2 설정이 없는 서버면 503 MEDIA_STORAGE_UNAVAILABLE, 기록은 안 남음")
+    void issueWithoutStorageConfig() throws Exception {
+        storage.configured = false;
+        try {
+            issue(me, "image/jpeg", 2048)
+                    .andExpect(status().isServiceUnavailable())
+                    .andExpect(jsonPath("$.code").value("MEDIA_STORAGE_UNAVAILABLE"));
+        } finally {
+            storage.configured = true;
+        }
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM media_files WHERE user_id = ?", Integer.class, me)).isZero();
     }
 
@@ -157,12 +172,13 @@ class MediaUploadIntegrationTest {
      */
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    @DisplayName("확인: 크기가 다르면 400 MEDIA_FILE_MISMATCH, 오류를 돌려줘도 FAILED는 커밋됨 (롤백 안 됨)")
+    @DisplayName("확인: 크기가 다르면 400 MEDIA_FILE_MISMATCH, R2 삭제까지 실패해도 FAILED는 커밋됨 (롤백 안 됨)")
     void confirmMismatchCommitsFailed() throws Exception {
         try {
             long mediaId = issueAndGetId(me, "image/png", 4096);
             String key = jdbc.queryForObject("SELECT storage_key FROM media_files WHERE id = ?", String.class, mediaId);
             storage.put(key, 1, "image/png");
+            storage.failDelete = true;
 
             confirm(me, mediaId)
                     .andExpect(status().isBadRequest())
@@ -170,8 +186,8 @@ class MediaUploadIntegrationTest {
 
             assertThat(jdbc.queryForObject("SELECT status FROM media_files WHERE id = ?", String.class, mediaId))
                     .isEqualTo("FAILED");
-            assertThat(storage.findObject(key)).isEmpty();
         } finally {
+            storage.failDelete = false;
             for (long userId : List.of(me, other)) {
                 jdbc.update("DELETE FROM media_files WHERE user_id = ?", userId);
                 jdbc.update("DELETE FROM user_terms_agreements WHERE user_id = ?", userId);
@@ -229,14 +245,21 @@ class MediaUploadIntegrationTest {
     /** R2 대신 메모리 Map */
     static class FakeStorage implements ObjectStoragePort {
         private final Map<String, StoredObject> objects = new ConcurrentHashMap<>();
+        volatile boolean configured = true;
+        volatile boolean failDelete;
 
         void put(String key, long size, String type) {
             objects.put(key, new StoredObject(size, type));
         }
 
         @Override
-        public String createUploadUrl(String key, String contentType, long contentLength) {
-            return "signed:" + key;
+        public boolean isConfigured() {
+            return configured;
+        }
+
+        @Override
+        public UploadUrl createUploadUrl(String key, String contentType, long contentLength) {
+            return new UploadUrl("signed:" + key, Map.of("Content-Type", contentType, "If-None-Match", "*"));
         }
 
         @Override
@@ -246,6 +269,9 @@ class MediaUploadIntegrationTest {
 
         @Override
         public void deleteObject(String key) {
+            if (failDelete) {
+                throw new IllegalStateException("R2 연결 실패 흉내");
+            }
             objects.remove(key);
         }
 

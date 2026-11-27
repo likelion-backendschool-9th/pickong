@@ -2,8 +2,10 @@ package com.pickong.media.adapter.out.external.r2;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.pickong.media.application.port.out.ObjectStoragePort.UploadUrl;
 import java.net.URI;
 import java.time.Duration;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -22,9 +24,10 @@ class R2StorageAdapterTest {
             config.r2Client(properties), config.r2Presigner(properties), properties);
 
     @Test
-    @DisplayName("Presigned URL: 계정 주소/버킷/파일 이름, 5분(300초) 유효, 종류가 서명에 들어감")
+    @DisplayName("Presigned URL: 계정 주소/버킷/파일 이름, 5분(300초) 유효, Content-Type과 If-None-Match가 서명에 들어감")
     void createUploadUrl() {
-        URI url = URI.create(adapter.createUploadUrl("feeds/abc.jpg", "image/jpeg", 2048));
+        UploadUrl upload = adapter.createUploadUrl("feeds/abc.jpg", "image/jpeg", 2048);
+        URI url = URI.create(upload.url());
 
         assertThat(url.getScheme()).isEqualTo("https");
         assertThat(url.getHost()).isEqualTo(ACCOUNT + ".r2.cloudflarestorage.com");
@@ -32,8 +35,21 @@ class R2StorageAdapterTest {
         assertThat(url.getQuery()).contains("X-Amz-Expires=300");
         assertThat(url.getQuery()).contains("X-Amz-Signature=");
         assertThat(url.getQuery()).containsPattern("X-Amz-SignedHeaders=[^&]*content-type");
+        assertThat(url.getQuery()).containsPattern("X-Amz-SignedHeaders=[^&]*if-none-match");
+        // 브라우저가 PUT에 넣어야 하는 헤더. Host와 Content-Length는 브라우저가 자동으로 넣어서 빠짐
+        assertThat(upload.headers()).containsOnly(
+                Map.entry("Content-Type", "image/jpeg"), Map.entry("If-None-Match", "*"));
         // 비밀키는 주소에 들어가지 않음 (Access Key만 Credential에 들어감)
         assertThat(url.toString()).doesNotContain("test-secret-key");
+    }
+
+    @Test
+    @DisplayName("설정 완료 여부: 다섯 값이 모두 있으면 true, 하나라도 비면 false")
+    void isConfigured() {
+        assertThat(adapter.isConfigured()).isTrue();
+        assertThat(new R2Properties(ACCOUNT, "a", "b", "bucket", " ", null).isConfigured()).isFalse();
+        assertThat(new R2Properties(ACCOUNT, "", "b", "bucket", "https://pub", null).isConfigured()).isFalse();
+        assertThat(new R2Properties(null, null, null, null, null, null).isConfigured()).isFalse();
     }
 
     @Test

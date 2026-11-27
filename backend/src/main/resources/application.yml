@@ -89,7 +89,7 @@ pickong:
       secret-access-key: ${R2_SECRET_ACCESS_KEY:not-configured}
       bucket: ${R2_BUCKET:not-configured}
       # 사진을 보여 줄 공개 주소. 로컬은 r2.dev 주소, 운영은 버킷에 연결한 도메인
-      public-base-url: ${R2_PUBLIC_BASE_URL:http://localhost/not-configured}
+      public-base-url: ${R2_PUBLIC_BASE_URL:not-configured}
       # 업로드용 Presigned URL 유효 시간. 길수록 URL이 유출됐을 때 같은 key를 덮어쓸 수 있는 시간이 늘어남
       upload-url-ttl: 5m
 

@@ -1,6 +1,7 @@
 package com.pickong.media.adapter.out.external.r2;
 
 import com.pickong.media.application.port.out.ObjectStoragePort;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -14,6 +15,9 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 @Component
 public class R2StorageAdapter implements ObjectStoragePort {
 
+    // 객체가 하나도 없을 때만 PUT을 허용하는 조건 값
+    private static final String IF_NONE_MATCH_ANY = "*";
+
     private final S3Client client;
     private final S3Presigner presigner;
     private final R2Properties properties;
@@ -24,23 +28,33 @@ public class R2StorageAdapter implements ObjectStoragePort {
         this.properties = properties;
     }
 
+    @Override
+    public boolean isConfigured() {
+        return properties.isConfigured();
+    }
+
     /**
-     * Presigned URL을 만듦. R2를 부르지 않고 비밀키로 서명만 계산함
-     * 파일 이름, 종류, 크기가 서명에 들어가서 브라우저가 다른 종류나 크기로 올리면 R2가 거부함
+     * Presigned PUT URL을 만듦. R2를 부르지 않고 비밀키로 서명만 계산함
+     * 파일 이름, Content-Type, Content-Length, If-None-Match가 서명에 들어감
+     * If-None-Match: * 는 key에 객체가 없을 때만 저장하라는 조건이라, 유효 시간 안에 같은 URL로 다시 PUT해도 412로 거부됨
+     * (Presigned URL은 일회용이 아니어서 이 조건이 없으면 업로드 확인이 끝난 사진을 덮어쓸 수 있음)
      */
     @Override
-    public String createUploadUrl(String key, String contentType, long contentLength) {
+    public UploadUrl createUploadUrl(String key, String contentType, long contentLength) {
         PutObjectRequest put = PutObjectRequest.builder()
                 .bucket(properties.bucket())
                 .key(key)
                 .contentType(contentType)
                 .contentLength(contentLength)
+                .ifNoneMatch(IF_NONE_MATCH_ANY)
                 .build();
-        return presigner.presignPutObject(request -> request
+        String url = presigner.presignPutObject(request -> request
                         .signatureDuration(properties.uploadUrlTtl())
                         .putObjectRequest(put))
                 .url()
                 .toString();
+        // 서명된 헤더 중 브라우저가 직접 넣어야 하는 것만 돌려줌 (Host, Content-Length는 브라우저가 자동으로 넣음)
+        return new UploadUrl(url, Map.of("Content-Type", contentType, "If-None-Match", IF_NONE_MATCH_ANY));
     }
 
     /** HEAD 요청으로 파일 내용은 빼고 크기와 종류만 받아 옴. 없으면 빈 값 */

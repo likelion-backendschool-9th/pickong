@@ -2,6 +2,7 @@ package com.pickong.media.adapter.out.external.r2;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.stream.Stream;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -26,12 +27,19 @@ public record R2Properties(String accountId, String accessKeyId, String secretAc
         accessKeyId = orNotConfigured(accessKeyId);
         secretAccessKey = orNotConfigured(secretAccessKey);
         bucket = orNotConfigured(bucket);
+        publicBaseUrl = orNotConfigured(publicBaseUrl);
         if (uploadUrlTtl == null) {
             uploadUrlTtl = Duration.ofMinutes(5);
         }
-        if (publicBaseUrl != null && publicBaseUrl.endsWith("/")) {
+        if (publicBaseUrl.endsWith("/")) {
             publicBaseUrl = publicBaseUrl.substring(0, publicBaseUrl.length() - 1);
         }
+    }
+
+    /** 다섯 값이 모두 채워졌는지. 하나라도 비면 Presigned URL 발급을 막음 */
+    public boolean isConfigured() {
+        return Stream.of(accountId, accessKeyId, secretAccessKey, bucket, publicBaseUrl)
+                .noneMatch(NOT_CONFIGURED::equals);
     }
 
     private static String orNotConfigured(String value) {

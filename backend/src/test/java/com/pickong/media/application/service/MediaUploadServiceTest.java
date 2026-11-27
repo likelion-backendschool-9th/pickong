@@ -44,8 +44,18 @@ class MediaUploadServiceTest {
         MediaFile saved = persistence.get(ticket.mediaId());
         assertThat(saved.getStatus()).isEqualTo(MediaStatus.PENDING);
         assertThat(saved.getUserId()).isEqualTo(ME);
-        assertThat(ticket.contentType()).isEqualTo("image/jpeg");
         assertThat(ticket.uploadUrl()).isEqualTo("signed:" + saved.getStorageKey() + ":image/jpeg:2048");
+        assertThat(ticket.uploadHeaders()).containsEntry("Content-Type", "image/jpeg").containsEntry("If-None-Match", "*");
+    }
+
+    @Test
+    @DisplayName("발급: R2 설정이 없으면 503 MEDIA_STORAGE_UNAVAILABLE, PENDING 기록을 만들지 않음")
+    void issueWithoutStorageConfig() {
+        storage.configured = false;
+
+        assertThatThrownBy(() -> service.issueUploadUrl(ME, "image/jpeg", 2048))
+                .extracting("errorCode").isEqualTo(MediaErrorCode.MEDIA_STORAGE_UNAVAILABLE);
+        assertThat(persistence.count()).isZero();
     }
 
     @Test
@@ -130,6 +140,18 @@ class MediaUploadServiceTest {
     }
 
     @Test
+    @DisplayName("R2 파일 삭제가 실패해도 FAILED는 그대로 저장되고 MEDIA_FILE_MISMATCH만 나감 (R2 오류가 밖으로 나가면 롤백됨)")
+    void confirmMismatchWhenDeleteFails() {
+        UploadTicket ticket = service.issueUploadUrl(ME, "image/png", 2048);
+        storage.put(persistence.get(ticket.mediaId()).getStorageKey(), 9999, "image/png");
+        storage.failDelete = true;
+
+        assertThatThrownBy(() -> service.confirmUpload(ME, ticket.mediaId()))
+                .extracting("errorCode").isEqualTo(MediaErrorCode.MEDIA_FILE_MISMATCH);
+        assertThat(persistence.get(ticket.mediaId()).getStatus()).isEqualTo(MediaStatus.FAILED);
+    }
+
+    @Test
     @DisplayName("이미 실패한 사진을 다시 확인하면 409 MEDIA_UPLOAD_FAILED")
     void confirmFailedMedia() {
         UploadTicket ticket = service.issueUploadUrl(ME, "image/png", 2048);
@@ -166,6 +188,10 @@ class MediaUploadServiceTest {
             return rows.get(id);
         }
 
+        int count() {
+            return rows.size();
+        }
+
         // 서비스가 받은 객체를 바꿔도 저장된 값이 바뀌지 않게 복사본을 줌 (DB와 같은 동작)
         private MediaFile copy(MediaFile m) {
             return MediaFile.builder()
@@ -180,14 +206,22 @@ class MediaUploadServiceTest {
         private final Map<String, StoredObject> objects = new HashMap<>();
         final List<String> deletedKeys = new ArrayList<>();
         int headCalls;
+        boolean configured = true;
+        boolean failDelete;
 
         void put(String key, long size, String type) {
             objects.put(key, new StoredObject(size, type));
         }
 
         @Override
-        public String createUploadUrl(String key, String contentType, long contentLength) {
-            return "signed:" + key + ":" + contentType + ":" + contentLength;
+        public boolean isConfigured() {
+            return configured;
+        }
+
+        @Override
+        public UploadUrl createUploadUrl(String key, String contentType, long contentLength) {
+            return new UploadUrl("signed:" + key + ":" + contentType + ":" + contentLength,
+                    Map.of("Content-Type", contentType, "If-None-Match", "*"));
         }
 
         @Override
@@ -198,6 +232,9 @@ class MediaUploadServiceTest {
 
         @Override
         public void deleteObject(String key) {
+            if (failDelete) {
+                throw new IllegalStateException("R2 연결 실패 흉내");
+            }
             objects.remove(key);
             deletedKeys.add(key);
         }
