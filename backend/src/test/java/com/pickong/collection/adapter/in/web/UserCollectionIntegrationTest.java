@@ -228,7 +228,7 @@ class UserCollectionIntegrationTest {
     /** 컬렉션 장소는 소유자의 저장 장소에서 담습니다. */
     private void addPlace(long collectionId, long ownerId, long placeId, int sortOrder) {
         long savedPlaceId = jdbc.queryForObject(
-                "INSERT INTO saved_places (user_id, place_id) VALUES (?, ?) RETURNING id", Long.class, ownerId, placeId);
+                "INSERT INTO saved_places (user_id, place_id, source_type) VALUES (?, ?, 'SEARCH') RETURNING id", Long.class, ownerId, placeId);
         jdbc.update("INSERT INTO collection_places (collection_id, saved_place_id, place_id, sort_order) VALUES (?, ?, ?, ?)",
                 collectionId, savedPlaceId, placeId, sortOrder);
     }
