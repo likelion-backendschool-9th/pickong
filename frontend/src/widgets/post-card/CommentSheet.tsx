@@ -176,7 +176,7 @@ function CommentItem({
   small?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
-  const [editText, setEditText] = useState(comment.content);
+  const [editText, setEditText] = useState(comment.content ?? "");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const editRef = useRef<HTMLTextAreaElement>(null);
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -235,7 +235,7 @@ function CommentItem({
           {/* 본인 댓글에만 수정/삭제 표시 (삭제된 댓글은 버튼 없음) */}
           {isMine && !editing && !comment.deleted && (
             <div className="flex items-center gap-2 text-[12px]">
-              <button type="button" onClick={() => { setEditText(comment.content); setEditing(true); }} className="text-ink-faint">
+              <button type="button" onClick={() => { setEditText(comment.content ?? ""); setEditing(true); }} className="text-ink-faint">
                 수정
               </button>
               {confirmDelete ? (
@@ -264,7 +264,7 @@ function CommentItem({
           <div className="mt-1 space-y-1">
             <textarea
               ref={editRef}
-              value={editText ?? ""}
+              value={editText}
               onChange={(e) => setEditText(e.target.value)}
               rows={2}
               maxLength={300}
@@ -284,7 +284,7 @@ function CommentItem({
             {update.isError && <p className="text-[12px] text-danger">{errorMessage(update.error)}</p>}
           </div>
         ) : (
-          <p className="mt-0.5 text-[14px] leading-relaxed whitespace-pre-line">{renderContent(comment.content)}</p>
+          <p className="mt-0.5 text-[14px] leading-relaxed whitespace-pre-line">{renderContent(comment.content ?? "")}</p>
         )}
 
         {!editing && !comment.deleted && (

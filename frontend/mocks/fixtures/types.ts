@@ -76,7 +76,10 @@ export interface CommentRow {
   postId: string;
   authorId: string;
   parentId: string | null;
-  content: string;
+  /** 소프트 삭제되면 null (대댓글이 남아 "삭제된 댓글입니다"로 보일 때) */
+  content: string | null;
+  /** 소프트 삭제 여부. fixture에는 없을 수 있어 선택값입니다 */
+  deleted?: boolean;
   createdAt: string;
 }
 
