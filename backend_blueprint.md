@@ -446,7 +446,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | GET | `/feeds?tab=following\|recommended` | `FeedQueryUseCase.feed` | 추천은 비로그인 허용 |
 | GET | `/feeds/places?tab=` | `FeedQueryUseCase.feedPlaces` | |
 | POST | `/feeds` | `FeedCommandUseCase.write` | |
-| GET · PUT · DELETE | `/feeds/{feedId}` | `FeedQueryUseCase.getDetail` / `FeedCommandUseCase.update / delete` | feedId = `feeds.public_id` |
+| GET · PUT · DELETE | `/feeds/{feedId}` | `FeedQueryUseCase.getDetail` / `FeedCommandUseCase.update / delete` | feedId = `feeds.public_id`. 삭제는 소프트 삭제(`deleted_at`, 204)이고 댓글 · 반응 · 사진 · 장소 연결은 남김(조회는 `deleted_at`으로 거름). 삭제된 게시물의 수정 · 재삭제는 404 (#177) |
 | GET | `/feeds/{feedId}/comments` | `CommentQueryUseCase.list` | 댓글 + 대댓글 일부 |
 | GET | `/feeds/{feedId}/comments/{commentId}/replies` | `CommentQueryUseCase.replies` | |
 | POST · PUT · DELETE | `/feeds/{feedId}/comments/**` | `CommentCommandUseCase.write / edit / delete` | |
