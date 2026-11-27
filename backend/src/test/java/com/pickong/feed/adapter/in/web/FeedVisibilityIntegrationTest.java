@@ -177,6 +177,114 @@ class FeedVisibilityIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM comments WHERE feed_id = ?", Integer.class, feed)).isZero();
     }
 
+    // ── PR #176 리뷰 3번: 관리자 여부는 인증 주체(AdminPrincipal)로만 정해짐 ──────────
+
+    @Test
+    @DisplayName("일반 회원이 ROLE_ADMIN 권한이나 admin=true 파라미터를 붙여도 PRIVATE 게시물은 404")
+    void adminCannotBeForgedByMember() throws Exception {
+        long feed = insertFeed("PRIVATE");
+
+        expectNotFound(api(get("/api/v1/feeds/" + feed)).param("admin", "true")
+                .with(authentication(UsernamePasswordAuthenticationToken.authenticated(new LoginUser(stranger), null,
+                        List.of(new SimpleGrantedAuthority("ROLE_USER"), new SimpleGrantedAuthority("ROLE_ADMIN"))))));
+        expectNotFound(as(stranger, get("/api/v1/feeds/" + feed + "/comments").param("limit", "10").param("admin", "true")));
+    }
+
+    // ── PR #176 리뷰 6번: 나머지 단건 접근 API ──────────────────────────────
+
+    @Test
+    @DisplayName("대댓글 목록: 볼 수 없는 게시물이면 404")
+    void repliesOnInvisibleFeed() throws Exception {
+        long feed = insertFeed("PRIVATE");
+        long comment = insertComment(feed, author);
+
+        expectNotFound(as(stranger, get("/api/v1/feeds/" + feed + "/comments/" + comment + "/replies").param("limit", "10")));
+    }
+
+    @Test
+    @DisplayName("북마크 추가와 취소: 볼 수 없는 게시물이면 404이고 북마크는 그대로")
+    void bookmarkOnInvisibleFeed() throws Exception {
+        long feed = insertFeed("FOLLOWERS");
+        jdbc.update("INSERT INTO feed_bookmarks (feed_id, user_id) VALUES (?, ?)", feed, follower);
+
+        expectNotFound(as(stranger, post("/api/v1/feeds/" + feed + "/bookmarks")));
+        expectNotFound(as(stranger, delete("/api/v1/feeds/" + feed + "/bookmarks")));
+
+        assertThat(jdbc.queryForList("SELECT user_id FROM feed_bookmarks WHERE feed_id = ?", Long.class, feed))
+                .containsExactly(follower);
+    }
+
+    @Test
+    @DisplayName("댓글 좋아요 추가와 취소: 볼 수 없는 게시물이면 404이고 좋아요는 그대로")
+    void commentLikeOnInvisibleFeed() throws Exception {
+        long feed = insertFeed("PUBLIC");
+        long comment = insertComment(feed, author);
+        mvc.perform(as(stranger, post("/api/v1/feeds/" + feed + "/comments/" + comment + "/likes")))
+                .andExpect(status().isCreated());
+        jdbc.update("UPDATE feeds SET visibility = 'PRIVATE' WHERE id = ?", feed);
+
+        expectNotFound(as(follower, post("/api/v1/feeds/" + feed + "/comments/" + comment + "/likes")));
+        expectNotFound(as(stranger, delete("/api/v1/feeds/" + feed + "/comments/" + comment + "/likes")));
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM comment_likes WHERE comment_id = ?", Integer.class, comment))
+                .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("내 댓글 수정과 삭제: 게시물이 PRIVATE가 되면 404이고 댓글은 그대로 (정책)")
+    void ownCommentOnInvisibleFeed() throws Exception {
+        long feed = insertFeed("PUBLIC");
+        long comment = insertComment(feed, stranger);
+        jdbc.update("UPDATE feeds SET visibility = 'PRIVATE' WHERE id = ?", feed);
+
+        expectNotFound(as(stranger, put("/api/v1/feeds/" + feed + "/comments/" + comment)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\": \"바꿈\"}")));
+        expectNotFound(as(stranger, delete("/api/v1/feeds/" + feed + "/comments/" + comment)));
+
+        assertThat(jdbc.queryForMap("SELECT content, deleted_at FROM comments WHERE id = ?", comment))
+                .containsEntry("content", "댓글").containsEntry("deleted_at", null);
+    }
+
+    @Test
+    @DisplayName("게시물 삭제: 남의 PRIVATE 게시물은 403이 아니라 404이고 게시물은 그대로")
+    void deleteOthersPrivateFeed() throws Exception {
+        long feed = insertFeed("PRIVATE");
+
+        expectNotFound(as(stranger, delete("/api/v1/feeds/" + feed)));
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM feeds WHERE id = ?", Integer.class, feed)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("숨김 게시물: 작성자와 관리자는 열람, 팔로워와 비로그인은 404, 작성자도 좋아요는 404")
+    void hiddenFeed() throws Exception {
+        long feed = insertFeed("PUBLIC");
+        jdbc.update("UPDATE feeds SET hidden_at = now() WHERE id = ?", feed);
+
+        mvc.perform(as(author, get("/api/v1/feeds/" + feed))).andExpect(status().isOk());
+        mvc.perform(asAdmin(get("/api/v1/feeds/" + feed))).andExpect(status().isOk());
+        expectNotFound(as(follower, get("/api/v1/feeds/" + feed)));
+        expectNotFound(api(get("/api/v1/feeds/" + feed)));
+        expectNotFound(as(author, post("/api/v1/feeds/" + feed + "/likes")));
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM feed_likes WHERE feed_id = ?", Integer.class, feed)).isZero();
+    }
+
+    private MockHttpServletRequestBuilder asAdmin(MockHttpServletRequestBuilder request) {
+        long adminId = jdbc.queryForObject("""
+                INSERT INTO admins(username, password_hash, role, status)
+                VALUES (?, 'test-only', 'OPERATOR', 'ACTIVE') RETURNING id
+                """, Long.class, "v" + UUID.randomUUID().toString().substring(0, 8));
+        return api(request).with(authentication(UsernamePasswordAuthenticationToken.authenticated(
+                new AdminPrincipal(adminId), null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN")))));
+    }
+
+    private long insertComment(long feedId, long userId) {
+        return jdbc.queryForObject("INSERT INTO comments (feed_id, user_id, content) VALUES (?, ?, '댓글') RETURNING id",
+                Long.class, feedId, userId);
+    }
+
     private void expectNotFound(MockHttpServletRequestBuilder request) throws Exception {
         mvc.perform(request)
                 .andExpect(status().isNotFound())
