@@ -22,7 +22,8 @@ public class SavedPlaceQueryAdapter implements SavedPlaceQueryPort {
 
     /**
      * 삭제된 장소와, 다른 회원이 비공개로 바꾼 장소는 읽지 않습니다.
-     * 출처 게시물 · 컬렉션은 삭제 · 숨김이면 공개 id를 내보내지 않습니다(저장 기록은 그대로).
+     * 출처 게시물 · 컬렉션은 지금 이 회원이 열 수 있을 때만 공개 id(refId)를 내보냅니다. 삭제됐거나, 숨김(작성자 제외)이거나,
+     * 공개 범위가 바뀌거나 팔로우를 끊어 볼 수 없게 되면 refId는 null이고 출처 종류 · 문구와 저장 기록은 그대로입니다.
      */
     private static final String SELECT_MINE = """
             SELECT s.id, s.visit_status, s.memo, s.source_type AS saved_source, s.source_label, s.source_url,
@@ -32,12 +33,14 @@ public class SavedPlaceQueryAdapter implements SavedPlaceQueryPort {
                    p.category, p.source_type AS place_source, p.visibility, p.description, p.image_url
               FROM saved_places s
               JOIN places p ON p.id = s.place_id
-              LEFT JOIN feeds f ON f.id = s.source_feed_id AND f.deleted_at IS NULL AND f.hidden_at IS NULL
-              LEFT JOIN collections c ON c.id = s.source_collection_id AND c.deleted_at IS NULL AND c.hidden_at IS NULL
+              LEFT JOIN feeds f ON f.id = s.source_feed_id AND f.deleted_at IS NULL
+                   AND (f.hidden_at IS NULL OR f.user_id = s.user_id) AND %1$s
+              LEFT JOIN collections c ON c.id = s.source_collection_id AND c.deleted_at IS NULL
+                   AND (c.hidden_at IS NULL OR c.user_id = s.user_id) AND %2$s
              WHERE s.user_id = :userId
                AND p.deleted_at IS NULL
                AND (p.visibility = 'PUBLIC' OR p.owner_id = s.user_id)
-            """;
+            """.formatted(SourceVisibilitySql.readableBy("f", "s.user_id"), SourceVisibilitySql.readableBy("c", "s.user_id"));
 
     private static final String ORDER = " ORDER BY s.created_at DESC, s.id DESC";
 

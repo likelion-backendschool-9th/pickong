@@ -9,6 +9,7 @@ import com.pickong.savedplace.application.port.in.SavedPlaceCommandUseCase;
 import com.pickong.savedplace.application.port.out.SavedPlacePersistencePort;
 import com.pickong.savedplace.application.port.out.SavedPlaceQueryPort;
 import com.pickong.savedplace.application.port.out.SavedPlaceTargetLookupPort;
+import com.pickong.savedplace.application.port.out.SavedPlaceTargetLookupPort.SourceRef;
 import com.pickong.savedplace.domain.SavedPlaceErrorCode;
 import com.pickong.savedplace.domain.event.SavedPlaceDeletingEvent;
 import com.pickong.savedplace.domain.model.SavedPlace;
@@ -69,12 +70,14 @@ public class SavedPlaceCommandService implements SavedPlaceCommandUseCase {
             throw new BusinessException(SavedPlaceErrorCode.PLACE_NOT_FOUND);
         }
 
-        SavedPlaceOrigin origin = origin(command);
+        Optional<SourceRef> source = linkableSource(command);
         OffsetDateTime now = OffsetDateTime.now(clock);
         List<UUID> created = new ArrayList<>();
         List<UUID> linked = new ArrayList<>();
         for (UUID placeId : placeIds) {
-            SavedPlace savedPlace = SavedPlace.create(command.userId(), visible.get(placeId), origin, now);
+            long internalPlaceId = visible.get(placeId);
+            SavedPlace savedPlace = SavedPlace.create(command.userId(), internalPlaceId,
+                    origin(command, source, internalPlaceId), now);
             (savedPlaces.saveIfAbsent(savedPlace) ? created : linked).add(placeId);
         }
         return new SaveSavedPlacesResult(created, linked);
@@ -117,16 +120,29 @@ public class SavedPlaceCommandService implements SavedPlaceCommandUseCase {
         savedPlaces.deleteMine(userId, mine);
     }
 
-    /** 게시물 · 컬렉션 출처는 공개 id를 내부 id로 바꿔 둡니다. 대상이 없으면 종류 · 문구만 남깁니다. */
-    private SavedPlaceOrigin origin(SaveSavedPlacesCommand command) {
-        SavedPlaceSource type = command.sourceType() == null ? SavedPlaceSource.SEARCH : command.sourceType();
-        Long refId = switch (type) {
-            case FEED -> publicId(command.sourceRefId()).flatMap(targets::findFeedId).orElse(null);
-            case COLLECTION -> publicId(command.sourceRefId()).flatMap(targets::findCollectionId).orElse(null);
-            default -> null;
+    /**
+     * 출처 게시물 · 컬렉션을 찾습니다. 없거나, 회원이 볼 수 없거나(공개 범위 · 숨김), 유료 컬렉션이면 비어 있습니다.
+     * 이때는 저장을 막지 않고 출처 id 없이 종류 · 문구만 남깁니다. 볼 수 없는 출처가 있다는 사실도 드러내지 않습니다.
+     */
+    private Optional<SourceRef> linkableSource(SaveSavedPlacesCommand command) {
+        long userId = command.userId();
+        return switch (sourceType(command)) {
+            case FEED -> publicId(command.sourceRefId()).flatMap(id -> targets.findLinkableFeed(userId, id));
+            case COLLECTION -> publicId(command.sourceRefId()).flatMap(id -> targets.findLinkableCollection(userId, id));
+            default -> Optional.empty();
         };
+    }
+
+    /** 출처 id는 그 출처에 실제로 들어 있는 장소에만 연결합니다. */
+    private static SavedPlaceOrigin origin(SaveSavedPlacesCommand command, Optional<SourceRef> source, long placeId) {
+        SavedPlaceSource type = sourceType(command);
+        Long refId = source.filter(ref -> ref.contains(placeId)).map(SourceRef::id).orElse(null);
         String url = type == SavedPlaceSource.LINK_IMPORT ? command.sourceRefId() : null;
         return new SavedPlaceOrigin(type, refId, command.sourceLabel(), url);
+    }
+
+    private static SavedPlaceSource sourceType(SaveSavedPlacesCommand command) {
+        return command.sourceType() == null ? SavedPlaceSource.SEARCH : command.sourceType();
     }
 
     /** 공개 id가 UUID가 아니면 그런 게시물 · 컬렉션은 없습니다. */
