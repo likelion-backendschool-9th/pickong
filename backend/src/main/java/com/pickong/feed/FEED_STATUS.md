@@ -1,32 +1,37 @@
 # Feed 모듈 구현 현황
 
+> **이 파일이 피드 작업의 단일 소스**입니다.  
+> `_local/feed-backend-tasks.md`는 더 이상 사용하지 않습니다.  
 > 기준: `backend_blueprint.md` 3장 feed API 목록  
-> 브랜치: `feature/feed-domain` 기반 (PR #62 feed 반응, PR #63 댓글 반응)
+> 마지막 갱신: 2026-11-27, 실제 코드 + PR 기준 (PR #159 머지, #168 · #175 리뷰 중)
 
 ---
 
-## API 구현 체크리스트
+## API 구현 현황
 
 ### 피드 (Feed)
 
 | 완료 | 메서드 | 경로 | UseCase 메서드 | 비고 |
 | :---: | --- | --- | --- | --- |
-| ✅ | POST | `/feeds` | `FeedCommandUseCase.write` | |
-| ✅ | GET | `/feeds/{feedId}` | `FeedQueryUseCase.getDetail` | |
-| ✅ | PUT | `/feeds/{feedId}` | `FeedCommandUseCase.update` | |
-| ✅ | DELETE | `/feeds/{feedId}` | `FeedCommandUseCase.delete` | |
-| ✅ | GET | `/feeds?tab=following\|recommended` | `FeedQueryUseCase.feed` | 추천 비로그인 허용, 팔로잉 null이면 빈 리스트 반환. PR #92 |
-| ☐ | GET | `/feeds/places?tab=` | `FeedQueryUseCase.feedPlaces` | |
+| ✅ | GET | `/feeds?tab=following\|recommended` | `FeedUseCase.feed` | PR #92. 로그인 필수. 두 탭 모두 PUBLIC만 (FOLLOWERS 목록 포함은 후속, 아래 2-1) |
+| ✅ | GET | `/feeds/places?tab=` | `FeedUseCase.feedPlaces` | PR #135 |
+| ✅ | POST | `/feeds` | `FeedUseCase.write` | |
+| ✅ | GET | `/feeds/{feedId}` | `FeedUseCase.getDetail` | |
+| ✅ | PUT | `/feeds/{feedId}` | `FeedUseCase.update` | |
+| ✅ | DELETE | `/feeds/{feedId}` | `FeedUseCase.delete` | |
+| ✅ | GET | `/users/{username}/feeds` | `FeedUseCase.getUserFeeds` | `UserFeedController` |
+| ☐ | GET | `/me/bookmarked-feeds` | `FeedQueryUseCase.myBookmarks` | 미구현 |
+| ☐ | GET | `/users/{username}/visits` | `FeedQueryUseCase.visitedPlacesOf` | 기준 미정 (blueprint 8.3 #3) |
 
 ### 댓글 (Comment)
 
 | 완료 | 메서드 | 경로 | UseCase 메서드 | 비고 |
 | :---: | --- | --- | --- | --- |
-| ✅ | GET | `/feeds/{feedId}/comments` | `CommentQueryUseCase.list` | 댓글 + 대댓글 일부 |
-| ✅ | POST | `/feeds/{feedId}/comments` | `CommentCommandUseCase.write` | |
-| ✅ | PUT | `/feeds/{feedId}/comments/{commentId}` | `CommentCommandUseCase.edit` | |
-| ✅ | DELETE | `/feeds/{feedId}/comments/{commentId}` | `CommentCommandUseCase.delete` | soft delete |
-| ✅ | GET | `/feeds/{feedId}/comments/{commentId}/replies` | `CommentQueryUseCase.replies` | |
+| ✅ | GET | `/feeds/{feedId}/comments` | `CommentUseCase.list` | 댓글 + 대댓글 일부 |
+| ✅ | GET | `/feeds/{feedId}/comments/{commentId}/replies` | `CommentUseCase.replies` | |
+| ✅ | POST | `/feeds/{feedId}/comments` | `CommentUseCase.write` | |
+| ✅ | PUT | `/feeds/{feedId}/comments/{commentId}` | `CommentUseCase.edit` | |
+| ✅ | DELETE | `/feeds/{feedId}/comments/{commentId}` | `CommentUseCase.delete` | soft delete |
 
 ### 반응 (Reaction)
 
@@ -36,127 +41,79 @@
 | ✅ | DELETE | `/feeds/{feedId}/likes` | `FeedReactionUseCase.unlikeFeed` | #62 |
 | ✅ | POST | `/feeds/{feedId}/bookmarks` | `FeedReactionUseCase.bookmark` | #62 |
 | ✅ | DELETE | `/feeds/{feedId}/bookmarks` | `FeedReactionUseCase.unbookmark` | #62 |
-| ✅ | POST | `/feeds/{feedId}/comments/{commentId}/likes` | `FeedReactionUseCase.likeComment` | #63 |
-| ✅ | DELETE | `/feeds/{feedId}/comments/{commentId}/likes` | `FeedReactionUseCase.unlikeComment` | #63 |
-
-### 사용자별 조회
-
-| 완료 | 메서드 | 경로 | UseCase 메서드 | 비고 |
-| :---: | --- | --- | --- | --- |
-| ☐ | GET | `/me/bookmarked-feeds` | `FeedQueryUseCase.myBookmarks` | JWT 머지 후 구현 |
-| ☐ | GET | `/users/{username}/feeds` | `FeedQueryUseCase.feedsOf` | JWT 머지 후 구현 |
-| ☐ | GET | `/users/{username}/visits` | `FeedQueryUseCase.visitedPlacesOf` | 기준 미정 (blueprint 8.3 #3) |
+| ✅ | POST | `/feeds/{feedId}/comments/{commentId}/likes` | `CommentReactionUseCase.likeComment` | #63 |
+| ✅ | DELETE | `/feeds/{feedId}/comments/{commentId}/likes` | `CommentReactionUseCase.unlikeComment` | #63 |
 
 ---
 
-## 미완성 필드 (JWT 머지 전까지 보류)
+## 미완성 항목
 
-피드 카드 응답에 아래 필드가 빠져 있음.  
-JWT가 머지되어 `@CurrentUser`로 로그인 사용자 id를 받을 수 있게 되면 추가.
+### ☐ 1. likedByMe / bookmarkedByMe 응답 필드 (issue #91)
 
-- `likedByMe` — `feed_likes` JOIN
-- `bookmarkedByMe` — `feed_bookmarks` JOIN
-- 비공개(`FOLLOWERS` / `PRIVATE`) 게시물 필터링 — 공개 범위 컬럼 기준 미정
+현재 `FeedResponse`에 없음. 로그인 사용자 기준 좋아요·북마크 여부 추가 필요.
 
-> **구현 방식:** 조회 어댑터(`JpaFeedAdapter`)의 SQL에서 로그인 사용자 id로 LEFT JOIN.  
-> 모듈 경계상 다른 모듈 JPA 엔티티·Repository는 쓰지 않고 SQL만 씀 (blueprint 6.3).  
-> JOIN SQL은 `adapter/out/persistence/query/` 아래에 모아둠.
+- `feed_likes`, `feed_bookmarks` LEFT JOIN 후 EXISTS 계산
+- `FeedResponse`, `FeedPageResponse` 둘 다 수정 필요
+- JOIN SQL은 `adapter/out/persistence/query/` 하위 QueryAdapter에서 처리 (blueprint 6.1)
+- 비로그인 시 `likedByMe = false`, `bookmarkedByMe = false`
+
+### ◐ 2. 사진 업로드 — Cloudflare R2 연동
+
+```
+1. 클라이언트 → POST /media/presigned           : Presigned PUT URL 발급             ✅ PR #168
+2. 클라이언트 → R2 직접 PUT                                                          ☐ #170 (프론트)
+3. 클라이언트 → POST /media/{mediaId}/confirm   : R2 HEAD로 크기와 Content-Type 검증  ✅ PR #168
+4. POST /feeds {mediaFileIds}                   : 본인 · UPLOADED · 1:1 참조 검증       ☐ #169
+5. 피드 응답 photos[].url                                                            ☐ #169
+```
+
+- R2 설정은 `backend/.env`의 `R2_*` 5개 (`backend/.env.example` 참고)
+- 후속: 정리 스케줄러 #171, `DELETE /media/{mediaId}` #172, 사진별 장소 태그 계약 #173, 운영 R2 설정 #174
+
+### ◐ 2-1. 게시물 공개 범위 (FOLLOWERS, PRIVATE)
+
+- ✅ 단건 접근(상세, 댓글, 반응, 수정 · 삭제) 검사 — 이슈 #175. `follows` 테이블은 PR #159 (V20)
+- ☐ 목록(팔로잉 탭, 프로필 피드, 피드 지도)에 FOLLOWERS 게시물 포함 + `FeedJpaRepository`의 social `FollowJpaEntity` 직접 참조 제거 (blueprint 6.1)
+- ☐ 차단 (`user_blocks` 테이블 없음), 탈퇴 · 정지 회원 게시물 숨김
+
+### ☐ 2-2. 오늘 검토에서 찾은 문제 (2026-11-27)
+
+- ☐ 게시물 삭제가 물리 삭제 (`JpaFeedAdapter.deleteById`, CASCADE로 댓글 · 반응 삭제) → `deleted_at` 소프트 삭제
+- ☐ 카운터 미동기화: 댓글 작성 · 삭제 시 `feeds.comment_count`, 게시물 작성 · 삭제 시 `users.feed_count`
+- ☐ 프론트 `PostDto`와 백엔드 `FeedResponse` 응답 계약 불일치 (작성자, `isLiked` · `isBookmarked`, 사진 URL, 내부 id 노출) — #169와 같이 검토
+- ☐ `CreateFeedRequest` 입력 검증 (`content` 길이, `placeIds` 존재 확인)
+- ☐ 삭제된 댓글 수정 가능 (`Comment.update`에 상태 검사 없음)
+- 💡 상태 코드 통일 (게시물 작성 200 → 201, 삭제 200 → 204), 컨트롤러의 `isAdmin` 중복
+
+### ☐ 3. GET /me/bookmarked-feeds
+
+로그인 사용자의 북마크한 피드 목록. `feed_bookmarks` JOIN 조회.
+
+### ☐ 4. feedId UUID 전환
+
+`FeedController`, `CommentController`, `CommentReactionController` 모두 `Long feedId` (내부 PK) 사용 중.  
+blueprint 8.6: `{feedId}`는 `feeds.public_id` (UUID) 사용 예정.  
+전환 시점은 팀 결정 대기.
+
+### ☐ 5. GET /users/{username}/visits
+
+기준 미정 (blueprint 8.3 #3). 팀 협의 후 구현.
 
 ---
 
-## feedId 식별자 이슈
+## 완료 이력
 
-> **blueprint 8.6:** `{feedId}`는 `feeds.public_id` (UUID) 사용 예정.  
-> **현재 코드:** `FeedController`, `CommentController`, `CommentReactionController` 모두 `Long feedId` (내부 PK) 사용 중.  
->
-> UUID로 전환 시 컨트롤러 → 서비스 → 리포지토리 전체 수정 필요.  
-> 전환 시점은 팀원과 협의 후 결정. 전환 전까지 Swagger에 "내부 id 임시 사용" 주석 필요.
-
----
-
-## 알고리즘 관련
-
-### 팔로잉 피드 (`tab=following`)
-
-```
-로그인 사용자가 팔로우하는 사람들의 게시물을 최신순으로 반환
-```
-
-- `social` 모듈의 `follows` 테이블에서 `follower_id = 나` 인 `following_id` 목록 조회
-- `feeds` 테이블에서 `user_id IN (팔로잉 목록)` 조건으로 필터 + `created_at DESC` 정렬
-- 커서 기반 페이지네이션 (`cursor = last feedId`, 내림차순)
-- 차단 사용자(`user_blocks`) 게시물 제외
-- 비공개 게시물 처리: `FOLLOWERS` 공개 범위 확정 후 추가
-
-> **의존:** `feed → social` (팔로잉 목록 조회)  
-> 쿼리 어댑터에서 `follows` 테이블 직접 JOIN (다른 모듈 테이블 읽기 전용 허용, blueprint 6.3)
-
----
-
-### 추천 피드 (`tab=recommended`)
-
-```
-비로그인 포함 전체 공개 게시물 중 "인기 있는" 게시물을 반환
-```
-
-> **현재 상태:** 알고리즘 미정. MVP에서는 단순 최신순으로 시작하고 이후 점수 기반으로 전환 예정.
-
-**MVP 단계 (단순 최신순):**
-- `feeds WHERE visibility = 'PUBLIC'` + `created_at DESC`
-- 커서 기반 페이지네이션
-
-**이후 단계 (점수 기반 정렬 — 미확정):**
-
-```
-score = like_count * W1 + comment_count * W2 + bookmark_count * W3 - age_hours * W4
-```
-
-- 가중치(`W1~W4`)는 팀이 튜닝
-- 너무 오래된 게시물이 상위에 고정되지 않도록 시간 감쇠 적용
-- 실시간 계산 대신 배치로 `score` 컬럼을 주기적으로 갱신하는 방식 검토
-- 로그인 사용자라면 차단 사용자 게시물 제외
-
-> **구현 시점:** 팔로잉 피드 완성 후. `feeds` 테이블에 `score NUMERIC` 컬럼 추가 필요 (Flyway 마이그레이션).
-
----
-
-### 커서 페이지네이션
-
-피드 목록 전체에 커서 방식 사용 (오프셋은 대용량 테이블에서 느림).
-
-```
-// 첫 요청
-GET /feeds?tab=following&size=20
-
-// 다음 페이지
-GET /feeds?tab=following&cursor=<마지막_feedId>&size=20
-```
-
-- `cursor`가 없으면 첫 페이지
-- 응답에 `nextCursor` 포함 (다음 페이지 없으면 null)
-- `common/web/CursorPage<T>` 공통 타입 사용 (blueprint 4.5)
-
----
-
-## 후속 작업 순서
-
-```
-1. ✅ JWT 머지 (PR #85)
-   └─ ✅ @CurrentUser 리졸버 생성
-   └─ likedByMe / bookmarkedByMe 필드 추가 — issue #91 (공개 범위 필터와 묶어서)
-   └─ /me/bookmarked-feeds, /users/{username}/feeds 구현 — 별도 이슈
-
-2. ✅ GET /feeds?tab=following|recommended 구현 (PR #92)
-   └─ ✅ social 모듈 팔로잉 JPQL subquery
-   └─ ✅ 커서 기반 페이지네이션
-
-3. 댓글·좋아요·북마크 API JWT 인증 연동 — issue #90
-   └─ CommentController, CommentReactionController, ReactionController
-   └─ userId 쿼리 파라미터 → @CurrentUser LoginUser user 교체
-
-4. 피드 공개 범위(FOLLOWERS·PRIVATE) 조회 필터 — issue #91
-
-5. GET /feeds/{feedId}/comments/{commentId}/replies 구현
-
-6. feedId UUID 전환 (팀 결정 후)
-```
+| PR | 내용 |
+| --- | --- |
+| #62 | 피드 좋아요·북마크 API |
+| #63 | 댓글 좋아요 API |
+| #85 | JWT 머지 → `@CurrentUser` 사용 가능 |
+| #92 | `GET /feeds?tab=following\|recommended` 커서 페이지네이션 |
+| #95 | ⚠️ 공개 범위 필터. `feature/86-feed-tab-query`로 머지되어 dev에는 없음 |
+| #107 | 댓글·반응 컨트롤러 `userId` 파라미터 → `@CurrentUser` 교체 |
+| #109 | 피드 생성 `userId`, 수정·삭제 소유자 검증 JWT 연동 |
+| #135 | `GET /feeds/places` 지도용 장소 목록 |
+| `UserFeedController` | `GET /users/{username}/feeds` |
+| #159 | `follows` 테이블(V20), 팔로우 API를 로그인 사용자 기준으로 변경 (팔로잉 탭 500 해결) |
+| #168 | 사진 업로드 API: Presigned URL 발급, 업로드 확인 (`media_files` V21) |
+| #175 | 게시물 단건 접근 공개 범위 검사 |
