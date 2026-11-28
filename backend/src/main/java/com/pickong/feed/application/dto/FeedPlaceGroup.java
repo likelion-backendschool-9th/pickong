@@ -13,6 +13,7 @@ public class FeedPlaceGroup {
     private final String placePublicId;
     private final String placeName;
     private final String placeAddress;
+    private final String placeRegion;
     private final double lat;
     private final double lng;
     private final String category;
@@ -23,6 +24,7 @@ public class FeedPlaceGroup {
         this.placePublicId = first.getPlacePublicId();
         this.placeName = first.getPlaceName();
         this.placeAddress = first.getPlaceAddress();
+        this.placeRegion = first.getPlaceRegion();
         this.lat = first.getLat();
         this.lng = first.getLng();
         this.category = first.getCategory();

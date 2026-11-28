@@ -258,8 +258,8 @@ class FeedServiceTest {
     @Test
     void getFeedPlaces_recommended_성공() {
         // given: 장소 2개가 연결된 피드 행 반환
-        FeedPlaceSummary row1 = new FeedPlaceSummary(1L, "uuid-1", "카페A", "서울", 37.1, 127.1, "CAFE", "MANUAL", 10L);
-        FeedPlaceSummary row2 = new FeedPlaceSummary(2L, "uuid-2", "식당B", "부산", 35.1, 129.1, "RESTAURANT", "MANUAL", 11L);
+        FeedPlaceSummary row1 = new FeedPlaceSummary(1L, "uuid-1", "카페A", "서울", null, 37.1, 127.1, "CAFE", "MANUAL", 10L);
+        FeedPlaceSummary row2 = new FeedPlaceSummary(2L, "uuid-2", "식당B", "부산", null, 35.1, 129.1, "RESTAURANT", "MANUAL", 11L);
         given(feedPlaceQueryPort.findRecommendedFeedPlaces(null)).willReturn(List.of(row1, row2));
 
         // when
@@ -281,8 +281,8 @@ class FeedServiceTest {
     @Test
     void getFeedPlaces_같은장소_여러피드_그룹핑() {
         // given: 같은 장소(placeId=1)에 피드 2개 연결
-        FeedPlaceSummary row1 = new FeedPlaceSummary(1L, "uuid-1", "카페A", "서울", 37.1, 127.1, "CAFE", "MANUAL", 10L);
-        FeedPlaceSummary row2 = new FeedPlaceSummary(1L, "uuid-1", "카페A", "서울", 37.1, 127.1, "CAFE", "MANUAL", 11L);
+        FeedPlaceSummary row1 = new FeedPlaceSummary(1L, "uuid-1", "카페A", "서울", null, 37.1, 127.1, "CAFE", "MANUAL", 10L);
+        FeedPlaceSummary row2 = new FeedPlaceSummary(1L, "uuid-1", "카페A", "서울", null, 37.1, 127.1, "CAFE", "MANUAL", 11L);
         given(feedPlaceQueryPort.findRecommendedFeedPlaces(null)).willReturn(List.of(row1, row2));
 
         // when

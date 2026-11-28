@@ -480,6 +480,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
   - 추천 탭: 다른 사람의 PUBLIC만. 처음 보는 사람의 글을 발견하는 탭이라 팔로워 공개 글은 팔로잉 탭에서만 보입니다(`_local/algorithm-plan.md` 6단계, 프론트 mock과 같음).
   - 프로필 피드: `relationOf`로 관계를 구한 뒤 `Visibility.allows`가 허용하는 공개 범위만(본인은 삭제 · 숨김을 제외한 전체, 팔로워 PUBLIC · FOLLOWERS, 그 외와 비로그인 PUBLIC). 컬렉션 탭과 같은 방식입니다.
   - 피드 지도: 탭과 같은 기준. SQL이 `query/FeedPlaceQueryAdapter`에 있어 `follows`를 읽기 전용으로 JOIN합니다.
+  - 피드 지도 응답은 프론트 `FeedPlaceDto` 모양입니다(#208): `{ place, postIds, postCount }`. `postIds`는 게시물 응답의 `id`와 같이 숫자 id의 문자열이고, `place`는 `PlaceDto` 모양(공개 장소만이라 `visibility`는 항상 `PUBLIC`, 장소 상세에만 있는 설명 · 대표 사진 · 영업시간은 `null`)입니다.
 
 ### collection
 | 메서드 | 경로 | 입력 포트 · 메서드 | 비고 |
