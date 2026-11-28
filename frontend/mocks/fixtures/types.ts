@@ -163,10 +163,26 @@ export interface NotificationRow {
 }
 
 /** DM 대화방 (1:1). lastReadAt: 사용자별로 마지막으로 읽은 시각 */
+/** 1:1과 그룹 (백엔드와 같은 규칙: 그룹은 방장 없이 나 포함 3~10명) */
 export interface ConversationRow {
   id: string;
-  memberIds: [string, string];
+  type: "DIRECT" | "GROUP";
+  /** 그룹 이름 */
+  title?: string;
+  /** 참여 중인 사람 (들어온 순) */
+  memberIds: string[];
   lastReadAt: Record<string, string>;
+  /** 알림을 끈 사람 */
+  mutedBy?: string[];
+  createdAt: string;
+}
+
+/** 그룹 안내 메시지 내용 (사람은 그때의 아이디) */
+export interface SystemEventRow {
+  event: "CREATED" | "INVITED" | "LEFT" | "RENAMED";
+  actor: { id: string; username: string };
+  targets: { id: string; username: string }[];
+  title: string | null;
 }
 
 export type MessageAttachmentRow =
@@ -179,7 +195,10 @@ export interface MessageRow {
   id: string;
   conversationId: string;
   senderId: string;
+  /** 없으면 TEXT */
+  type?: "TEXT" | "SYSTEM";
   text: string;
+  system?: SystemEventRow;
   attachment: MessageAttachmentRow | null;
   createdAt: string;
 }
