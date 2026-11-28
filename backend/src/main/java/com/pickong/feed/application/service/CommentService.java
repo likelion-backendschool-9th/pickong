@@ -95,18 +95,21 @@ public class CommentService implements CommentUseCase {
     @Override
     @Transactional
     public Comment updateComment(Long feedId, Long commentId, Long userId, UpdateCommentCommand command) {
-        // 1. 게시물을 볼 수 있는지 → 2. 댓글이 이 게시물 것인지 → 3. 본인 댓글인지
+        // 1. 게시물을 볼 수 있는지 → 2. 댓글이 이 게시물 것인지 → 3. 삭제된 댓글인지 → 4. 본인 댓글인지
         // 1번을 먼저 해야 볼 수 없는 글에서 COMMENT_NOT_OWNER 같은 다른 오류로 글의 존재가 드러나지 않음
+        // 3번도 4번보다 먼저 해야 남의 삭제된 댓글에 403이 아닌 404가 나감
         ensureFeedReadable(feedRepository.findByIdForUpdate(feedId), userId, false);
         Comment comment = commentRepository.findByIdForUpdate(commentId);
         // 댓글이 해당 피드에 속하는지 확인 — 잘못된 feedId로 다른 피드 댓글 수정 방지
         if (!comment.getFeedId().equals(feedId)) {
             throw new BusinessException(FeedErrorCode.COMMENT_FEED_MISMATCH);
         }
+        comment.ensureNotDeleted();
         // 본인 댓글만 수정 가능
         if (!comment.getUserId().equals(userId)) {
             throw new BusinessException(FeedErrorCode.COMMENT_NOT_OWNER);
         }
+        // 관리자가 숨긴 댓글도 작성자는 수정할 수 있고 숨김 상태는 그대로 유지됨 (신고 처리 정책, 차단 여부는 #183에서 논의)
         comment.update(command.getContent());
         return commentRepository.save(comment);
     }
@@ -114,13 +117,15 @@ public class CommentService implements CommentUseCase {
     @Override
     @Transactional
     public void deleteComment(Long feedId, Long commentId, Long userId) {
-        // 수정과 같은 순서: 게시물 열람 가능 → 댓글 소속 → 본인 댓글
+        // 수정과 같은 순서: 게시물 열람 가능 → 댓글 소속 → 삭제 여부 → 본인 댓글 (숨김 댓글은 내 글이라 삭제 허용)
         ensureFeedReadable(feedRepository.findByIdForUpdate(feedId), userId, false);
         Comment comment = commentRepository.findByIdForUpdate(commentId);
         // 댓글이 해당 피드에 속하는지 확인 — 잘못된 feedId로 다른 피드 댓글 삭제 방지
         if (!comment.getFeedId().equals(feedId)) {
             throw new BusinessException(FeedErrorCode.COMMENT_FEED_MISMATCH);
         }
+        // 이미 삭제된 댓글을 다시 지우면 404 (삭제 시각이 덮어써지지 않게)
+        comment.ensureNotDeleted();
         // 본인 댓글만 삭제 가능
         if (!comment.getUserId().equals(userId)) {
             throw new BusinessException(FeedErrorCode.COMMENT_NOT_OWNER);
