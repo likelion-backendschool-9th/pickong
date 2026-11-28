@@ -14,8 +14,11 @@ export const toMessage = (dto: MessageDto): Message => ({
   id: dto.id,
   conversationId: dto.conversationId,
   senderId: dto.senderId,
+  sender: dto.sender ? toUserSummary(dto.sender) : null,
   isMine: dto.isMine,
-  text: dto.text,
+  type: dto.type,
+  text: dto.text ?? "",
+  system: dto.system,
   attachment: toAttachment(dto.attachment),
   createdAt: dto.createdAt,
   ...(dto.clientMessageId ? { clientMessageId: dto.clientMessageId } : {}),
@@ -23,8 +26,14 @@ export const toMessage = (dto: MessageDto): Message => ({
 
 export const toConversation = (dto: ConversationDto): Conversation => ({
   id: dto.id,
-  partner: toUserSummary(dto.partner),
+  type: dto.type,
+  title: dto.title,
+  partner: dto.partner ? toUserSummary(dto.partner) : null,
+  members: dto.members.map((m) => ({ ...toUserSummary(m), isMe: m.isMe })),
+  memberCount: dto.memberCount,
   lastMessage: dto.lastMessage ? toMessage(dto.lastMessage) : null,
   unreadCount: dto.unreadCount,
+  muted: dto.muted,
+  createdAt: dto.createdAt,
   updatedAt: dto.updatedAt,
 });

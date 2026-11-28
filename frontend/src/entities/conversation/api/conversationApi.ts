@@ -30,4 +30,14 @@ export const conversationApi = {
     toPage(await http.get<MessagePageDto>(`/conversations/${id}/messages`, { query: { after, size: MESSAGE_PAGE_SIZE } })),
   /** 여기까지 읽음. 뒤로 가지 않습니다. */
   markRead: (id: string, lastReadMessageId: string) => http.patch<void>(`/conversations/${id}/read`, { lastReadMessageId }),
+  /** 그룹 만들기: 나 포함 3~10명, 초대는 아이디로 */
+  createGroup: async (input: { title: string; usernames: string[] }) =>
+    toConversation(await http.post<ConversationDto>("/conversations/group", input)),
+  /** 그룹 이름(멤버 누구나) · 내 알림 끄기. 보낸 항목만 바뀝니다 */
+  update: async (id: string, input: { title?: string; muted?: boolean }) =>
+    toConversation(await http.patch<ConversationDto>(`/conversations/${id}`, input)),
+  /** 그룹 초대(멤버 누구나). 이미 참여 중인 사람은 건너뜁니다 */
+  invite: async (id: string, usernames: string[]) =>
+    toConversation(await http.post<ConversationDto>(`/conversations/${id}/members`, { usernames })),
+  leave: (id: string) => http.delete<void>(`/conversations/${id}/members/me`),
 };
