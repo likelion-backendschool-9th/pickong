@@ -1,15 +1,20 @@
 package com.pickong.conversation.adapter.out.persistence.entity;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import java.time.OffsetDateTime;
+import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.time.OffsetDateTime;
-
 /**
  * messages 테이블 JPA 엔티티.
- * 대화방 메시지를 저장한다.
+ * 대화방 메시지를 저장한다. 첨부 컬럼은 보내기(STOMP) 이슈에서 형식을 정하고 추가한다.
  */
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -27,19 +32,12 @@ public class MessageJpaEntity {
     @Column(name = "sender_id", nullable = false)
     private Long senderId;
 
+    /** 프론트가 메시지마다 만드는 UUID. UNIQUE(sender_id, client_message_id) */
+    @Column(name = "client_message_id", nullable = false)
+    private UUID clientMessageId;
+
     @Column(name = "content", columnDefinition = "TEXT")
     private String content;
-
-    /** 첨부 파일 종류. 값 목록: IMAGE, PLAN */
-    @Column(name = "attachment_type", length = 20)
-    private String attachmentType;
-
-    @Column(name = "attachment_media_id")
-    private Long attachmentMediaId;
-
-    /** 첨부된 일정 id. attachment_type이 PLAN일 때 세팅. */
-    @Column(name = "attachment_plan_id")
-    private Long attachmentPlanId;
 
     @Column(name = "deleted_at")
     private OffsetDateTime deletedAt;
