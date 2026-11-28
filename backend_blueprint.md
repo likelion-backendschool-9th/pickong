@@ -367,9 +367,9 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | --- | --- | --- | --- |
 | GET | `/saved-places` | `SavedPlaceQueryUseCase.myList` | 구현됨 |
 | GET | `/saved-places?bbox=` | `SavedPlaceQueryUseCase.myInBounds` | 이후 설계. 프론트는 전체 목록을 받아 화면에서 거름 |
-| POST | `/saved-places` | `SavedPlaceCommandUseCase.save` | 구현 대상 (#145). 게시물 찜 · 링크 추출 결과 저장 모두 이 API |
-| PATCH | `/saved-places` | `SavedPlaceCommandUseCase.update` | 구현 대상 (#145). 방문 상태 · 메모 |
-| DELETE | `/saved-places` | `SavedPlaceCommandUseCase.delete` | 구현 대상 (#145) |
+| POST | `/saved-places` | `SavedPlaceCommandUseCase.save` | 구현됨 (#145). 게시물 찜 · 링크 추출 결과 저장 모두 이 API |
+| PATCH | `/saved-places` | `SavedPlaceCommandUseCase.update` | 구현됨 (#145). 방문 상태 · 메모 |
+| DELETE | `/saved-places` | `SavedPlaceCommandUseCase.delete` | 구현됨 (#145) |
 | GET · POST · DELETE | `/me/places/{placeId}/photos` | `SavedPlaceCommandUseCase.addPhotos / removePhotos` | 이후 구현. ERD `saved_place_photos` (8.1 #4) |
 | GET · PUT | `/me/places/{placeId}/tags` | `SavedPlaceTagUseCase.tagsOf / replaceTags` | 이후 구현. ERD `saved_place_tags` (8.1 #7) |
 | GET | `/users/{username}/saved-places` | `SavedPlaceQueryUseCase.publicMapOf` | 공개 기준 미정 (8.1 #3) |
@@ -405,24 +405,30 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | (API로 받지 않음) | `PLAN_VISIT` | 일정 방문 기록으로 저장할 때 서버가 씀 | | `SEARCH`로 보냄 (프론트에 값 없음) |
 
 - 출처 값은 ERD 메모(`saved_places.source_type`)를 따릅니다. 프론트가 게시물을 `POST`라고 부르는 것만 `FEED`로 바꾸고 나머지는 이름이 같습니다.
-- `source_feed_id`는 `FEED`일 때만, `source_collection_id`는 `COLLECTION`일 때만 채웁니다(둘 중 최대 1개, ERD 제약 ④). 게시물 · 컬렉션 공개 id를 내부 id로 바꾸는 조회는 savedplace의 `adapter/out/persistence/query/` 아래 `*QueryAdapter`에서 `feeds` · `collections`를 읽기만 합니다(6.1의 조회 예외). 공개 id에 해당하는 게시물 · 컬렉션이 없으면 출처 id 없이 종류 · 문구만 저장합니다.
-- 응답의 `source.refId`는 게시물 · 컬렉션의 공개 id, 링크 가져오기는 원문 URL입니다. `source.label`은 저장한 `source_label`이고, 없으면 종류별 기본 문구("게시물에서 저장" 등)입니다.
+- `source_feed_id`는 `FEED`일 때만, `source_collection_id`는 `COLLECTION`일 때만 채웁니다(둘 중 최대 1개, ERD 제약 ④). 게시물 · 컬렉션 공개 id를 내부 id로 바꾸는 조회는 savedplace의 `adapter/out/persistence/query/` 아래 `*QueryAdapter`에서 `feeds` · `collections`를 읽기만 합니다(6.1의 조회 예외).
+- **출처 연결 조건 (#193 리뷰):** 출처 id는 다음을 모두 만족할 때만 연결합니다. 하나라도 어긋나면 저장은 막지 않고 출처 id 없이 종류 · 문구만 남깁니다. 볼 수 없는 출처가 있다는 사실도 드러내지 않습니다.
+  - 게시물 · 컬렉션이 삭제되지 않았고 숨김이 아닐 것 (숨김은 작성자도 연결 불가, `Feed.ensureAcceptsInteraction`과 같은 기준)
+  - 저장하는 회원이 공개 범위상 볼 수 있을 것: `PUBLIC`은 모두, `FOLLOWERS`는 본인과 팔로워(`follows`), `PRIVATE`는 본인 (`Visibility.allows`와 같은 기준)
+  - 유료 컬렉션(`price`)은 구매 기록(`collection_purchases`)이 생기기 전까지 본인 것만
+  - 저장하는 장소가 그 출처에 실제로 들어 있을 것 (`feed_places` · `collection_places`). 여러 장소를 한 번에 저장하면 들어 있는 장소에만 연결합니다
+  - savedplace는 feed · collection 모듈에 의존할 수 없어(6.2) 위 규칙을 `query/SourceVisibilitySql`의 SQL 조건으로 옮겨 둡니다. 원래 규칙이 바뀌면 함께 고칩니다.
+- 응답의 `source.refId`는 게시물 · 컬렉션의 공개 id, 링크 가져오기는 원문 URL입니다. 게시물 · 컬렉션은 **지금 이 회원이 열 수 있을 때만** 내보냅니다. 저장 뒤 삭제 · 숨김(작성자 제외)되거나 공개 범위가 바뀌거나 팔로우를 끊으면 `refId`는 `null`이고, 출처 종류 · 문구와 저장 기록은 그대로입니다(다시 볼 수 있게 되면 다시 나옴). `source.label`은 저장한 `source_label`이고, 없으면 종류별 기본 문구("게시물에서 저장" 등)입니다.
 - **링크 가져오기의 `refId`:** 지금 프론트 · mock은 추출 작업 id를 보내지만, ERD에는 작업 id를 담을 칸이 없고 `source_url`(원문 주소)만 있습니다. 프론트가 원문 URL을 보내도록 바꿉니다(프론트 작업).
-- **`source_collection_id`:** `collections` · `collection_places` 테이블은 V19에서 만들었습니다. `source_collection_id` 컬럼과 FK는 savedplace의 저장 API 작업에서 추가합니다. 그 전에는 `COLLECTION` 출처를 종류 · 문구만 저장합니다.
-- `collectionIds`(저장하면서 컬렉션에 담기)는 이벤트로 collection에 넘깁니다(8.1 #13, `SavedPlaceCollectionsChangedEvent`). 테이블은 V19로 생겼지만, collection의 리스너를 만들기 전까지는 받기만 하고 저장하지 않습니다.
+- **`source_collection_id`:** V22에서 컬럼과 FK(`ON DELETE SET NULL`), `COLLECTION`일 때만 채우는 CHECK를 추가했습니다(#145). 연결 조건은 위의 "출처 연결 조건"과 같습니다.
+- `collectionIds`(저장하면서 컬렉션에 담기)는 이벤트로 collection에 넘깁니다(8.1 #13, `SavedPlaceCollectionsChangedEvent`). 리스너를 만들기 전까지는 **값이 있으면 400 `COLLECTION_LINK_NOT_SUPPORTED`** 로 거절합니다(받고 무시하면 성공처럼 보이므로, #193 리뷰). 프론트는 컬렉션을 고르지 않아도 `collectionIds: []`를 보내므로 빈 목록은 받습니다. PATCH의 `add/set/removeCollectionIds`도 같습니다.
 
-**DB 맞추기 (구현 예정, 마이그레이션 미작성):** 지금 `V17__create_saved_places.sql`은 이전 JPA 엔티티를 기준으로 만들어 ERD와 다릅니다. 저장 · 수정 · 삭제(#145)를 구현할 때 새 마이그레이션으로 ERD에 맞춥니다.
+**DB 맞추기 (V22, #145):** `V17__create_saved_places.sql`은 이전 JPA 엔티티를 기준으로 만들어 ERD와 달랐습니다. `V22__align_saved_places_with_erd.sql`로 ERD에 맞췄습니다. `source_collection_id` FK 때문에 `collections`(V19) 뒤에 둡니다(기존 값은 `COLLECTION_SNAPSHOT`→`COLLECTION`, `AI_IMPORT`→`LINK_IMPORT`, 그 밖→`SEARCH`, `NOT_INTERESTED`→`WANT_TO_GO`로 옮김).
 
-| 항목 | 지금 (V17) | ERD 기준으로 바꿀 것 |
+| 항목 | 이전 (V17) | V22 이후 (ERD) |
 | --- | --- | --- |
 | 출처 종류 | `source` VARCHAR(30), NULL 허용, CHECK 없음 | `source_type` VARCHAR(15) NOT NULL, CHECK `FEED` · `COLLECTION` · `LINK_IMPORT` · `SEARCH` · `CUSTOM` · `PLAN_VISIT` |
 | 출처 문구 · 원본 URL | 없음 | `source_label` VARCHAR(100), `source_url` TEXT 추가 |
-| 출처 컬렉션 | 없음 | `source_collection_id` (FK → collections). `collections`는 V19로 생겼으므로 저장 API 작업에서 추가 |
+| 출처 컬렉션 | 없음 | `source_collection_id` (FK → collections, `ON DELETE SET NULL`) |
 | 출처 id 제약 | `source_feed_id`는 FEED일 때만 | + `source_collection_id`는 COLLECTION일 때만, 둘 중 최대 1개 |
 | 방문 상태 | CHECK에 `NOT_INTERESTED` 포함 | `WANT_TO_GO` · `VISITED`만 |
 | 메모 | TEXT | VARCHAR(500) |
 
-코드의 `SavedPlaceSource`(`FEED` · `COLLECTION_SNAPSHOT` · `AI_IMPORT` · `DIRECT`)와 `VisitStatus`(`NOT_INTERESTED` 포함)도 같은 작업에서 ERD 값으로 바꿉니다.
+코드의 `SavedPlaceSource` · `VisitStatus`도 ERD 값으로 바꿨습니다. 프론트 출처 값(`POST` 등)과의 변환은 웹 어댑터의 `SourceTypes`가 합니다. 새로 저장할 때는 `INSERT … ON CONFLICT DO NOTHING`으로 넣어, 같은 장소를 동시에 저장해도 UNIQUE 위반 없이 한 건만 남고 나머지는 `linkedPlaceIds`가 됩니다. 한 요청에서 다루는 id는 100개까지입니다(넘으면 400 `TOO_MANY_PLACES`).
 
 **PATCH `/saved-places` — 방문 상태 · 메모 수정**
 
@@ -435,7 +441,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 
 - `visitStatus`는 `WANT_TO_GO` · `VISITED`만 받습니다(ERD 제약 ④). 다른 값은 400입니다.
 - `VISITED`로 바꾸면 `visited_at`에 현재 시각을, `WANT_TO_GO`로 바꾸면 `null`을 넣습니다.
-- `memo`는 500자까지입니다(ERD). 빈 문자열은 `null`(메모 없음)로 저장합니다. 태그는 별도 API(`/me/places/{placeId}/tags`, 8.1 #7)입니다.
+- `memo`는 500자까지입니다(ERD). **생략하거나 `null`이면 그대로 두고, 빈 문자열(공백만 포함)이면 메모를 지웁니다**(`null`로 저장). 태그는 별도 API(`/me/places/{placeId}/tags`, 8.1 #7)입니다.
 - 컬렉션 필드(`addCollectionIds` · `setCollectionIds` · `removeCollectionIds`)도 같은 이벤트로 collection에 넘깁니다(8.1 #13). 컬렉션 마이그레이션 전에는 무시합니다.
 
 **DELETE `/saved-places` — 삭제**
@@ -447,7 +453,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 ```
 
 - 저장 기록만 지웁니다. 공용 장소(`places`)와 일정의 장소는 지우지 않습니다.
-- 지우기 직전에 같은 트랜잭션에서 `SavedPlaceDeletingEvent`를 발행해 컬렉션 구성 장소를 먼저 정리합니다(6.3). 컬렉션 테이블이 생기기 전까지는 듣는 쪽이 없습니다.
+- 지우기 직전에 같은 트랜잭션에서 `SavedPlaceDeletingEvent`를 발행해 컬렉션 구성 장소를 먼저 정리합니다(6.3). collection의 `adapter/in/event/SavedPlaceDeletingListener`가 `collection_places` 행을 지우고 `collections.place_count`를 줄입니다(`collection_places.saved_place_id`는 `ON DELETE RESTRICT`).
 - 본문이 있는 DELETE를 쓰는 이유는 여러 개를 고른 삭제를 한 번에 처리하기 위해서입니다. Spring은 `@RequestBody`로 받습니다.
 
 ### feed
@@ -1703,8 +1709,8 @@ class ArchitectureTest {
 | 9 | **비밀번호 재설정 토큰** 저장 위치 없음 | auth | 테이블(해시 · 만료 · 사용 시각) 또는 만료 있는 캐시 |
 | 10 | DM 재전송 중복 방지 키 없음 (재연결 시 같은 메시지 두 번 저장) | conversation | **결정 (2026-11-27):** `messages.client_message_id UUID NOT NULL` + UNIQUE(sender_id, client_message_id). 같은 키로 다시 오면 저장하지 않고 기존 메시지로 전송 확인 (5.4.4). `messages` 마이그레이션을 만들 때 함께 추가 |
 | 11 | DM 안 읽은 대화 수(프론트 하단바 배지, mock `GET /conversations/unread-count`)가 명세에 없음 | conversation | 명세 추가 (`last_read_message_id`로 계산 가능) |
-| 12 | **저장 출처 컬렉션:** ERD의 `saved_places.source_collection_id`(FK → collections)는 `collections` 마이그레이션이 없어 만들지 못했음(V19로 테이블이 생겨 이제 추가 가능). 출처 문구(`source_label`) · 원본 URL(`source_url`) · 게시물(`source_feed_id`)은 ERD에 있어 해결됨 | savedplace, collection | savedplace 저장 API 작업에서 컬럼 · FK 추가. 그 전에는 `COLLECTION` 출처를 종류 · 문구만 저장 |
-| 13 | **저장하면서 컬렉션에 담기:** 프론트 · mock은 `POST /saved-places`의 `collectionIds`와 `PATCH /saved-places`의 `add/set/removeCollectionIds`로 컬렉션 구성까지 한 번에 바꿈. `collection_places`는 collection 모듈 소유라 savedplace가 직접 쓰거나 collection의 UseCase를 부르면 `savedplace → collection` 화살표가 생겨, 이미 있는 `collection → savedplace`와 서로 의존하게 됨(6.2 비순환 원칙). DB 관계(`collection_places`가 `collections` · `saved_places`를 FK로 잇는 다대다)에는 문제가 없음 | savedplace, collection | **결정: 이벤트 방식 (2026-11-26).** savedplace가 저장 · 수정 직후 같은 트랜잭션에서 `SavedPlaceCollectionsChangedEvent`를 발행하고, collection의 리스너가 `collection_places`를 쓰며 컬렉션 소유자를 검증함(실패하면 함께 롤백). 삭제의 `SavedPlaceDeletingEvent`와 같은 방식이고, 코드 의존은 `collection → savedplace` 한 방향뿐. `collections` · `collection_places`는 V19로 생겼으므로 리스너를 구현할 수 있음. 구현 전에는 필드를 받기만 하고 무시 |
+| 12 | **저장 출처 컬렉션:** ERD의 `saved_places.source_collection_id`(FK → collections)는 `collections` 마이그레이션이 없어 만들지 못했음. 출처 문구(`source_label`) · 원본 URL(`source_url`) · 게시물(`source_feed_id`)은 ERD에 있어 해결됨 | savedplace, collection | **해결 (#145).** V22에서 컬럼 · FK · CHECK 추가, 저장 API가 컬렉션 공개 id를 내부 id로 바꿔 저장 |
+| 13 | **저장하면서 컬렉션에 담기:** 프론트 · mock은 `POST /saved-places`의 `collectionIds`와 `PATCH /saved-places`의 `add/set/removeCollectionIds`로 컬렉션 구성까지 한 번에 바꿈. `collection_places`는 collection 모듈 소유라 savedplace가 직접 쓰거나 collection의 UseCase를 부르면 `savedplace → collection` 화살표가 생겨, 이미 있는 `collection → savedplace`와 서로 의존하게 됨(6.2 비순환 원칙). DB 관계(`collection_places`가 `collections` · `saved_places`를 FK로 잇는 다대다)에는 문제가 없음 | savedplace, collection | **결정: 이벤트 방식 (2026-11-26).** savedplace가 저장 · 수정 직후 같은 트랜잭션에서 `SavedPlaceCollectionsChangedEvent`를 발행하고, collection의 리스너가 `collection_places`를 쓰며 컬렉션 소유자를 검증함(실패하면 함께 롤백). 삭제의 `SavedPlaceDeletingEvent`와 같은 방식이고, 코드 의존은 `collection → savedplace` 한 방향뿐. `collections` · `collection_places`는 V19로 생겼으므로 리스너를 구현할 수 있음. 구현 전에는 값이 있으면 400 `COLLECTION_LINK_NOT_SUPPORTED`(빈 목록은 받음) |
 | 12 | 개인 크리에이터 · 사업자 구분 없음 → 원천징수 3.3% "개인만" 적용 불가 | settlement, creator | `creators.business_type` 또는 정산 계좌에 사업자 정보 |
 | 13 | 일정 날씨: `plans.region`은 자유 텍스트라 좌표가 없음 | plan | 일정 장소들의 좌표(첫 장소 또는 중심점) 사용 — 스키마 변경 없이 가능 |
 
