@@ -57,8 +57,8 @@ class FeedListVisibilityIntegrationTest {
         followeeName = jdbc.queryForObject("SELECT username FROM users WHERE id = ?", String.class, followee);
         jdbc.update("INSERT INTO follows (follower_id, followee_id) VALUES (?, ?)", me, followee);
         place = jdbc.queryForObject("""
-                INSERT INTO places (source_type, name, location, category, visibility)
-                VALUES ('SYSTEM', '지도 확인용', ST_SetSRID(ST_MakePoint(127.0, 37.5), 4326)::geography, 'CAFE', 'PUBLIC')
+                INSERT INTO places (source_type, name, location, category, visibility, region)
+                VALUES ('SYSTEM', '지도 확인용', ST_SetSRID(ST_MakePoint(127.0, 37.5), 4326)::geography, 'CAFE', 'PUBLIC', '서울')
                 RETURNING id
                 """, Long.class);
         for (String visibility : VISIBILITIES) {
@@ -122,6 +122,25 @@ class FeedListVisibilityIntegrationTest {
         assertThat(placeFeedIds(as(me, get("/api/v1/feeds/places").param("tab", "following"))))
                 .containsExactlyInAnyOrderElementsOf(feedIds("me-PUBLIC", "me-FOLLOWERS", "me-PRIVATE",
                         "followee-PUBLIC", "followee-FOLLOWERS"));
+    }
+
+    @Test
+    @DisplayName("피드 지도 응답은 FeedPlaceDto 모양: postIds(문자열) · postCount, 장소에 지역 · isCustom · visibility")
+    void feedPlacesResponseShape() throws Exception {
+        String body = mvc.perform(as(me, get("/api/v1/feeds/places").param("tab", "following")))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String placePublicId = jdbc.queryForObject("SELECT CAST(public_id AS TEXT) FROM places WHERE id = ?", String.class, place);
+        String self = "$[?(@.place.id == '" + placePublicId + "')]";
+
+        List<List<Object>> postIds = JsonPath.read(body, self + ".postIds");
+        List<Integer> postCounts = JsonPath.read(body, self + ".postCount");
+        assertThat(postIds).hasSize(1);
+        assertThat(postIds.get(0)).hasSize(5).allSatisfy(id -> assertThat(id).isInstanceOf(String.class));
+        assertThat(postCounts).containsExactly(5);
+        assertThat((List<String>) JsonPath.read(body, self + ".place.region")).containsExactly("서울");
+        assertThat((List<Boolean>) JsonPath.read(body, self + ".place.isCustom")).containsExactly(false);
+        assertThat((List<String>) JsonPath.read(body, self + ".place.visibility")).containsExactly("PUBLIC");
+        assertThat(body).doesNotContain("\"feedIds\"").doesNotContain("\"feedCount\"");
     }
 
     @Test
