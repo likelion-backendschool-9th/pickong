@@ -518,8 +518,10 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | GET | `/conversations` | `ConversationQueryUseCase.myConversations` |
 | GET | `/conversations/unread-count` | `ConversationQueryUseCase.unreadCount` (8.1 #11) |
 | POST | `/conversations/direct` | `ConversationCommandUseCase.openDirect` (있으면 기존 반환) |
-| POST | `/conversations/group` | `ConversationCommandUseCase.createGroup` (그룹 이슈, 아직 없음) |
+| POST | `/conversations/group` | `ConversationCommandUseCase.createGroup` (201) |
 | GET | `/conversations/{conversationId}` | `ConversationQueryUseCase.getDetail` |
+| PATCH | `/conversations/{conversationId}` | `ConversationCommandUseCase.update` (그룹 이름 · 내 알림 끄기) |
+| POST | `/conversations/{conversationId}/members` | `ConversationCommandUseCase.invite` (그룹 초대) |
 | GET | `/conversations/{conversationId}/messages` | `ConversationQueryUseCase.messages` (`cursor`: 이전 내역, `after`: 끊긴 동안 빠진 메시지 보충, 5.4.6) |
 | PATCH | `/conversations/{conversationId}/read` | `MessageUseCase.markRead` (HTTP 대체 수단) |
 | DELETE | `/conversations/{conversationId}/members/me` | `ConversationCommandUseCase.leave` |
@@ -549,6 +551,18 @@ STOMP 메시지 형식(보내기 · 이벤트 · 오류)은 [common_blueprint.md
 - **읽음:** `PATCH /read`와 `/app/dm.read` 모두 읽음 위치가 실제로 앞으로 갔을 때만 참여 중인 회원(내 다른 탭 포함)에게 `READ_UPDATED`를 보냅니다.
 - **Redis:** `REDIS_HOST`가 있을 때만 켜집니다(5.4.5). 로컬 compose에는 `--profile redis`로 띄우는 선택 서비스로 넣었습니다. `compose.prod.yml`은 아직 비어 있어 운영 Redis는 배포 설정에서 띄우고 `REDIS_HOST`를 넣어야 합니다.
 - **남은 것:** 첨부(400 `ATTACHMENT_NOT_SUPPORTED`로 거절 중), 차단 확인(#179 이후), 입력 중 표시 같은 추가 이벤트, 그룹 채팅, 프론트 연동.
+
+#### 그룹 채팅 구현 현황 (2026-11-28, #201)
+
+- **규칙(사용자 결정):** 방장 없음. 멤버 누구나 이름 변경 · 초대, **내보내기 없음**. 나를 포함해 3~10명(만들 때 나를 빼고 2명 이상), 이름 1~20자(코드 포인트, 앞뒤 공백 제거). 1:1과 같은 `/conversations` 자원(type `GROUP`)이고 메시지 내역 · 읽음 · STOMP 보내기도 그대로 씁니다.
+- **마이그레이션 V24:** `conversation_members.muted`(값만 저장, 알림 기능 전), `messages.type`(TEXT · SYSTEM) · `system_payload`(JSONB), 그룹 이름 CHECK. V23의 본문 CHECK는 "TEXT는 본문 1~2,000자, SYSTEM은 본문 없이 payload"로 바뀌었습니다.
+- **보이는 메시지:** 1:1은 참여 시각 이후, **그룹은 처음부터**입니다. 초대된 사람(나갔다가 다시 초대된 사람 포함)도 이전 대화를 전부 봅니다. 대신 들어올 때까지의 메시지는 읽은 것으로 두어 안 읽은 수가 쌓이지 않습니다.
+- **안내 메시지(SYSTEM):** 만들기(`CREATED`) · 초대(`INVITED`) · 나가기(`LEFT`) · 이름 변경(`RENAMED`). `system_payload`는 `{ event, actor{id, username}, targets[], title }`이고 사람은 그때의 아이디로 남깁니다. 안 읽은 수에 세지 않고, 마지막 메시지 미리보기에는 나옵니다. 보낸 사람(`sender_id`)은 그 일을 한 사람이고 `client_message_id`는 서버가 만듭니다.
+- **초대:** 이미 참여 중인 사람은 건너뛰고(모두 참여 중이면 안내 메시지 없이 그대로), 초대 후 10명을 넘으면 409 `GROUP_FULL`. 1:1에는 400 `NOT_A_GROUP`. 없거나 ACTIVE가 아닌 아이디는 404 `USER_NOT_FOUND`.
+- **이름 변경 · 알림 끄기:** `PATCH /conversations/{id}` `{ title?, muted? }`. 이름은 그룹만(1:1은 `NOT_A_GROUP`), 실제로 바뀔 때만 안내 메시지. 알림 끄기는 1:1 · 그룹 모두 내 설정만 바뀝니다.
+- **나가기:** 그룹이면 남은 사람에게 `LEFT` 안내 메시지, 나간 사람(의 다른 탭)에게는 `CONVERSATION_UPDATED`. 마지막 사람이 나가도 대화방 행은 남습니다(아무에게도 보이지 않음).
+- **동시성:** 초대 · 이름 변경 · 나가기 모두 메시지 보내기와 같은 대화방 행 `FOR UPDATE`를 거친 뒤 시각을 정합니다(5.4.4).
+- **응답:** `ConversationDto`에 `type` · `title` · `members`(그룹, 나 포함, `isMe`) · `memberCount` · `muted` · `createdAt`이 추가되고 `partner`는 1:1에만 있습니다. `MessageDto`에 `type` · `sender{id, username, nickname, profileImageUrl}` · `system`이 추가됐습니다. 목록은 1:1과 그룹이 마지막 메시지 최근 순으로 섞여 나옵니다.
 
 ### notification
 | 메서드 | 경로 | 입력 포트 · 메서드 |

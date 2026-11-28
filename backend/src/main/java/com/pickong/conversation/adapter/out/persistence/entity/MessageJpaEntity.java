@@ -7,6 +7,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -15,7 +17,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * messages 테이블 JPA 엔티티.
- * 대화방 메시지를 저장한다. 첨부 컬럼은 보내기(STOMP) 이슈에서 형식을 정하고 추가한다.
+ * 대화방 메시지를 저장한다. TEXT는 content, SYSTEM(그룹 안내)은 system_payload(JSON)를 쓴다. 첨부는 아직 없다.
  */
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -37,8 +39,17 @@ public class MessageJpaEntity {
     @Column(name = "client_message_id", nullable = false)
     private UUID clientMessageId;
 
+    /** TEXT | SYSTEM */
+    @Column(name = "type", nullable = false, length = 20)
+    private String type;
+
     @Column(name = "content", columnDefinition = "TEXT")
     private String content;
+
+    /** SYSTEM의 안내 내용 (SystemEvent JSON) */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "system_payload", columnDefinition = "jsonb")
+    private String systemPayload;
 
     @Column(name = "deleted_at")
     private OffsetDateTime deletedAt;
@@ -46,13 +57,19 @@ public class MessageJpaEntity {
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
-    /** 새 메시지 행 (id는 저장할 때 DB가 채움) */
-    public static MessageJpaEntity from(Message message) {
+    /**
+     * 새 메시지 행 (id는 저장할 때 DB가 채움)
+     *
+     * @param systemPayload SYSTEM이면 안내 내용 JSON, TEXT면 null
+     */
+    public static MessageJpaEntity from(Message message, String systemPayload) {
         MessageJpaEntity entity = new MessageJpaEntity();
         entity.conversationId = message.getConversationId();
         entity.senderId = message.getSenderId();
         entity.clientMessageId = message.getClientMessageId();
+        entity.type = message.getType().name();
         entity.content = message.getContent();
+        entity.systemPayload = systemPayload;
         entity.createdAt = message.getCreatedAt();
         return entity;
     }

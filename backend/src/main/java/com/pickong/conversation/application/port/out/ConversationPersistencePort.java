@@ -2,6 +2,7 @@ package com.pickong.conversation.application.port.out;
 
 import com.pickong.conversation.domain.model.Conversation;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 
 /** 대화방 + 참여자 저장소. */
@@ -18,6 +19,20 @@ public interface ConversationPersistencePort {
 
     /** 마지막 메시지 시각으로 updated_at을 바꿉니다. */
     void touch(long conversationId, OffsetDateTime at);
+
+    /** 새 그룹과 참여자를 저장합니다. @return 대화방 id */
+    long saveGroup(Conversation group);
+
+    /**
+     * 처음 들어오는 그룹 참여자를 저장합니다.
+     *
+     * @param lastReadMessageId 들어올 때까지의 메시지는 읽은 것으로 (이전 대화는 보이지만 안 읽은 수에 세지 않음). 없으면 null
+     */
+    void addMembers(long conversationId, List<Long> userIds, OffsetDateTime joinedAt, Long lastReadMessageId);
+
+    void rename(long conversationId, String title);
+
+    void setMuted(long memberId, boolean muted);
 
     /**
      * 새 1:1 대화방을 저장합니다. 같은 {@code directKey}의 대화방이 이미 있으면(동시에 만든 경우 포함) 저장하지 않습니다.

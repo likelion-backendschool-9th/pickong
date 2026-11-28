@@ -8,6 +8,7 @@ import com.pickong.conversation.application.port.out.ConversationPersistencePort
 import com.pickong.conversation.domain.model.Conversation;
 import com.pickong.conversation.domain.model.ConversationMember;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
 
@@ -54,6 +55,34 @@ public class ConversationPersistenceAdapter implements ConversationPersistencePo
             members.flush();
         }
         return new SavedDirect(saved.getId(), created);
+    }
+
+    @Override
+    public long saveGroup(Conversation group) {
+        long id = conversations.save(ConversationJpaEntity.group(group)).getId();
+        for (ConversationMember member : group.getMembers()) {
+            members.save(ConversationMemberJpaEntity.of(id, member));
+        }
+        members.flush();
+        return id;
+    }
+
+    @Override
+    public void addMembers(long conversationId, List<Long> userIds, OffsetDateTime joinedAt, Long lastReadMessageId) {
+        for (Long userId : userIds) {
+            members.save(ConversationMemberJpaEntity.joining(conversationId, userId, joinedAt, lastReadMessageId));
+        }
+        members.flush();
+    }
+
+    @Override
+    public void rename(long conversationId, String title) {
+        conversations.rename(conversationId, title);
+    }
+
+    @Override
+    public void setMuted(long memberId, boolean muted) {
+        members.setMuted(memberId, muted);
     }
 
     @Override

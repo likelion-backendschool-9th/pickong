@@ -18,4 +18,10 @@ public interface MessagePushPort {
 
     /** 읽음 위치가 바뀜(READ_UPDATED) */
     void pushRead(Collection<Long> recipientIds, ReadReceipt receipt);
+
+    /** 그룹 안내 메시지(MESSAGE_CREATED). 보낸 사람 전송 확인은 없습니다(사람이 보낸 글이 아님). */
+    void pushSystemMessage(Collection<Long> recipientIds, SentMessage message);
+
+    /** 대화방 정보가 바뀜(CONVERSATION_UPDATED) — 나간 사람의 다른 탭처럼 메시지를 더 받지 않는 회원에게 */
+    void pushConversationUpdated(Collection<Long> userIds, long conversationId);
 }

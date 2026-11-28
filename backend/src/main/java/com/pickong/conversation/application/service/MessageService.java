@@ -90,14 +90,15 @@ public class MessageService implements MessageUseCase {
         Conversation conversation = conversations.findById(conversationId)
                 .orElseThrow(() -> new BusinessException(ConversationErrorCode.CONVERSATION_NOT_FOUND));
         ConversationMember me = conversation.ensureActiveMember(userId);
+        OffsetDateTime visibleFrom = conversation.visibleFrom(me);
 
         Long target = lastReadMessageId;
         if (target == null) {
-            target = messages.findLatestVisibleId(conversationId, me.getJoinedAt()).orElse(null);
+            target = messages.findLatestVisibleId(conversationId, visibleFrom).orElse(null);
             if (target == null) {
                 return;
             }
-        } else if (!messages.existsVisible(conversationId, target, me.getJoinedAt())) {
+        } else if (!messages.existsVisible(conversationId, target, visibleFrom)) {
             throw new BusinessException(ConversationErrorCode.MESSAGE_NOT_FOUND);
         }
 

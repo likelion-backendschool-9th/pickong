@@ -237,10 +237,12 @@ DM · 그룹 채팅의 실시간 전달 형식입니다. 서버 구조와 결정
 
 | `type` | `data` | 언제 |
 | --- | --- | --- |
-| `MESSAGE_CREATED` | 메시지 목록 API의 메시지 항목과 같은 형식 + `conversationId`, `clientMessageId` | 새 메시지 (보낸 사람에게는 전송 확인) |
+| `MESSAGE_CREATED` | 메시지 목록 API의 메시지 항목과 같은 형식(`type` · `sender` · `system` 포함) + `conversationId`, `clientMessageId` | 새 메시지 (보낸 사람에게는 전송 확인). 그룹 안내 메시지(`type: "SYSTEM"`)도 이 이벤트로 옵니다 |
 | `READ_UPDATED` | `{ "conversationId", "userId", "lastReadMessageId" }` (`userId`는 회원 공개 id) | 누군가 읽음 위치를 옮김 |
+| `CONVERSATION_UPDATED` | `{ "conversationId" }` | 대화방 정보가 바뀌었는데 메시지를 받지 않는 회원에게(예: 그룹을 나간 사람의 다른 탭). 프론트는 목록 · 상세를 다시 불러옵니다 |
 
-- 입력 중 표시, 참여자 나감 · 초대 같은 이벤트는 만들 때 `type`을 추가합니다. **프론트는 모르는 `type`을 무시합니다.**
+- 그룹의 만들기 · 초대 · 나가기 · 이름 변경은 안내 메시지(`MESSAGE_CREATED`, 메시지 `type: "SYSTEM"`, `system: { event, actor, targets, title }`)로 오므로 받은 쪽은 목록 · 상세를 다시 불러오면 됩니다. 안내 메시지는 안 읽은 수에 세지 않습니다.
+- 입력 중 표시 같은 이벤트는 만들 때 `type`을 추가합니다. **프론트는 모르는 `type`을 무시합니다.**
 - 메시지 순서는 `id` 순서입니다. 이벤트와 다시 불러온 목록이 겹칠 수 있으므로 `id`로 중복을 없앱니다.
 - 보낸 사람은 `senderId`(회원 공개 id `users.public_id`)로 나타냅니다. 회원 내부 id는 보내지 않습니다.
 
@@ -343,7 +345,8 @@ API 명세서에서 **'보류'**로 표시한 기능입니다. 프론트·백엔
 - [껍데기] DM (1:1 메시지): 대화 목록(`/messages`, 대화 · 사람 검색) · 대화방(`/messages/[conversationId]`), 게시물 · 장소 공유 카드, 입력창 + 버튼으로 사진 · 장소 첨부, 프로필의 ‘메시지’ 버튼이나 검색으로 시작
   - API: `GET/POST /api/conversations`, `GET /api/conversations/unread-count`(하단바 배지), `GET /api/conversations/:id`, `GET/POST /api/conversations/:id/messages` (목록 조회 시 읽음 처리, 보낼 때 `attachment: { type: "IMAGE", url } | { type: "PLACE", placeId }`). 사진은 업로드 API 연결 전까지 브라우저 임시 URL
   - **백엔드 연동 완료 (1:1, #188 · #190 · #192):** 대화방 열기 `POST /conversations/direct`, 메시지 내역 커서 페이지(`{ items, nextCursor }`), 읽음 `PATCH /conversations/{id}/read`(조회만으로는 읽지 않음), 보내기 · 새 메시지 · 읽음은 STOMP(5.9). 폴링은 없앴고, mock도 같은 계약 · 최소 STOMP로 동작합니다. 경로 · 형식은 [backend_blueprint.md](backend_blueprint.md) 3장 conversation
-  - 남은 것: 첨부 보내기(백엔드 미지원, 보내면 서버 오류 안내), 사람 검색 API(대화 상대 검색은 아직 mock), 그룹 채팅
+  - 그룹 채팅 백엔드(#201): 방장 없음, 멤버 누구나 이름 변경 · 초대, 내보내기 없음, 나 포함 3~10명, 초대된 사람도 이전 대화 전부, 만들기 · 초대 · 나가기 · 이름 변경 안내 메시지. 같은 `/conversations` 자원 (backend 3장 conversation)
+  - 남은 것: 첨부 보내기(백엔드 미지원, 보내면 서버 오류 안내), 사람 검색 API(대화 상대 검색은 아직 mock), 그룹 채팅 프론트(#202)
 - [껍데기] 팔로우 / 언팔로우, 팔로워·팔로잉 목록
 - 프로필 편집: 아이디(바꾸면 프로필 주소도 바뀜) · 이름 · 소개 · 활동 지역 (`PATCH /me` `{ username, name, bio, region }`, 보낸 항목만 변경). 사진은 업로드 API 연결 후
   - 아이디는 14일에 한 번만 바꿀 수 있음(가입 후 첫 변경은 바로). 아직 바꿀 수 없으면 입력칸을 잠그고 `usernameChangeableAt`으로 다음 변경 가능 날짜를 보여 줌. 지금과 같은 아이디를 보내는 것은 변경으로 치지 않음

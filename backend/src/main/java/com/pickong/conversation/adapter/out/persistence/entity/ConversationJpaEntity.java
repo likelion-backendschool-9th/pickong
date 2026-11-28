@@ -50,6 +50,17 @@ public class ConversationJpaEntity {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    /** 새 그룹 대화방 행 */
+    public static ConversationJpaEntity group(Conversation group) {
+        ConversationJpaEntity entity = new ConversationJpaEntity();
+        entity.type = ConversationType.GROUP.name();
+        entity.title = group.getTitle();
+        entity.createdBy = group.getCreatedBy();
+        entity.createdAt = group.getCreatedAt();
+        entity.updatedAt = group.getUpdatedAt();
+        return entity;
+    }
+
     public Conversation toDomain(List<ConversationMember> members) {
         return Conversation.builder()
                 .id(id)

@@ -6,7 +6,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * 메시지 저장소. "볼 수 있는 메시지"는 지우지 않았고 {@code visibleFrom}(참여 시각) 이후에 보낸 메시지입니다.
+ * 메시지 저장소. "볼 수 있는 메시지"는 지우지 않았고 {@code visibleFrom}(1:1의 참여 시각) 이후에 보낸 메시지입니다.
+ * {@code visibleFrom}이 null이면(그룹) 처음부터입니다.
  */
 public interface MessagePersistencePort {
 

@@ -21,6 +21,10 @@ public interface ConversationMemberJpaRepository extends JpaRepository<Conversat
     @Query("update ConversationMemberJpaEntity m set m.leftAt = :leftAt where m.id = :id and m.leftAt is null")
     int leave(@Param("id") long id, @Param("leftAt") OffsetDateTime leftAt);
 
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update ConversationMemberJpaEntity m set m.muted = :muted where m.id = :id")
+    int setMuted(@Param("id") long id, @Param("muted") boolean muted);
+
     /** 지금 값보다 클 때만 바꿔서, 동시에 들어온 읽음 요청끼리도 뒤로 가지 않습니다. */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update ConversationMemberJpaEntity m set m.lastReadMessageId = :messageId "
