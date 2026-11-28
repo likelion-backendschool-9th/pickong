@@ -10,6 +10,7 @@ import com.pickong.feed.adapter.in.web.response.CommentPageResponse;
 import com.pickong.feed.adapter.in.web.response.CommentResponse;
 import com.pickong.feed.application.dto.CommentPage;
 import com.pickong.feed.application.port.in.CommentUseCase;
+import com.pickong.feed.application.port.in.CommentViewUseCase;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -25,9 +26,12 @@ import org.springframework.web.bind.annotation.*;
 public class CommentController {
 
     private final CommentUseCase commentUseCase;
+    // 응답 직전에 작성자 요약을 붙임 (공개 범위 · 숨김 검사는 commentUseCase가 먼저 끝냄)
+    private final CommentViewUseCase commentViewUseCase;
 
-    public CommentController(CommentUseCase commentUseCase) {
+    public CommentController(CommentUseCase commentUseCase, CommentViewUseCase commentViewUseCase) {
         this.commentUseCase = commentUseCase;
+        this.commentViewUseCase = commentViewUseCase;
     }
 
     // 댓글 목록 조회 (최상위 댓글만) — 로그인 필수
@@ -39,7 +43,7 @@ public class CommentController {
             @CurrentUser(required = false) LoginUser viewer, Authentication authentication) {
         CommentPage page = commentUseCase.getComments(feedId, cursor, limit, viewer == null ? null : viewer.userId(), isAdmin(authentication));
         return CommentPageResponse.of(
-                page.getComments().stream().map(CommentResponse::from).toList(),
+                commentViewUseCase.viewsOf(page.getComments()).stream().map(CommentResponse::from).toList(),
                 page.getNextCursor(),
                 page.isHasNext()
         );
@@ -55,7 +59,7 @@ public class CommentController {
             @CurrentUser(required = false) LoginUser viewer, Authentication authentication) {
         CommentPage page = commentUseCase.getReplies(feedId, commentId, cursor, limit, viewer == null ? null : viewer.userId(), isAdmin(authentication));
         return CommentPageResponse.of(
-                page.getComments().stream().map(CommentResponse::from).toList(),
+                commentViewUseCase.viewsOf(page.getComments()).stream().map(CommentResponse::from).toList(),
                 page.getNextCursor(),
                 page.isHasNext()
         );
@@ -67,7 +71,8 @@ public class CommentController {
             @PathVariable @Positive Long feedId,
             @CurrentUser LoginUser user,
             @Valid @RequestBody CreateCommentRequest request) {
-        CommentResponse response = CommentResponse.from(commentUseCase.createComment(feedId, request.toCommand(user.userId())));
+        CommentResponse response = CommentResponse.from(
+                commentViewUseCase.viewOf(commentUseCase.createComment(feedId, request.toCommand(user.userId()))));
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -78,7 +83,8 @@ public class CommentController {
             @PathVariable @Positive Long commentId,
             @CurrentUser LoginUser user,
             @Valid @RequestBody UpdateCommentRequest request) {
-        return CommentResponse.from(commentUseCase.updateComment(feedId, commentId, user.userId(), request.toCommand()));
+        return CommentResponse.from(
+                commentViewUseCase.viewOf(commentUseCase.updateComment(feedId, commentId, user.userId(), request.toCommand())));
     }
 
     // 댓글 삭제 — 로그인 필수, 본인 댓글만 가능, 삭제 성공 시 204 No Content

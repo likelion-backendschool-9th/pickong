@@ -8,6 +8,9 @@ import com.pickong.common.web.CurrentUserArgumentResolver;
 import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.feed.application.dto.CommentPage;
 import com.pickong.feed.application.port.in.CommentUseCase;
+import com.pickong.feed.application.port.in.CommentViewUseCase;
+import com.pickong.feed.application.dto.CommentView;
+import com.pickong.feed.application.dto.FeedAuthor;
 import com.pickong.feed.domain.model.Comment;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +42,11 @@ class CommentControllerTest {
     @Mock
     private CommentUseCase commentUseCase;
 
+    // 작성자는 조회 SQL 없이 고정값으로 붙임 (작성자 SQL은 FeedResponseContractIntegrationTest에서 확인)
+    private final CommentViewUseCase commentViewUseCase = comments -> comments.stream()
+            .map(comment -> new CommentView(comment, new FeedAuthor("author-public-id", "writer", null, null, null)))
+            .toList();
+
     private MockMvc mockMvc;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -49,7 +57,7 @@ class CommentControllerTest {
                 new UsernamePasswordAuthenticationToken(new LoginUser(1L), null, List.of()));
 
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new CommentController(commentUseCase))
+                .standaloneSetup(new CommentController(commentUseCase, commentViewUseCase))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setCustomArgumentResolvers(new CurrentUserArgumentResolver())
                 .build();
@@ -102,8 +110,14 @@ class CommentControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.content").value("테스트 댓글"));
+                .andExpect(jsonPath("$.id").value("1"))
+                .andExpect(jsonPath("$.content").value("테스트 댓글"))
+                // CommentDto 모양: 작성자는 공개 id로, 내부 순번 userId는 내보내지 않음
+                .andExpect(jsonPath("$.author.id").value("author-public-id"))
+                .andExpect(jsonPath("$.author.username").value("writer"))
+                .andExpect(jsonPath("$.postId").exists())
+                .andExpect(jsonPath("$.userId").doesNotExist())
+                .andExpect(jsonPath("$.feedId").doesNotExist());
     }
 
     @Test
