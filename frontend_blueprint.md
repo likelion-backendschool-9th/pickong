@@ -153,7 +153,8 @@ pickong/
     │   │   ├── (admin)/                    # 관리자
     │   │   │   └── admin/
     │   │   │       ├── page.tsx            # /admin
-    │   │   │       ├── AdminDashboard.tsx  # 제보 관리 버튼 → /admin/place-submissions
+    │   │   │       ├── AdminDashboard.tsx  # 제보 관리 · 지도 관리(/admin/places) 메뉴
+    │   │   │       ├── places/             # 지도 관리. 제보 심사와 별도. 파일은 9.4
     │   │   │       └── place-submissions/  # 목록·상세. mock 배열을 조회
     │   │   │           ├── page.tsx        # /admin/place-submissions
     │   │   │           ├── PlaceSubmissionsScreen.tsx  # 상태 집계·탭, 장소명·제보자 검색, 카테고리·정렬
@@ -773,7 +774,7 @@ export async function getFeed(id: Id): Promise<Feed> {
 
 - `mocks/`의 핸들러가 **DTO 형태의 응답**을 돌려줍니다. 따라서 mapper까지 실제와 같은 경로로 실행됩니다.
 - 개발 시 mock 서버(localhost:4000)를 띄우고, rewrites 대상과 `API_INTERNAL_URL`을 mock 서버로 지정합니다.
-- 백엔드에 일부 API만 있는 동안은 `BACKEND_URL`을 정합니다. `next.config.ts`의 `BACKEND_PATHS`에 있는 경로만 백엔드로 가고 나머지는 mock으로 갑니다. 백엔드에 API가 생기면 이 목록에 경로를 추가합니다. 장소 제보 화면은 관리자 로그인이 없어 mock에 둡니다. 목록은 배열입니다. `GET /api/v1/places`도 백엔드 응답에 지도 화면이 쓰는 필드가 없어 mock에 둡니다. 응답 형태는 백엔드와 같은 `{ places, clusters }`이고, mock은 장소가 적어 묶지 않으므로 `clusters`가 비어 있습니다.
+- 백엔드에 일부 API만 있는 동안은 `BACKEND_URL`을 정합니다. `next.config.ts`의 `BACKEND_PATHS`에 있는 경로만 백엔드로 가고 나머지는 mock으로 갑니다. 백엔드에 API가 생기면 이 목록에 경로를 추가합니다. 장소 제보 화면은 관리자 로그인이 없어 mock에 둡니다. 목록은 배열입니다. `GET /api/v1/places`도 백엔드 응답에 지도 화면이 쓰는 필드가 없어 mock에 둡니다. 응답 형태는 백엔드와 같은 `{ places, clusters }`이고, mock은 장소가 적어 묶지 않으므로 `clusters`가 비어 있습니다. 관리자 지도 관리(`GET·POST·PATCH·DELETE /api/v1/admin/places`)도 컨트롤러가 없어 mock에 둡니다. `BACKEND_PATHS`에는 넣지 않습니다. 대표 사진 바이트는 Mock 전용 `POST·GET /api/v1/admin/places/mock-media`이며 실제 미디어 API가 아닙니다 (9.4).
 - 쓰기 요청(POST · PUT · PATCH · DELETE)은 `http.ts`가 `XSRF-TOKEN` 쿠키 값을 `X-XSRF-TOKEN` 헤더로 보냅니다. 403 `INVALID_CSRF_TOKEN`이면 쿠키를 다시 읽어 한 번만 재시도합니다.
 - **전환은 환경변수만 바꿉니다.** API 코드와 컴포넌트는 수정하지 않습니다. 기존 `USE_MOCK` 분기는 없앱니다.
 - 같은 핸들러를 Vitest 컴포넌트 테스트에서도 재사용합니다.
@@ -921,6 +922,130 @@ entities/plan/model/            # React import 금지. 입력 → 출력만 있�
 
 ---
 
+### 9.4 관리자 지도 관리
+
+제보 관리(`/admin/place-submissions`)와 다른 화면입니다. 제보는 회원이 올린 장소의 승인·반려이고, 지도 관리는 이미 있는 공용 장소의 조회와 SYSTEM 장소의 등록·수정·삭제입니다. 같은 API나 같은 저장소를 쓰지 않습니다. 관리자에서 만든 장소가 회원 지도 Mock에 바로 나타나지 않습니다.
+
+이 절은 2026-11-28 작업 트리 기준입니다. 커밋은 `a64a062`이고, 아래 구현은 그 위의 미커밋 변경입니다. 실제 백엔드 컨트롤러는 없습니다.
+
+```text
+frontend/src/app/(admin)/admin/places/
+├── page.tsx                         # /admin/places
+├── new/page.tsx                     # /admin/places/new
+├── [placeId]/page.tsx               # 상세. 수정은 ?mode=edit
+├── _components/
+│   ├── AdminPlacesScreen.tsx        # 목록. 뒤로가기는 routes.admin()
+│   ├── AdminPlaceCard.tsx
+│   ├── AdminPlaceCreateScreen.tsx
+│   ├── AdminPlaceDetailScreen.tsx   # 상세와 수정
+│   ├── AdminPlaceDetailView.tsx
+│   ├── AdminPlaceForm.tsx
+│   ├── AdminPlaceDeleteDialog.tsx
+│   ├── PlaceLocationPicker.tsx      # 지도 중심 핀. shared/map 재사용
+│   ├── BusinessHoursEditor.tsx
+│   ├── HoursExceptionEditor.tsx
+│   ├── PlacePhotoEditor.tsx
+│   └── useDismissibleDialog.tsx     # Escape, 포커스 이동·복귀·순환
+├── _api/
+│   ├── dto.ts · mapper.ts · adminPlaceApi.ts · queries.ts
+└── _lib/
+    ├── models.ts · validation.ts · businessHours.ts · hoursDraft.ts
+    ├── diffAdminPlaceUpdate.ts · filterAdminPlaces.ts
+    ├── uploadCache.ts · saveError.ts
+frontend/mocks/
+├── fixtures/adminPlaces.ts
+├── lib/adminPlaces.ts · lib/adminPlaceMedia.ts
+└── handlers/adminPlaces.ts · handlers/adminPlaceMedia.ts
+```
+
+`npm run dev`는 mock(`node --watch mocks/server.ts`, 포트 4000)과 Next를 함께 띄웁니다. 관리자 장소 Mock은 메모리라 프로세스를 다시 시작하면 초기 fixture로 돌아갑니다. 회원 장소(`mocks/db.ts`)와 저장소가 다릅니다.
+
+**이동**
+
+- 관리자 메인에서 지도 관리로 들어갑니다.
+- 목록의 왼쪽 위 뒤로가기는 `router.back()`을 쓰지 않고 항상 `/admin`입니다. 검색 조건을 메인 주소에 붙이지 않습니다. 다른 관리자 화면의 뒤로가기는 바꾸지 않았습니다.
+- 등록 성공과 등록 취소는 검색 조건 없는 `/admin/places`입니다.
+- 수정 성공은 상세에 남고 `mode=edit`만 뺍니다. 토스트는 “장소를 수정했어요.”
+- 상세에서 삭제하면 목록으로 가고, 상세·수정의 목록 복귀는 들어오기 전의 `q` · `category` · `source`만 유지합니다.
+- 등록·수정 취소와 삭제는 확인창을 거칩니다. 변경이 없으면 확인창 없이 나갑니다.
+
+**목록**
+
+공개이고 삭제되지 않은 장소를 가져옵니다. 응답 배열을 화면에서 `q`(이름·주소), `category`, `source`로 거릅니다. 서버 페이지네이션이나 서버 검색은 없습니다. 전체 수·결과 수, 로딩, 빈 목록, 검색 없음, 오류·재시도, 사진이 없을 때의 대체 표시, 주소가 없으면 “주소 미등록”이 있습니다.
+
+**출처 (현재 프론트·Mock)**
+
+| 출처와 상태 | 상세 | 수정 | 삭제 |
+| --- | --- | --- | --- |
+| SYSTEM · PUBLIC · 활성 | 가능 | 가능 | 가능 |
+| CUSTOM · PUBLIC · 활성 | 가능 | 불가 | 불가 |
+| AI_EXTRACTED · PUBLIC · 활성 | 가능 | 불가 | 불가 |
+| 그 밖 출처 · PUBLIC · 활성 | 가능 | 불가 | 불가 |
+| PRIVATE | 불가 | 불가 | 불가 |
+| 삭제된 장소 | 불가 | 불가 | 불가 |
+
+`canManageAdminPlace`는 `sourceType`이 정확히 `SYSTEM`이고 `visibility`가 null 또는 `PUBLIC`일 때만 참입니다. 모르는 출처는 읽기 전용이고 enum에 넣지 않습니다. `?mode=edit`로 바로 열어도 같습니다. 비공개·삭제 장소의 상세는 Mock이 404입니다. 이 표는 실제 `ROLE_ADMIN` 인가가 아닙니다. SYSTEM이 아닌 장소의 백엔드 권한은 팀 합의가 필요합니다.
+
+**폼**
+
+등록과 수정이 `AdminPlaceForm`을 같이 씁니다. 이름, 주소, 카테고리, 좌표, 요일별 영업시간, 예외 영업시간, 대표 사진 한 장입니다. 카테고리는 카페, 식당, 사진 명소, 소품샵, 전시, 거리, 공원·산책, 명소, 역, 기타 열 가지입니다.
+
+등록은 이름·주소·카테고리·유효한 좌표가 필수이고, 영업시간·예외·사진은 선택입니다. `sourceType` SYSTEM과 `visibility` PUBLIC은 서버가 정하므로 요청에 넣지 않습니다. 새 등록은 지도의 기본 중심을 자동으로 확정하지 않습니다.
+
+수정은 저장된 값으로 시작하고, 바뀐 필드만 PATCH합니다. 변경이 없으면 저장이 꺼집니다. 저장된 주소가 null이면 주소를 비운 채 다른 항목을 고칠 수 있고, 있던 주소를 빈 칸으로 만들 수는 없습니다. 실패하면 입력과 고른 사진을 유지합니다. 수정을 취소하면 서버 값으로 돌아갑니다.
+
+**좌표**
+
+`shared/map`과 네이버 지도 SDK를 재사용합니다. Client ID는 `NEXT_PUBLIC_NAVER_MAP_CLIENT_ID`이고 문서에 값을 적지 않습니다. 지도 중심의 십자 핀과 확정 좌표는 다릅니다. “이 위치로 지정”을 눌러야 저장 좌표가 바뀌고, 지도를 옮기기만 해서는 바뀌지 않습니다. 수정 화면은 기존 좌표가 이미 확정된 상태로 시작합니다. 위도·경도를 직접 넣을 수 있고 범위는 위도 -90~90, 경도 -180~180입니다. 직접 입력은 지도 중심을 옮기지 않습니다. 중심 안내는 소수점 다섯 자리이고, 저장 값은 그 반올림으로 덮지 않습니다. 지도가 떠 있지 않아도 직접 입력으로 지정할 수 있습니다. 주소 검색과 역지오코딩은 없습니다.
+
+브라우저에서 지도 축소(타일 줌 변경)와 직접 좌표 입력(표시만 바뀌고 타일은 유지)을 확인했습니다. 드래그로 중심을 옮긴 등록·수정은 그 전 검수에서 확인했습니다. 요청 원문 캡처 없이, 저장된 좌표가 화면의 확정 값과 같은지로 확인했습니다.
+
+**영업시간**
+
+요일은 0 일요일부터 6 토요일입니다. 화면은 월요일부터 보여 줍니다. 미등록 요일은 행을 만들지 않습니다. 일반 영업은 분 단위 시작·끝입니다. 정기 휴무는 `openTime` 0, `closeTime` 0, `closed` true입니다. 24시간은 0과 1440이고 `closed`는 false입니다. 익일 종료만 1440을 넘길 수 있습니다. 예외는 `exceptionDate`(YYYY-MM-DD), `closed`, `openTime`, `closeTime`, `note`입니다. 예외 휴무는 두 시간이 null입니다. 요일별 구간과 날짜별 예외는 각각 하나입니다. 브레이크, 하루 여러 구간, 공휴일 자동 계산은 없습니다. 한 구간의 길이 1440분 이하는 현재 프론트·Mock 검사용 제한이고 백엔드 저장 계약으로 정한 것이 아닙니다.
+
+**대표 사진**
+
+한 장, JPEG·PNG·WEBP, 1바이트 이상 10MB 이하입니다. 고른 뒤 미리보기하고, 저장할 때 올립니다. 유지·교체·제거가 됩니다. 잘못된 파일은 이미 고른 파일을 바꾸지 않습니다. `blob:`·`data:`·File은 장소 DTO에 넣지 않고, 업로드가 돌려준 `imageUrl`만 넣습니다. 업로드가 실패하면 장소 POST·PATCH를 보내지 않습니다. 장소 저장이 실패하면 입력과 미리보기를 유지하고, 같은 파일(이름·크기·`lastModified`)은 받은 주소를 다시 씁니다. 다른 파일이면 다시 올립니다. 여러 장과 순서는 정하지 않았습니다. 쓰이지 않는 바이트는 Mock 메모리에 남을 수 있고, 사진을 바꿀 때 이전 바이트를 지우지 않습니다.
+
+**프론트·Mock API**
+
+아래는 현재 프론트와 Node HTTP Mock의 계약입니다. Java 컨트롤러가 있는 백엔드 API가 아닙니다.
+
+| Method | Endpoint | 정상 |
+| --- | --- | --- |
+| GET | `/api/v1/admin/places` | 200 배열 |
+| GET | `/api/v1/admin/places/{placeId}` | 200 |
+| POST | `/api/v1/admin/places` | 201 |
+| PATCH | `/api/v1/admin/places/{placeId}` | 200 |
+| DELETE | `/api/v1/admin/places/{placeId}` | 204, 본문 없음 |
+
+목록은 `id`, `name`, `address`, `category`, `sourceType`, `imageUrl`입니다. 상세는 `visibility`, `lat`, `lng`, `businessHours`, `hoursExceptions`가 더 있습니다. 주소·카테고리·사진 주소는 null일 수 있습니다. 등록 본문은 이름, 주소, 카테고리, `lat`, `lng`, `businessHours`, `hoursExceptions`이고 `imageUrl`은 없을 수 있습니다. 수정은 바뀐 키만 보냅니다. 없는 키는 유지, `businessHours: []`와 `hoursExceptions: []`는 해당 묶음 전체 제거, `imageUrl: null`은 사진 제거입니다. `id`·`sourceType`·`visibility`는 서버가 정합니다. 오류는 `{ code, message }`입니다. Mock은 400 `INVALID_INPUT`, 404 `PLACE_NOT_FOUND`, 409 `PLACE_NOT_MANAGEABLE`을 씁니다. 실제 백엔드는 common 5.2의 `status`를 포함한 공통 형식을 따릅니다.
+
+Mock 전용 사진 경로는 `POST /api/v1/admin/places/mock-media`, `GET /api/v1/admin/places/mock-media/{imageId}`입니다. Content-Type, 크기, 파일 시그니처를 검사하고 UUID로 메모리에 둡니다. 프로세스가 살아 있는 동안 새로고침 뒤에도 보입니다. 실제 R2나 `media_files`가 아닙니다. 백엔드 계약 목록에 넣지 않습니다.
+
+**Query**
+
+목록 키는 `["admin", "places", "list"]`, 상세 키는 `["admin", "places", "detail", placeId]`입니다. 등록 성공은 목록만 무효화합니다. 수정 성공은 해당 상세를 갱신하고 목록을 무효화합니다. 삭제 성공은 상세 요청을 취소하고 캐시에서 빼며, 목록 캐시에 그 id가 있으면 빼고, 목록을 무효화합니다. 수정·삭제 실패는 캐시를 무효화하지 않습니다. 회원 `["places"]`와 다른 관리자 키는 그대로 둡니다. 저장 버튼은 진행 중 잠금과 `disabled`로 연속 클릭의 중복 POST·PATCH·DELETE를 막습니다. 목록 재조회가 실패해도 성공한 삭제를 다시 보내지 않습니다. 삭제 뒤에 도착한 상세 응답은 상세 캐시를 되돌리지 않습니다.
+
+**화면**
+
+관리자 화면은 가운데 최대 480px입니다. 로딩·오류·읽기 전용 안내, 삭제·작성 취소·수정 취소 확인창이 있습니다. 확인창은 `role="dialog"`, `aria-modal="true"`, 제목으로 이름을 붙입니다. Escape로 닫고, 열 때 포커스를 창으로 옮기며, 닫으면 열었던 버튼으로 되돌립니다. Tab·Shift+Tab은 창 안의 버튼에서 순환합니다. 요청 중에는 버튼이 꺼지고 Escape로 닫히지 않습니다. 이 순환은 지도 관리 확인창만 다룹니다.
+
+390·768·1440에서 등록, 상세, 수정, 삭제 확인창을 재었습니다. 본문 가로 스크롤은 없었고, 768·1440에서 헤더 폭은 480px, 390에서는 390px이었습니다. 삭제 카드는 390에서 너비 350px로 화면 안에 있었습니다. 시각 디자인 전반을 픽셀 단위로 검수한 것은 아닙니다.
+
+**이번 검수에서 고친 것**
+
+사진 업로드가 HTTP 오류로 실패하면, 장소 저장을 시도하지 않았는데도 “장소를 수정하지 못했어요”라고 안내했습니다. 업로드 단계의 실패는 “사진을 올리지 못했어요. 장소는 수정하지 않았어요.”(등록은 “등록하지 않았어요”)로 구분합니다.
+
+**검증 (2026-11-28)**
+
+브라우저에서 확인한 것: 목록 뒤로가기 다섯 경로, 지도 축소, 직접 좌표, 대표 사진 교체(저장 전 업로드 없음, 업로드 1회, 상세·목록·새로고침), 업로드 실패와 저장 실패, 같은 파일 재사용과 다른 파일의 새 업로드, 등록·수정·삭제의 중복 요청 방지, 확인창 포커스 순환, 기존 관리자 메뉴 진입, 회원 내 지도와 직접 등록 장소 진입(회원 데이터는 바꾸지 않음). 제보 관리의 뒤로가기는 방문 기록을 그대로 씁니다.
+
+자동화로 확인한 것: 뒤로가기 대상, 파일 서명 재사용, 저장 오류 문구, 실패 시 캐시 유지, 늦은 상세 응답, 목록 재조회 실패. Vitest는 67파일 394테스트 통과입니다. 확인창 포커스 순환은 jsdom이 없어 브라우저에서 확인했습니다.
+
+---
+
 ## 10. 팀 개발자가 지켜야 할 아키텍처 규칙
 
 ### 배치
@@ -1028,7 +1153,11 @@ entities/plan/model/            # React import 금지. 입력 → 출력만 있�
 | `/checkout/[collectionId]` | 유료 컬렉션 카드 결제 (지금은 mock 결제창) | 로그인 | Client | 껍데기 |
 | `/purchases`, `/purchases/[purchaseId]/refund` | 구매 내역 · 환불 신청 | 로그인 | Client | 껍데기 |
 | `/messages/groups`, `/messages/groups/new`, `/messages/groups/[groupId]` | 그룹 채팅 목록 · 만들기 · 관리 (대화방 화면은 아직 없음) | 로그인 | Client | 껍데기 |
-| `/admin/**` | 관리자: 신고 처리 · 사용자 제재 · 게시물 관리 API 연결. 기타 관리 화면은 mock | 관리자 계정 | Client | 관리자 로그인·컬렉션 등은 후속 |
+| `/admin` | 관리자 메인. 지도 관리 목록의 뒤로가기는 방문 기록과 관계없이 여기로 옵니다 | 관리자 화면(mock은 바로 진입) | Client | 껍데기 |
+| `/admin/places` | 지도 관리 목록. 이름·주소 검색과 카테고리·출처 필터(`q` · `category` · `source`)는 화면에서 거르고 URL에 둡니다 | 관리자 화면(mock은 바로 진입) | Client | 껍데기 |
+| `/admin/places/new` | SYSTEM 장소 등록. 성공·취소는 검색 조건 없는 목록으로 | 관리자 화면(mock은 바로 진입) | 폼 + 지도(Client) | 껍데기 |
+| `/admin/places/[placeId]` | 장소 상세. `placeId`는 공개 UUID. 수정은 같은 주소의 `?mode=edit`이고 별도 `/edit`는 없습니다. 상세·수정에서 목록으로 돌아올 때 `q` · `category` · `source`를 유지합니다 | 관리자 화면(mock은 바로 진입) | Client | 껍데기 |
+| `/admin/**` | 관리자: 신고 처리 · 사용자 제재 · 게시물 관리 API 연결. 기타 관리 화면은 mock. 지도 관리만 뒤로가기를 `/admin`으로 고정합니다 | 관리자 계정 | Client | 관리자 로그인·컬렉션 등은 후속 |
 
 **하단 탭 (모바일 우선):** 홈(`/feed`) · 내 지도(`/map`, `/collections`) · ➕ · DM(`/messages`) · 프로필(`/users/[username]`, 일정 탭 포함).
 ➕는 게시물 올리기(`/posts/new`) · 장소 직접 추가(`/places/new`) · AI 링크로 가져오기(`/import`) 세 갈래로 분기합니다. 탐색은 홈의 ‘추천’ 탭과 통합 검색(`/search`)이 대신합니다.

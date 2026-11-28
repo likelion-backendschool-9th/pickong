@@ -6,8 +6,10 @@
  * 실행: npm run mock (npm run dev에 포함)
  */
 import { createServer } from "node:http";
+import { handleAdminPlaceMedia } from "./handlers/adminPlaceMedia.ts";
 import { accountRoutes } from "./handlers/account.ts";
 import { adminRoutes } from "./handlers/admin.ts";
+import { adminPlaceRoutes } from "./handlers/adminPlaces.ts";
 import { authRoutes } from "./handlers/auth.ts";
 import { creatorRoutes } from "./handlers/creator.ts";
 import { discoverRoutes } from "./handlers/discover.ts";
@@ -40,9 +42,13 @@ const handle = createRouter([
   ...creatorRoutes,
   ...paymentRoutes,
   ...groupChatRoutes,
+  ...adminPlaceRoutes,
   ...adminRoutes,
 ]);
 
-createServer(handle).listen(PORT, () => {
+createServer(async (req, res) => {
+  if (await handleAdminPlaceMedia(req, res)) return;
+  return handle(req, res);
+}).listen(PORT, () => {
   console.log(`[mock] http://localhost:${PORT}/api/v1`);
 });

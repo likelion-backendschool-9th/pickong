@@ -61,6 +61,10 @@ export const routes = {
   admin: () => "/admin",
   adminPlaceSubmissions: () => "/admin/place-submissions",
   adminPlaceSubmission: (id: string) => `/admin/place-submissions/${id}`,
+  /** 관리자 공용 장소. placeId는 public_id UUID이며 제보 bigint와 다릅니다. */
+  adminPlaces: () => "/admin/places",
+  adminNewPlace: () => "/admin/places/new",
+  adminPlace: (id: string) => `/admin/places/${id}`,
   adminReports: () => "/admin/reports",
   adminUsers: () => "/admin/users",
   adminContents: () => "/admin/contents",
