@@ -150,13 +150,14 @@ class OAuth2LoginIntegrationTest {
     }
 
     @Test
-    @DisplayName("Google 로그인 시작: Google 동의 화면으로 302, OIDC(openid · nonce)")
+    @DisplayName("Google 로그인 시작: Google 동의 화면으로 302, OIDC(openid · nonce), 계정 선택 화면(prompt=select_account)")
     void googleStart() throws Exception {
         Started started = start("google");
 
         assertThat(started.location().getHost()).isEqualTo("accounts.google.com");
         assertThat(started.location().getRawQuery()).contains("scope=openid", "nonce=",
-                "redirect_uri=http://localhost:3000/api/v1/auth/oauth2/callback/google");
+                "redirect_uri=http://localhost:3000/api/v1/auth/oauth2/callback/google")
+                .as("로그인 실패 후 다른 Google 계정으로 다시 시도할 수 있게 매번 계정을 고르게 함").contains("prompt=select_account");
     }
 
     @Test

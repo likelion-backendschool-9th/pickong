@@ -17,7 +17,9 @@ import org.springframework.stereotype.Component;
 /**
  * OAuth 시작 주소(/api/v1/auth/oauth2/authorization/{kakao|google})에서 제공자 동의 화면으로 보낼 요청을 만듭니다.
  * <ul>
- *   <li>{@code ?link=}가 없으면 → 일반 로그인. Spring 기본 동작 그대로</li>
+ *   <li>{@code ?link=}가 없으면 → 일반 로그인. Spring 기본 동작에, Google만 {@code prompt=select_account}를 더합니다.
+ *       (Google은 한 번 고른 계정으로 선택 화면 없이 바로 통과시켜서, 그 이메일이 이미 다른 수단으로 가입돼 로그인에 실패하면
+ *       다른 Google 계정으로 다시 시도할 방법이 없기 때문입니다. 카카오는 가입된 수단으로 그대로 로그인하면 되므로 두지 않습니다)</li>
  *   <li>{@code ?link=}가 있으면 → 계정 연결. 아래 두 가지가 모두 맞아야 진행하고, 아니면 {@link LinkStartRejectedException}</li>
  * </ul>
  * 연결 확인:
@@ -41,18 +43,35 @@ public class LinkAwareAuthorizationRequestResolver implements OAuth2Authorizatio
     private final UserAccountUseCase accounts;
 
     /**
-     * 기본 resolver를 두 개 만듭니다. 연결용은 계정 선택 화면 파라미터를 더합니다.
+     * 기본 resolver를 두 개 만듭니다. 연결용은 모든 제공자에, 로그인용은 Google에만 계정 선택 화면 파라미터를 더합니다.
      * (기본 resolver 안에서 붙여야 제공자로 가는 주소에 반영됩니다)
      */
     public LinkAwareAuthorizationRequestResolver(ClientRegistrationRepository clientRegistrations,
             AccessTokenVerifier accessTokenVerifier, SocialAccountUseCase socialAccountUseCase, UserAccountUseCase accounts) {
         this.loginResolver = new DefaultOAuth2AuthorizationRequestResolver(clientRegistrations, SecurityConfig.OAUTH2_AUTHORIZATION_BASE_URI);
+        this.loginResolver.setAuthorizationRequestCustomizer(LinkAwareAuthorizationRequestResolver::selectAccountForGoogle);
         this.linkResolver = new DefaultOAuth2AuthorizationRequestResolver(clientRegistrations, SecurityConfig.OAUTH2_AUTHORIZATION_BASE_URI);
-        this.linkResolver.setAuthorizationRequestCustomizer(builder ->
-                builder.additionalParameters(params -> params.put("prompt", "select_account")));
+        this.linkResolver.setAuthorizationRequestCustomizer(LinkAwareAuthorizationRequestResolver::selectAccount);
         this.accessTokenVerifier = accessTokenVerifier;
         this.socialAccountUseCase = socialAccountUseCase;
         this.accounts = accounts;
+    }
+
+    /** 제공자에게 계정 선택 화면을 띄우라고 요청합니다. (Google · 카카오 모두 같은 이름의 값을 받습니다) */
+    private static void selectAccount(OAuth2AuthorizationRequest.Builder builder) {
+        builder.additionalParameters(params -> params.put("prompt", "select_account"));
+    }
+
+    /**
+     * 로그인용: Google일 때만 계정 선택 화면을 띄웁니다.
+     * 기본 resolver가 이 단계 전에 시작 정보에 제공자 이름(registration_id)을 넣어 두므로 그걸 보고 나눕니다.
+     */
+    private static void selectAccountForGoogle(OAuth2AuthorizationRequest.Builder builder) {
+        builder.attributes(attributes -> {
+            if (SocialProvider.GOOGLE.slug().equals(attributes.get(OAuth2ParameterNames.REGISTRATION_ID))) {
+                selectAccount(builder);
+            }
+        });
     }
 
     /** 요청 주소에서 제공자를 읽습니다. 시작 주소가 아니면 null(다음 필터로 넘어감) */
