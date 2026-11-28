@@ -14,7 +14,7 @@
 | 완료 | 메서드 | 경로 | UseCase 메서드 | 비고 |
 | :---: | --- | --- | --- | --- |
 | ✅ | GET | `/feeds?tab=following\|recommended` | `FeedUseCase.feed` | PR #92. 로그인 필수. 두 탭 모두 PUBLIC만 (FOLLOWERS 목록 포함은 #91, 아래 2-1) |
-| ✅ | GET | `/feeds/places?tab=` | `FeedUseCase.feedPlaces` | PR #135 |
+| ✅ | GET | `/feeds/places?tab=` | `FeedUseCase.feedPlaces` | PR #135. 응답은 FeedPlaceDto 모양 `{ place, postIds, postCount }` (#208) |
 | ✅ | POST | `/feeds` | `FeedUseCase.write` | |
 | ✅ | GET | `/feeds/{feedId}` | `FeedUseCase.getDetail` | 공개 범위 검사 (PR #176) |
 | ✅ | PUT | `/feeds/{feedId}` | `FeedUseCase.update` | |
