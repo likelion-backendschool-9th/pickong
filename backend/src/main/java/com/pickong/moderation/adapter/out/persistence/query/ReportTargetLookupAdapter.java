@@ -17,6 +17,8 @@ import org.springframework.stereotype.Component;
  * 없거나 삭제 · 숨김이면 신고 대상이 아니라 빈 값입니다. 공개 범위를 알 수 없는 게시물도 신고 대상이 아닙니다.
  * 신고자가 볼 수 있는지(공개 범위, 팔로우)는 여기서 판단하지 않습니다. 같은 규칙이 두 곳에 생기지 않도록
  * 접수 서비스가 feed 모듈의 FeedAccessQueryUseCase에 물어봅니다. 자기 신고 거절도 접수 서비스가 합니다.
+ * 두 검사는 역할이 다릅니다. feed는 "신고자가 볼 수 있는가", 여기는 "지금 신고 대상이 될 수 있는 상태인가"입니다.
+ * 그래서 작성자가 상세로 볼 수 있는 자기 숨김 게시물도 여기서는 신고 대상이 아닙니다(이미 관리자가 처리한 글).
  */
 @Component
 public class ReportTargetLookupAdapter implements ReportTargetLookupPort {
