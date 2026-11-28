@@ -37,8 +37,9 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | 영속성 | Spring Data JPA (+ Hibernate Spatial) | 화면 조회는 JdbcClient 네이티브 SQL 또는 QueryDSL (팀 결정) |
 | 마이그레이션 | Flyway (`spring-boot-starter-flyway`) | `resources/db/migration`. V1은 인증 테이블만, 나머지는 각 모듈이 V2부터 추가. 스키마는 Flyway만 만들고 `ddl-auto: none` |
 | 보안 | Spring Security 7, OAuth2 Client(카카오 · Google), JWT(Spring Security의 Nimbus 인코더 · 디코더) | 이메일 · 비밀번호 로그인 없음. 보안 설정 상세는 아래 '보안 결정' |
-| 실시간 | Spring WebSocket + STOMP | DM |
-| 테스트 | JUnit 5, ArchUnit, Testcontainers(PostGIS 16) | `TestcontainersConfiguration`. Docker가 없으면 DB 테스트는 실패(건너뛰지 않음) |
+| 실시간 | Spring WebSocket + STOMP (SockJS 없음) | DM · 그룹 채팅. 서버마다 simple broker, 서버 간 전달은 Redis Pub/Sub (5.4) |
+| Redis | Redis 7 + Spring Data Redis | 지금은 WebSocket 서버 간 전달(Pub/Sub)만. **선택:** 정하지 않으면 서버 안에서만 전달합니다(5.4.5). 지도 캐시 등 다른 용도는 쓰는 기능이 생길 때 추가 |
+| 테스트 | JUnit 5, ArchUnit, Testcontainers(PostGIS 16, Redis 7은 중계 테스트만) | `TestcontainersConfiguration`. Docker가 없으면 DB 테스트는 실패(건너뛰지 않음) |
 
 패키지 구조는 Spring Boot 3.4와 4.x 어느 쪽이어도 똑같이 적용됩니다.
 
@@ -182,7 +183,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | GET | `/auth/withdrawal` | `AccountWithdrawalUseCase.getRestoreSession` | 탈퇴 취소 쿠키의 탈퇴 상태 `{username, requestedAt, anonymizeAt}` |
 | POST | `/auth/withdrawal/cancel` | `AccountWithdrawalUseCase.cancelWithdrawal` + `TokenUseCase.issue` | 탈퇴 취소 → ACTIVE, 세션 발급 |
 | DELETE | `/auth/withdrawal` | 컨트롤러만 (탈퇴 취소 쿠키 삭제) | 탈퇴는 그대로 |
-| WS | `/ws` (CONNECT) | `auth/adapter/in/websocket` 인증 인터셉터 | 5.4 |
+| WS | `/ws` 핸드셰이크 (실제 주소 `/api/v1/ws`) | 보안 필터 체인 + `auth/adapter/in/websocket` 인증 인터셉터 | 5.4 |
 
 > **소셜 로그인 스키마 결정 (V1)**
 > - 로그인 수단은 카카오 · Google만. `user_social_accounts`의 `(provider, provider_id)` UNIQUE(같은 소셜 계정은 한 찜콩 계정에만), `(user_id, provider)` UNIQUE(제공자마다 하나만 연결).
@@ -326,6 +327,15 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | POST | `/media/presigned` | `MediaUploadUseCase.issueUploadUrl` |
 | POST | `/media/{mediaId}/confirm` | `MediaUploadUseCase.confirmUpload` |
 | DELETE | `/media/{mediaId}` | `MediaUploadUseCase.delete` |
+
+**사진 업로드 구현 현황:** 발급(`presigned`) · 확인(`confirm`)은 구현됨. `DELETE`, 이미지 처리(`PROCESSED`), 정리 스케줄러는 아직 없음.
+- 흐름: 발급 → 브라우저가 R2에 직접 PUT → 확인. 로그인 필수(비로그인 401). 서버는 파일 내용을 받지 않음
+- 발급: 요청 `{contentType, sizeBytes}`, 응답 201 `{mediaId, uploadUrl, uploadHeaders}`. R2 설정값이 하나라도 없으면 503 `MEDIA_STORAGE_UNAVAILABLE`이고 기록을 만들지 않음. `image/jpeg` · `image/png` · `image/webp`만, 10MB 이하(`MediaFile.issue`). 그 외 400 `MEDIA_TYPE_NOT_ALLOWED` · `MEDIA_TOO_LARGE`. `media_files`(V21)에 PENDING 저장. 파일 이름은 `feeds/{랜덤 UUID}.{확장자}`이고 회원 id를 넣지 않음
+- Presigned PUT URL: 5분(`pickong.media.r2.upload-url-ttl`) 유효하고 `Content-Type` · `Content-Length` · `If-None-Match: *`가 서명에 들어감. 브라우저는 `uploadHeaders`(`Content-Type`, `If-None-Match`)를 그대로 넣어 PUT해야 하고, 빠지거나 다르면 403. Presigned URL은 일회용이 아니어서 `If-None-Match: *`(key에 객체가 없을 때만 저장)로 같은 URL의 두 번째 PUT을 412로 막음. 그래서 업로드 확인이 끝난 사진은 바꿔치기할 수 없음(실제 R2로 확인)
+- 확인: 응답 200 `{mediaId, url, contentType, sizeBytes}`. 행을 잠그고 읽은 뒤 R2에 HEAD로 실제 크기 · 종류를 비교함. 남의 사진 · 없는 사진 404 `MEDIA_NOT_FOUND`, 이미 확인된 사진은 같은 결과(멱등), R2에 파일 없음 400 `MEDIA_NOT_UPLOADED`(PENDING 유지), 종류 · 크기가 다르면 FAILED로 커밋하고 R2 파일을 지운 뒤 400 `MEDIA_FILE_MISMATCH`, 이미 실패한 사진 409 `MEDIA_UPLOAD_FAILED`. R2 삭제가 실패해도 FAILED는 커밋하고 경고 로그만 남김(남은 파일은 정리 스케줄러 대상)
+- 파일 내용이 실제 이미지인지(디코딩), EXIF 제거, 픽셀 수 제한은 아직 서버에서 확인하지 않음. 프론트 재인코딩과 별개로 서버 측 이미지 처리에서 다룸
+- 설정: `R2_ACCOUNT_ID` · `R2_ACCESS_KEY_ID` · `R2_SECRET_ACCESS_KEY` · `R2_BUCKET` · `R2_PUBLIC_BASE_URL`(`backend/.env.example`). 값이 없어도 앱은 시작하고 업로드 API만 503. 버킷 CORS는 PUT과 `Content-Type` · `If-None-Match` 헤더를 허용해야 함
+- 공개 방식은 8.7 #5 참고
 
 ### place
 | 메서드 | 경로 | 입력 포트 · 메서드 | 비고 |
@@ -509,12 +519,14 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | POST | `/conversations/direct` | `ConversationCommandUseCase.openDirect` (있으면 기존 반환) |
 | POST | `/conversations/group` | `ConversationCommandUseCase.createGroup` |
 | GET | `/conversations/{conversationId}` | `ConversationQueryUseCase.getDetail` |
-| GET | `/conversations/{conversationId}/messages` | `ConversationQueryUseCase.messages` |
+| GET | `/conversations/{conversationId}/messages` | `ConversationQueryUseCase.messages` (`cursor`: 이전 내역, `after`: 끊긴 동안 빠진 메시지 보충, 5.4.6) |
 | PATCH | `/conversations/{conversationId}/read` | `MessageUseCase.markRead` (HTTP 대체 수단) |
 | DELETE | `/conversations/{conversationId}/members/me` | `ConversationCommandUseCase.leave` |
-| STOMP SEND | `/app/dm.send` | `MessageUseCase.send` |
+| STOMP SEND | `/app/dm.send` | `MessageUseCase.send` (메시지 보내기는 STOMP만. HTTP 보내기 API 없음) |
 | STOMP SEND | `/app/dm.read` | `MessageUseCase.markRead` |
-| STOMP SUBSCRIBE | `/user/queue/dm`, `/user/queue/dm-read`, `/user/queue/dm/errors` | 출력: `MessagePushPort` · `@MessageExceptionHandler` |
+| STOMP SUBSCRIBE | `/user/queue/dm` (이벤트 종류는 `type`), `/user/queue/errors` | 출력: `MessagePushPort` · `@MessageExceptionHandler` |
+
+STOMP 메시지 형식(보내기 · 이벤트 · 오류)은 [common_blueprint.md](common_blueprint.md) 5.9가 기준입니다.
 
 ### notification
 | 메서드 | 경로 | 입력 포트 · 메서드 |
@@ -649,7 +661,8 @@ backend/src/main/java/com/pickong/
 │   ├── web/                                  # CursorRequest, CursorPage<T>, PageResult<T>, @CurrentUser 리졸버
 │   ├── security/                             # LoginUser, AdminPrincipal, AccessTokenVerifier(interface)
 │   ├── persistence/                          # BaseTimeEntity, JpaConfig, PostGIS 변환기
-│   ├── websocket/                            # WebSocketConfig (/ws, /app, /user, simple broker)
+│   ├── websocket/                            # WebSocketConfig (/ws → 실제 /api/v1/ws, /app, /user, simple broker, heartbeat, 허용 Origin),
+│   │                                         # UserPushRelay(Redis 또는 서버 안 전달), StompExceptionHandler(공통 오류 → /user/queue/errors)
 │   └── config/                               # AsyncConfig(작업별 Executor), SchedulingConfig, ClockConfig, OpenApiConfig
 │
 ├── auth/
@@ -664,7 +677,7 @@ backend/src/main/java/com/pickong/
 │       ├── in/web/AuthController.java
 │       ├── in/security/                      # SecurityConfig(회원 체인), JwtCookieAuthenticationFilter,
 │       │                                     # OAuth2LoginSuccessHandler, TokenCookieWriter
-│       ├── in/websocket/                     # WebSocketAuthHandshakeInterceptor, StompDestinationGuard
+│       ├── in/websocket/                     # WebSocketAuthHandshakeInterceptor(쿠키 → Principal), StompDestinationGuard(목적지 · 토큰 만료)
 │       ├── in/event/UserStatusChangedListener.java   # 탈퇴 · 영구 정지 → 토큰 폐기
 │       ├── in/scheduler/ExpiredTokenCleanupScheduler.java
 │       ├── out/persistence/
@@ -829,7 +842,7 @@ backend/src/main/resources/
 | 오류 응답 형식, `BusinessException`, `ErrorCode` 인터페이스 | 모듈별 오류 코드 (각 모듈 `<Module>ErrorCode`) |
 | 커서 페이지, `@CurrentUser`, 인증 주체 타입(`LoginUser`, `AdminPrincipal`) | 토큰 발급·검증 구현 (`auth`) |
 | JPA 공통 설정, 생성·수정 시각, PostGIS 변환 | 특정 테이블 쿼리 |
-| WebSocket 브로커 설정, Async Executor, Clock | 업무 스케줄 |
+| WebSocket 브로커 설정 · 서버 간 전달(Redis Pub/Sub), Async Executor, Clock | 업무 스케줄, 어떤 이벤트를 누구에게 보낼지 (각 모듈의 Push 어댑터) |
 | **공유 커널** (아래 4개만) | 가격 규칙, 수수료 계산, 공개 범위 외의 권한 규칙, `StringUtils` 같은 잡동사니 |
 
 **공유 커널(`common/domain`)** — 모든 모듈이 같은 의미로 쓰고, 바뀌면 어차피 모든 모듈을 고쳐야 하는 값만 둡니다.
@@ -1326,24 +1339,35 @@ ImportJobExecutionService.run(jobId)           트랜잭션은 단계 기록할 
 
 ### 5.4 Conversation
 
+> **실시간 전송 결정 (2026-11-27, #180)**
+> - **WebSocket + STOMP**: 그룹 채팅과 입력 중 · 읽음 같은 양방향 이벤트를 고려했습니다. 폴링 · SSE는 서버 → 클라이언트 한 방향이라 이벤트가 늘수록 HTTP 요청이 따로 늘어납니다.
+> - **구독은 사용자별 큐(`/user/queue/**`)**: 대화방별 topic을 쓰지 않습니다. 본인 큐만 받으므로 구독 권한 검사가 필요 없고, 대화 목록 미리보기 · 안 읽은 수도 같은 연결로 갱신됩니다. 그룹 인원만큼 보내는 비용은 그룹 규모에서 문제가 되지 않습니다.
+> - **메시지 보내기는 STOMP SEND(`/app/dm.send`)**: 채팅이 주요 기능이고 실시간 이벤트가 계속 늘어날 것이라 보내기 · 받기를 한 연결로 맞춥니다. HTTP 보내기 API는 두지 않습니다. 조회 · 빠진 메시지 보충 · 대화방 만들기 · 나가기는 HTTP입니다.
+> - **서버 간 전달은 Redis Pub/Sub**: 각 서버는 simple broker를 그대로 쓰고, 다른 서버에 붙은 사용자에게는 Redis를 거쳐 전달합니다(5.4.5). Spring의 외부 브로커 relay는 RabbitMQ · ActiveMQ 같은 STOMP 브로커만 지원하므로, 지도 기능 확장 때 쓸 Redis와 인프라를 함께 쓰는 쪽을 골랐습니다.
+
 #### 5.4.1 전송 계층과 업무 로직 분리
 
 ```
 HTTP  ConversationController ─┐                         ┌─▶ ConversationPersistencePort / MessagePersistencePort
-                              ├─▶ MessageUseCase ───────┤
+      (PATCH /read)           ├─▶ MessageUseCase ───────┤
 STOMP DmStompController ──────┘   (MessageService)      ├─▶ RelationQueryUseCase (차단)
       @MessageMapping("dm.send")                        ├─▶ MediaQueryUseCase / PlaceQueryUseCase / FeedQueryUseCase (첨부 확인)
-      @MessageMapping("dm.read")                        └─▶ MessagePushPort ──▶ StompMessagePushAdapter ──▶ /user/queue/dm
+      @MessageMapping("dm.read")                        └─▶ MessagePushPort ──▶ StompMessagePushAdapter
+                                                                                   │ 커밋 후
+                                                                                   ▼
+                                                     common/websocket UserPushRelay ──▶ Redis Pub/Sub ──▶ 모든 서버
+                                                                                   ──▶ convertAndSendToUser ──▶ /user/queue/dm
+                                                     (보낸 사람의 전송 확인은 이 서버에서 바로 ──▶ /user/queue/dm, 5.4.5)
 ```
 
 | 전송 계층(adapter)이 하는 일 | 업무 로직(application · domain)이 하는 일 |
 | --- | --- |
 | STOMP 프레임 → `SendMessageCommand` 변환, Principal → 회원 id | 참여자인지, 나간 대화방인지, 1:1에서 차단 관계인지 |
-| 오류를 `/user/queue/dm/errors`로 보내기 (`@MessageExceptionHandler`) | 본문 2,000자 · 첨부 1개 규칙, 첨부를 볼 수 있는지 |
-| HTTP는 응답 본문으로 결과 반환 | 메시지 저장, 대화방 마지막 메시지 갱신, 보낸 사람 읽음 위치 갱신 |
-| `SimpMessagingTemplate` 사용 (out 어댑터 안에서만) | 누구에게 보낼지 결정 → `MessagePushPort` 호출 |
+| 오류를 `/user/queue/errors`로 보내기 (`@MessageExceptionHandler`, 5.4.4) | 본문 2,000자 · 첨부 1개 규칙, 첨부를 볼 수 있는지 |
+| HTTP는 응답 본문으로 결과 반환 | 메시지 저장, 대화방 마지막 메시지 갱신, 보낸 사람 읽음 위치 갱신, `clientMessageId` 중복 확인 |
+| 이벤트 형식(`{type, data}`)으로 바꿔 `UserPushRelay`에 넘기기 (out 어댑터 안에서만) | 누구에게 보낼지 결정 → `MessagePushPort` 호출 |
 
-HTTP와 STOMP가 **같은 `MessageUseCase`** 를 호출하므로 규칙은 한 곳에만 있습니다. 읽음 처리도 `PATCH /read`와 `/app/dm.read`가 같은 `markRead`를 씁니다.
+읽음 처리는 `PATCH /read`와 `/app/dm.read`가 같은 `markRead`를 쓰므로 규칙은 한 곳에만 있습니다. 메시지 보내기는 STOMP만 받습니다.
 
 #### 5.4.2 상세 트리
 
@@ -1355,7 +1379,7 @@ conversation/
 │   │   ├── Conversation.java               # DIRECT | GROUP, 참여자 목록. openDirect(a, b) · createGroup · leave
 │   │   │                                   # ensureActiveMember(userId) — 나간 참여자는 보내기 · 읽기 불가
 │   │   ├── ConversationMember.java         # 참여 · 나감, 마지막 읽은 메시지 (뒤로 가지 않음)
-│   │   └── Message.java                    # 본문 또는 첨부 하나, soft delete
+│   │   └── Message.java                    # 본문 또는 첨부 하나, soft delete, clientMessageId
 │   ├── vo/
 │   │   ├── DirectKey.java                  # "작은id:큰id" — 1:1 대화방 중복 방지 키
 │   │   ├── ConversationType.java
@@ -1365,39 +1389,118 @@ conversation/
 │   ├── port/
 │   │   ├── in/
 │   │   │   ├── ConversationCommandUseCase.java  # 1:1 열기(있으면 기존), 그룹 만들기, 나가기
-│   │   │   ├── ConversationQueryUseCase.java    # 목록(마지막 메시지 · 안 읽은 수), 상세, 메시지 내역(커서)
-│   │   │   └── MessageUseCase.java              # send, markRead — HTTP · STOMP 공용
+│   │   │   ├── ConversationQueryUseCase.java    # 목록(마지막 메시지 · 안 읽은 수), 상세, 메시지 내역(cursor · after)
+│   │   │   └── MessageUseCase.java              # send(STOMP), markRead(HTTP · STOMP 공용)
 │   │   └── out/
 │   │       ├── ConversationPersistencePort.java # Conversation + Members
-│   │       ├── MessagePersistencePort.java
+│   │       ├── MessagePersistencePort.java      # 저장 · (sender, clientMessageId)로 기존 메시지 찾기
 │   │       ├── ConversationQueryPort.java
 │   │       └── MessagePushPort.java             # pushMessage(받는 사람들, 메시지), pushRead(받는 사람들, 읽음 정보)
 │   ├── service/
 │   │   ├── ConversationCommandService.java      # DIRECT 동시 생성: direct_key UNIQUE 위반 시 기존 대화방 반환
 │   │   ├── ConversationQueryService.java
-│   │   └── MessageService.java
+│   │   └── MessageService.java                  # 같은 clientMessageId면 저장하지 않고 기존 메시지로 전송 확인
 │   └── dto/
 │       ├── SendMessageCommand.java (clientMessageId 포함, 8.1 #10) · MarkReadCommand.java · OpenDirectCommand.java …
 │       └── MessageResult.java · ReadReceiptResult.java · ConversationSummaryResult.java
 └── adapter/
     ├── in/web/ConversationController.java  # + request/ · response/
     ├── in/websocket/
-    │   ├── DmStompController.java          # @MessageMapping("dm.send" · "dm.read"), @MessageExceptionHandler
-    │   └── payload/                        # SendMessagePayload, ReadPayload, DmErrorPayload (STOMP 전용 DTO)
+    │   ├── DmStompController.java          # @MessageMapping("dm.send" · "dm.read"), @MessageExceptionHandler(보내기 오류에 clientMessageId)
+    │   └── payload/                        # SendMessagePayload, ReadPayload, DmEventPayload({type, data}) (STOMP 전용 DTO)
     ├── out/persistence/
-    └── out/websocket/StompMessagePushAdapter.java   # 커밋 후 전송 (TransactionSynchronization) → convertAndSendToUser
+    └── out/websocket/StompMessagePushAdapter.java   # 커밋 후(TransactionSynchronization) UserPushRelay.publish
 ```
+
+```
+common/websocket/
+├── WebSocketConfig.java          # 엔드포인트 "/ws"(SockJS 없음). 서블릿 경로(spring.mvc.servlet.path = /api/v1) 아래라 실제 주소는 /api/v1/ws
+│                                 # /app · /user, simple broker(/queue), heartbeat 10초, 등록된 HandshakeInterceptor · ChannelInterceptor 빈을 모아 연결
+│                                 # 허용 Origin은 pickong.frontend.base-url(FRONTEND_BASE_URL)을 그대로 읽음 (새 설정 · 환경변수 없음)
+├── UserPushRelay.java            # publish(받는 회원 id들, 목적지, payload): 모든 서버로
+│                                 # sendLocal(회원 id, 목적지, payload): 이 서버의 세션에만 (보낸 사람의 전송 확인용)
+│                                 # — 모듈의 Push 어댑터가 쓰는 유일한 출구
+├── RedisUserPushRelay.java       # REDIS_HOST가 있을 때: Redis 채널에 발행 + 구독해서 이 서버의 사용자에게 convertAndSendToUser
+├── LocalUserPushRelay.java       # REDIS_HOST가 없을 때: 발행 없이 이 서버의 사용자에게 바로 (서버 1대 전제, 로컬 · 테스트)
+└── StompExceptionHandler.java    # @ControllerAdvice + @MessageExceptionHandler. 모듈이 따로 처리하지 않은 오류 → /user/queue/errors
+```
+
+- `common`은 `auth`를 import하지 않습니다. 인증 인터셉터는 `auth`가 Spring 타입(`HandshakeInterceptor`, `ChannelInterceptor`) 빈으로 등록하고, `WebSocketConfig`는 그 빈들을 받아 붙이기만 합니다.
+- 모듈은 `SimpMessagingTemplate`을 직접 쓰지 않고 `UserPushRelay`만 씁니다. 직접 쓰면 그 서버에 붙은 사용자에게만 가서, 서버가 여러 대일 때 메시지가 빠집니다.
 
 #### 5.4.3 연결 인증 · 권한
 
 | 단계 | 위치 | 내용 |
 | --- | --- | --- |
-| 연결 (`/ws` 핸드셰이크) | `auth/adapter/in/websocket/WebSocketAuthHandshakeInterceptor` | httpOnly 쿠키의 Access Token 검증 → Principal(회원 id). JS가 토큰을 읽을 수 없으므로 CONNECT 헤더 대신 핸드셰이크 쿠키를 씀 |
+| 연결 (`/api/v1/ws` 핸드셰이크) | `common/websocket/WebSocketConfig` | **Origin이 허용 목록(`pickong.frontend.base-url`)에 없으면 거절.** 쿠키로 인증하므로 다른 사이트가 사용자 브라우저로 연결하는 것(CSWSH)을 막습니다. SameSite=Lax 쿠키도 다른 사이트의 핸드셰이크에는 실리지 않지만, 같은 사이트의 다른 하위 도메인까지 막으려고 Origin을 확인합니다 |
+| 연결 (`/api/v1/ws` 핸드셰이크) | 보안 필터 체인 + `auth/adapter/in/websocket/WebSocketAuthHandshakeInterceptor` | 핸드셰이크는 REST와 같은 `/api/v1/**` 보안 필터를 거칩니다(비로그인 · 만료 · ACTIVE가 아닌 계정 401, 필수 약관 재동의 필요 403 `TERMS_RECONSENT_REQUIRED`). 그다음 인터셉터가 httpOnly 쿠키의 Access Token을 검증해 Principal을 만듭니다. JS가 토큰을 읽을 수 없으므로 CONNECT 헤더 대신 핸드셰이크 쿠키를 씀. 토큰 만료 시각을 세션 속성에 저장 |
+| Principal 이름 | 위와 같음 | **회원 내부 id 문자열.** 아이디(`username`)는 바꿀 수 있어 사용자 목적지 키로 쓰지 않습니다. 응답에는 내부 id 대신 `username`을 씁니다(8.6) |
+| CSRF | — | STOMP CONNECT에 CSRF 토큰을 요구하지 않습니다(Spring Security 메시지 보안 미사용). 위의 Origin 확인과 SameSite 쿠키가 같은 역할을 합니다 |
 | 구독 (SUBSCRIBE) | `auth/adapter/in/websocket/StompDestinationGuard` | `/user/queue/**` 외 목적지 구독 거부. 사용자 목적지는 본인에게만 전달되므로 대화방별 구독 권한 검사가 필요 없음 |
-| 보내기 (SEND) | `MessageService` | 대화방 참여 · 차단 · 첨부 권한 검사 (HTTP와 같은 코드) |
-| 토큰 만료 · 정지 | 정책 미정 (8.5 #7) | 제안: 보낼 때마다 회원 상태 확인, 연결은 Access Token 만료 시각에 끊고 재연결 |
+| 보내기 (SEND) | `StompDestinationGuard` → `MessageService` | 목적지는 `/app/**`만 허용. 대화방 참여 · 차단 · 첨부 권한은 서비스가 검사 (HTTP와 같은 코드) |
+| 토큰 만료 | `StompDestinationGuard` + 세션 만료 확인 | Access Token 만료 시각이 지난 연결은 다음 프레임을 받을 때 STOMP ERROR(`TOKEN_EXPIRED`)를 보내고 닫습니다. 수신만 하는 연결도 만료 시각이 지나면 서버가 닫습니다. 프론트는 `/auth/refresh`로 재발급한 뒤 다시 연결하고 빠진 메시지를 보충합니다(5.4.6). 로그아웃 · 탈퇴 후에도 연결이 남는 시간은 Access Token 수명 이하입니다. 참고: 수명이 15분이라 모든 연결이 15분마다 재연결 → 목록 재조회를 합니다. 동시 접속이 늘어 부하가 되면 재연결 때 다시 맞추는 범위를 줄이거나(열린 대화방만) 연결 수명을 따로 두는 것을 검토합니다 |
+| 회원 상태 | 핸드셰이크 인터셉터 · `MessageService` | HTTP 요청과 같은 계정 상태 확인을 핸드셰이크에서 하고, 보낼 때마다 다시 확인합니다. SUSPENDED · BANNED는 회원 기능을 쓸 수 없으므로(common 5.8) 연결과 보내기 모두 거절합니다 |
 
-**전달 시점:** 메시지는 DB 커밋 후에 보냅니다. 커밋 전에 보내면 롤백된 메시지가 상대 화면에 나타날 수 있습니다. 서버가 여러 대가 되면 simple broker를 외부 브로커 relay로 바꾸며, 이때 바뀌는 곳은 `common/websocket`과 `StompMessagePushAdapter`뿐입니다.
+#### 5.4.4 보내기 · 전송 확인 · 오류
+
+```
+클라이언트                          서버 (어느 인스턴스든)
+  │ SEND /app/dm.send                 │
+  │ {conversationId, clientMessageId, │
+  │  content | attachment}            │
+  │──────────────────────────────────▶│ MessageService: 권한 · 규칙 확인 → 대화방 행 잠금 → 저장(tx) → 커밋
+  │                                   │ 커밋 후 보낸 사람에게 sendLocal(MESSAGE_CREATED) + publish(참여자 전원)
+  │◀── /user/queue/dm ────────────────│  보낸 사람의 다른 탭 · 다른 참여자도 같은 이벤트를 받음
+  │    {type:"MESSAGE_CREATED",       │
+  │     data:{id, clientMessageId…}}  │
+  │  clientMessageId로 "보내는 중" 말풍선을 찾아 확정
+```
+
+| 상황 | 처리 |
+| --- | --- |
+| 전송 확인 | 별도 ACK 프레임이 없습니다. 보낸 사람도 받는 `MESSAGE_CREATED`가 전송 확인이고, 프론트는 `clientMessageId`로 보내는 중인 말풍선과 짝짓습니다. 보낸 사람은 SEND를 처리한 서버에 연결돼 있으므로 **전송 확인은 Redis를 거치지 않고 그 서버에서 바로 보냅니다**(5.4.5) |
+| 같은 `clientMessageId`로 다시 옴 (재시도 · 재연결) | 새로 저장하지 않고 기존 메시지로 `MESSAGE_CREATED`를 보낸 사람에게만 다시 보냅니다. `messages`의 UNIQUE(sender_id, client_message_id) 위반도 같은 처리 (8.1 #10) |
+| 업무 오류 (권한 없음 · 차단 · 나간 대화방 · 본문 길이 등) | `BusinessException`을 `/user/queue/errors`로 `{status, code, message, clientMessageId}` 형식으로 보냅니다. `status` · `code` · `message`는 HTTP 오류 응답(common 5.2)과 같은 값이고 `ConversationErrorCode`를 그대로 씁니다 |
+| 입력 형식 오류 (payload 검증) | 400 `INVALID_INPUT`, 같은 오류 큐 |
+| 응답이 오지 않음 | 프론트가 일정 시간(제안: 10초) 뒤 실패로 표시하고, 다시 보낼 때 **같은 `clientMessageId`** 를 씁니다 |
+| 전달 시점 | 메시지는 DB 커밋 후에 보냅니다. 커밋 전에 보내면 롤백된 메시지가 상대 화면에 나타날 수 있습니다 |
+| 순서 | 같은 대화방의 메시지 순서는 `messages.id` 순서입니다. 프론트는 받은 순서가 아니라 id 순서로 끼워 넣습니다. id는 INSERT 때 정해지고 커밋 순서는 다를 수 있어서, 100번이 101번보다 늦게 커밋되면 `after=101`로 보충한 클라이언트는 100번을 놓칩니다. 그래서 **`MessageService`는 메시지를 INSERT하기 전에 대화방 행을 `SELECT … FOR UPDATE`로 잠가** 같은 대화방 안에서는 id 순서와 커밋 순서를 같게 합니다. 대화방 행은 어차피 마지막 메시지 시각(`updated_at`) 갱신으로 수정하므로 추가 비용이 거의 없습니다 |
+
+#### 5.4.5 Redis Pub/Sub 서버 간 전달
+
+simple broker는 메모리에 있어서 **그 서버에 연결된 사용자에게만** 보낼 수 있습니다. 서버가 여러 대가 되면 다른 서버에 붙은 참여자에게 메시지가 가지 않으므로 Redis로 모든 서버에 뿌립니다.
+
+```
+[서버 A] StompMessagePushAdapter ──커밋 후──▶ UserPushRelay.publish
+                                                │ Redis PUBLISH  pickong:ws:user-push
+                     ┌──────────────────────────┴──────────────────────────┐
+              [서버 A 구독자]                                         [서버 B 구독자]
+     convertAndSendToUser(id, "/queue/dm", payload)         convertAndSendToUser(id, "/queue/dm", payload)
+     이 서버에 연결된 세션에만 전달 (없으면 버려짐)              이 서버에 연결된 세션에만 전달
+```
+
+| 항목 | 결정 |
+| --- | --- |
+| 채널 | `pickong:ws:user-push` 하나. 내용은 `{ "userIds": ["12", "34"], "destination": "/queue/dm", "payload": { … } }` (JSON) |
+| 보내는 서버 자신 | 자기가 발행한 것도 구독해서 받으므로 서버가 1대여도 같은 경로로 동작합니다. 단, **보낸 사람의 `MESSAGE_CREATED`(전송 확인)는 `sendLocal`로 이 서버에서 바로 보냅니다.** Redis 경로로 한 번 더 와도 프론트가 `id`로 중복을 없앱니다 |
+| 전달 보장 | Pub/Sub은 그 순간 구독 중인 서버에만 전달하고 저장하지 않습니다. **메시지의 원본은 DB**이고 끊긴 동안 빠진 메시지는 HTTP로 보충하므로(5.4.6) Redis Streams는 쓰지 않습니다 |
+| Redis 장애 | 발행 실패는 로그만 남기고 재시도하지 않습니다. 메시지는 이미 커밋됐으므로 보내기는 실패로 돌리지 않습니다. 보낸 사람의 전송 확인은 Redis를 거치지 않으므로 장애 중에도 화면에 '전송됨'으로 남습니다. 다른 참여자는 재연결 · 탭 복귀 때 HTTP로 보충합니다(5.4.6) |
+| 설정 | `REDIS_HOST` · `REDIS_PORT`(· 필요하면 `REDIS_PASSWORD`) 환경변수. **Redis는 선택입니다:** `REDIS_HOST`를 정하면 `RedisUserPushRelay`, 정하지 않으면 `LocalUserPushRelay`(서버 안에서만 전달)로 시작합니다. 그래서 `./gradlew bootRun`과 기존 `@SpringBootTest`에는 Redis가 필요 없고, 공통 `TestcontainersConfiguration`에도 넣지 않습니다. Redis 중계는 전용 통합 테스트에서만 Testcontainers Redis를 띄웁니다. Redis를 쓰지 않을 때는 Redis 연결 · 상태 확인(health)도 켜지 않아 `/actuator/health`가 DOWN이 되지 않습니다. 운영(compose.prod)은 서버 대수와 관계없이 `redis:7-alpine`을 켜고, 로컬 compose에도 넣어 두되 쓰는지는 `REDIS_HOST`로 정합니다. `backend/README.md` 로컬 실행 안내는 구현 PR에서 함께 고칩니다 |
+| 바뀌는 범위 | 다른 브로커로 바꾸더라도 `common/websocket`만 고칩니다. 모듈의 Push 어댑터는 `UserPushRelay`만 압니다 |
+
+#### 5.4.6 끊김 복구
+
+WebSocket은 끊긴 동안의 이벤트를 다시 보내 주지 않습니다. 프론트는 아래 시점에 HTTP로 상태를 다시 맞춥니다.
+
+| 시점 | 다시 불러오는 것 |
+| --- | --- |
+| (재)연결 직후 | 대화 목록(`GET /conversations`) · 안 읽은 수. 열려 있는 대화방은 `GET /conversations/{id}/messages?after={화면의 마지막 메시지 id}` |
+| 탭이 다시 보일 때 (`visibilitychange`) | 위와 같음. 연결이 살아 있어도 Redis 발행이 실패했을 수 있으므로 |
+| 대화방 진입 | 첫 페이지 (`cursor` 없이) |
+
+- `after`는 그 id보다 큰 메시지를 오래된 순으로 돌려줍니다(최대 `size`개). `cursor`(이전 내역)와 함께 쓰지 않습니다.
+- **`after`로 받을 때 `nextCursor`는 다음 요청의 `after` 값입니다**(이번에 받은 것 중 가장 새 id). 더 오래된 방향인 `cursor` 응답의 `nextCursor`(가장 오래된 id)와 방향이 반대입니다. `nextCursor`가 null이 될 때까지 그 값을 다시 `after`로 보내면 빠진 메시지를 모두 받습니다.
+- 받은 이벤트와 보충한 메시지가 겹칠 수 있으므로 프론트는 메시지 `id`로 중복을 없앱니다.
 
 ---
 
@@ -1566,7 +1669,7 @@ class ArchitectureTest {
 | **Domain 단위** | `domain/model`, `vo`, `policy` | JUnit만 (Spring 없음, ms 단위) | 상태 전이, 가격 · 수수료 · 정산 계산, 환불 판정, 순서 최적화, 충돌 검증, 일치도 | DB, 트랜잭션 |
 | **Application** | `application/service` | **Fake Port**(메모리 구현, `test/support/fake/`) + 고정 `Clock` | 유스케이스 흐름, 권한 확인, 어떤 포트를 어떤 순서로 부르는지, 실패 시 상태 | SQL, JSON 형식 |
 | **Persistence 통합** | `*PersistenceAdapter`, `*QueryAdapter` | Testcontainers `postgis/postgis:16-*` + Flyway 전체 적용 | 매핑, 조회 쿼리, 공개 범위 · 차단 · soft delete 필터, UNIQUE · CHECK 제약, 잠금 · 조건부 UPDATE, PostGIS 범위 조회 | 업무 규칙 |
-| **API 통합** | HTTP · STOMP 전체 경로 | `@SpringBootTest` + MockMvc / STOMP 클라이언트 + Testcontainers, 외부 Port는 테스트 어댑터 | 인증 쿠키, 오류 응답 형식, 경로 · 요청 검증, 권한별 응답, 결제 · 환불 · 정산 같은 핵심 시나리오 | 모든 분기 (그건 Application 테스트) |
+| **API 통합** | HTTP · STOMP 전체 경로 | `@SpringBootTest` + MockMvc / `WebSocketStompClient` + Testcontainers(PostGIS, Redis는 중계 테스트만), 외부 Port는 테스트 어댑터 | 인증 쿠키, 오류 응답 형식, 경로 · 요청 검증, 권한별 응답, 결제 · 환불 · 정산 같은 핵심 시나리오, STOMP 핸드셰이크 거절(Origin · 쿠키) · 보내기 → 다른 참여자 수신 · 오류 큐 | 모든 분기 (그건 Application 테스트) |
 | **아키텍처** | 전체 | ArchUnit | 7.1 | |
 
 - Fake를 Mock보다 먼저 씁니다. Mock은 호출 순서에 묶여서 리팩터링할 때 테스트가 함께 깨집니다. 외부 API 오류처럼 만들기 어려운 상황만 Mock을 씁니다.
@@ -1592,7 +1695,7 @@ class ArchitectureTest {
 | 7 | 저장 장소 개인 태그: 이전에는 보류였지만 ERD에 `saved_place_tags`(2026-11-20)가 추가됐고, 프론트 · mock은 `/me/places/{placeId}/tags`를 씀 | savedplace | 메모는 `PATCH /saved-places`의 `memo`. 태그는 ERD대로 구현(달거나 지울 때 `place_tags.count`, `user_tag_stats.score` 갱신). 태그 테이블(`tags` 등) 마이그레이션 필요 |
 | 8 ★ | **관리자 로그인 · 토큰 API 없음.** `refresh_tokens.user_id`는 회원만 가리킴 | admin, auth | 관리자 로그인 API + 관리자 세션 방식 결정 (별도 토큰 테이블 또는 짧은 세션) |
 | 9 | **비밀번호 재설정 토큰** 저장 위치 없음 | auth | 테이블(해시 · 만료 · 사용 시각) 또는 만료 있는 캐시 |
-| 10 | DM 재전송 중복 방지 키 없음 (재연결 시 같은 메시지 두 번 저장) | conversation | `messages.client_message_id` + UNIQUE(sender_id, client_message_id) |
+| 10 | DM 재전송 중복 방지 키 없음 (재연결 시 같은 메시지 두 번 저장) | conversation | **결정 (2026-11-27):** `messages.client_message_id UUID NOT NULL` + UNIQUE(sender_id, client_message_id). 같은 키로 다시 오면 저장하지 않고 기존 메시지로 전송 확인 (5.4.4). `messages` 마이그레이션을 만들 때 함께 추가 |
 | 11 | DM 안 읽은 대화 수(프론트 하단바 배지, mock `GET /conversations/unread-count`)가 명세에 없음 | conversation | 명세 추가 (`last_read_message_id`로 계산 가능) |
 | 12 | **저장 출처 컬렉션:** ERD의 `saved_places.source_collection_id`(FK → collections)는 `collections` 마이그레이션이 없어 만들지 못했음(V19로 테이블이 생겨 이제 추가 가능). 출처 문구(`source_label`) · 원본 URL(`source_url`) · 게시물(`source_feed_id`)은 ERD에 있어 해결됨 | savedplace, collection | savedplace 저장 API 작업에서 컬럼 · FK 추가. 그 전에는 `COLLECTION` 출처를 종류 · 문구만 저장 |
 | 13 | **저장하면서 컬렉션에 담기:** 프론트 · mock은 `POST /saved-places`의 `collectionIds`와 `PATCH /saved-places`의 `add/set/removeCollectionIds`로 컬렉션 구성까지 한 번에 바꿈. `collection_places`는 collection 모듈 소유라 savedplace가 직접 쓰거나 collection의 UseCase를 부르면 `savedplace → collection` 화살표가 생겨, 이미 있는 `collection → savedplace`와 서로 의존하게 됨(6.2 비순환 원칙). DB 관계(`collection_places`가 `collections` · `saved_places`를 FK로 잇는 다대다)에는 문제가 없음 | savedplace, collection | **결정: 이벤트 방식 (2026-11-26).** savedplace가 저장 · 수정 직후 같은 트랜잭션에서 `SavedPlaceCollectionsChangedEvent`를 발행하고, collection의 리스너가 `collection_places`를 쓰며 컬렉션 소유자를 검증함(실패하면 함께 롤백). 삭제의 `SavedPlaceDeletingEvent`와 같은 방식이고, 코드 의존은 `collection → savedplace` 한 방향뿐. `collections` · `collection_places`는 V19로 생겼으므로 리스너를 구현할 수 있음. 구현 전에는 필드를 받기만 하고 무시 |
@@ -1652,7 +1755,7 @@ class ArchitectureTest {
 | 4 ★ | "열람 전에만 환불" ↔ 어떤 API가 열람을 기록하는지 불명확 (상세 GET? 스냅샷 GET?). GET이 환불 자격을 없애므로 미리 가져오기 · 봇이 문제 | 열람 기록 API를 하나로 정하고 프론트는 그 API를 사용자 행동에서만 호출 |
 | 5 | 크리에이터 박탈(SUSPENDED) · 유료 컬렉션을 PRIVATE으로 바꿀 때(가격은 PUBLIC만) 판매 · 기존 구매자 열람 | 판매 중지, 기존 구매자는 계속 열람 등 |
 | 6 | 환불 기한 · 수수료 · 원천징수 원 단위 처리(내림/반올림), 정산 기간 기준(구매일 vs 환불 불가가 된 날) | 숫자와 기준 |
-| 7 | 정지(SUSPENDED) 회원이 할 수 있는 일 (로그인 · 조회 · DM) | 정책 |
+| 7 | 정지(SUSPENDED) 회원이 할 수 있는 일 (로그인 · 조회 · DM) | 정책. DM은 HTTP와 같이 계정 상태로 제한합니다(5.4.3, common 5.8) |
 | 8 | `refunds.reason_code`에 ADMIN · PAYMENT_ERROR가 있음 ↔ "열람 전에만 환불", "정산 후 환불 불가" | 관리자 환불은 예외인지, 정산 후 환불은 어떻게 차감하는지 |
 | 9 | 프론트 테스트 결제 `POST /collections/:id/purchase` ↔ 명세 `/payments/prepare` · `/confirm` | 명세 기준으로 프론트 수정 |
 
@@ -1678,7 +1781,7 @@ class ArchitectureTest {
 | 2 | enum 값 목록이 없는 컬럼: `media_files.purpose/status`, `payments.status/purpose/provider`, `import_jobs.status/source_type/platform`, `places.source_type/category`, `reports.reason`(접수는 `ReportReason` 여섯 값. 컬럼은 문자열이라 기존 다른 값은 관리자 조회에 남음. 상태·대상·처리 액션은 확정), `notifications.type/target_type`, `messages.attachment_type`, `plan_item_reservations.type`, 이동 수단 `mode` |
 | 3 | 길찾기 · 날씨 · LLM · PG · 메일 제공자 |
 | 4 | 보류 테이블(tags 등)을 Flyway 초기 스크립트에 포함할지 (제안: 보류를 풀 때 마이그레이션 추가) |
-| 5 | R2 파일 접근 방식: 공개 버킷이면 비공개 게시물 · 유료 컬렉션 사진이 URL만으로 열림 → 비공개 버킷 + 서명 URL(GET) 여부 |
+| 5 | R2 파일 접근 방식: 공개 버킷이면 비공개 게시물 · 유료 컬렉션 사진이 URL만으로 열림 → 비공개 버킷 + 서명 URL(GET) 여부. **게시물 사진은 공개 버킷 + 랜덤 UUID 파일 이름으로 시작함(PR #168, #155).** 이름을 추측할 수는 없지만, 볼 권한이 있던 사람이 주소를 퍼뜨리면 비공개 글의 사진도 열리는 한계가 있음. 유료 컬렉션 사진은 비공개 버킷 + 서명 GET을 따로 정함 |
 | 6 | DM으로 공유한 FOLLOWERS 게시물을 팔로워가 아닌 상대가 볼 수 있는지 (제안: 열람 시점에 공개 범위 다시 확인) |
 | 7 | 피드 단건 접근(상세, 댓글, 반응, 수정 · 삭제)은 공개 범위를 검사합니다(이슈 #175, 위 feed 절). 신고 접수는 여전히 다른 회원에게 `PUBLIC`만 허용합니다. 팔로워는 이제 `FOLLOWERS` 게시물을 상세로 볼 수 있지만 신고할 수 없습니다. 피드 목록이 팔로워 글을 보여 주면(후속) 신고 조건을 같은 기준으로 맞춥니다 |
 
