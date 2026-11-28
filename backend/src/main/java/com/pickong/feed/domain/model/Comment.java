@@ -60,4 +60,11 @@ public class Comment {
         updatedAt = now;
         return true;
     }
+
+    // 삭제된 댓글이면 없는 댓글과 같게 404로 막음 (삭제됐다는 사실도 드러내지 않음)
+    public void ensureNotDeleted() {
+        if (deletedAt != null) {
+            throw new BusinessException(FeedErrorCode.COMMENT_NOT_FOUND);
+        }
+    }
 }

@@ -17,6 +17,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,6 +26,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -140,6 +142,73 @@ class CommentServiceTest {
                 new UpdateCommentCommand("수정 내용")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("댓글 작성자만 수정·삭제할 수 있습니다");
+    }
+
+    // 상태만 바꾼 댓글 (작성자, 삭제 시각, 숨김 시각)
+    private Comment commentWithState(long authorId, OffsetDateTime deletedAt, OffsetDateTime hiddenAt) {
+        return Comment.builder()
+                .id(1L)
+                .feedId(10L)
+                .userId(authorId)
+                .content("상태 댓글")
+                .likeCount(0)
+                .deletedAt(deletedAt)
+                .hiddenAt(hiddenAt)
+                .build();
+    }
+
+    @Test
+    void updateComment_삭제된_내댓글은_404이고_저장하지_않음() {
+        given(feedRepository.findByIdForUpdate(10L)).willReturn(sampleFeed());
+        given(commentRepository.findByIdForUpdate(1L)).willReturn(commentWithState(1L, OffsetDateTime.now(), null));
+
+        assertThatThrownBy(() -> commentService.updateComment(10L, 1L, 1L, new UpdateCommentCommand("수정 내용")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(FeedErrorCode.COMMENT_NOT_FOUND);
+        verify(commentRepository, never()).save(any());
+    }
+
+    @Test
+    void updateComment_남의_삭제된댓글은_403이_아니라_404() {
+        // 삭제 확인이 본인 확인보다 먼저라 COMMENT_NOT_OWNER로 댓글이 있었다는 사실이 드러나지 않음
+        given(feedRepository.findByIdForUpdate(10L)).willReturn(sampleFeed());
+        given(commentRepository.findByIdForUpdate(1L)).willReturn(commentWithState(2L, OffsetDateTime.now(), null));
+
+        assertThatThrownBy(() -> commentService.updateComment(10L, 1L, 99L, new UpdateCommentCommand("수정 내용")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(FeedErrorCode.COMMENT_NOT_FOUND);
+    }
+
+    @Test
+    void updateComment_남의_숨긴댓글은_403() {
+        // 숨김 댓글이어도 본인이 아니면 지금처럼 COMMENT_NOT_OWNER
+        given(feedRepository.findByIdForUpdate(10L)).willReturn(sampleFeed());
+        given(commentRepository.findByIdForUpdate(1L)).willReturn(commentWithState(2L, null, OffsetDateTime.now()));
+
+        assertThatThrownBy(() -> commentService.updateComment(10L, 1L, 99L, new UpdateCommentCommand("수정 내용")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(FeedErrorCode.COMMENT_NOT_OWNER);
+    }
+
+    @Test
+    void deleteComment_이미_삭제된댓글은_404이고_다시_지우지_않음() {
+        given(feedRepository.findByIdForUpdate(10L)).willReturn(sampleFeed());
+        given(commentRepository.findByIdForUpdate(1L)).willReturn(commentWithState(1L, OffsetDateTime.now(), null));
+
+        assertThatThrownBy(() -> commentService.deleteComment(10L, 1L, 1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(FeedErrorCode.COMMENT_NOT_FOUND);
+        verify(commentRepository, never()).deleteById(anyLong());
+    }
+
+    @Test
+    void deleteComment_관리자가_숨긴_내댓글은_삭제_허용() {
+        given(feedRepository.findByIdForUpdate(10L)).willReturn(sampleFeed());
+        given(commentRepository.findByIdForUpdate(1L)).willReturn(commentWithState(1L, null, OffsetDateTime.now()));
+
+        commentService.deleteComment(10L, 1L, 1L);
+
+        verify(commentRepository).deleteById(1L);
     }
 
     @Test
