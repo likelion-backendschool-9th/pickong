@@ -81,15 +81,13 @@ public class FeedController {
                 page.isHasNext());
     }
 
-    // 피드 지도 장소 목록 조회
-    // tab=recommended(추천) | tab=following(팔로잉)
-    // 비로그인 시 recommended만 허용, following은 빈 목록 반환
+    // 피드 지도 장소 목록 조회 — 로그인 필수 (피드 목록과 같음, 비로그인 401)
+    // tab=recommended(추천: 다른 사람의 PUBLIC) | tab=following(팔로잉: 내 글 + 팔로우한 사람의 PUBLIC, FOLLOWERS)
     @GetMapping("/places")
     public List<FeedPlaceResponse> getFeedPlaces(
             @RequestParam @NotNull String tab,
-            @CurrentUser(required = false) LoginUser user) {
-        Long userId = user != null ? user.userId() : null;
-        return feedUseCase.getFeedPlaces(tab, userId).stream()
+            @CurrentUser LoginUser user) {
+        return feedUseCase.getFeedPlaces(tab, user.userId()).stream()
                 .map(FeedPlaceResponse::from)
                 .toList();
     }

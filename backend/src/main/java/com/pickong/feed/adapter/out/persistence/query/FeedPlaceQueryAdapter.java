@@ -34,6 +34,8 @@ public class FeedPlaceQueryAdapter implements FeedPlaceQueryPort {
             WHERE f.deleted_at IS NULL
               AND f.hidden_at IS NULL
               AND f.visibility = 'PUBLIC'
+              -- 추천 탭과 같게 내 글은 뺌. 비로그인(null)이면 PUBLIC 전체 (null은 타입을 알 수 없어 BIGINT로 지정)
+              AND (CAST(:viewerId AS BIGINT) IS NULL OR f.user_id <> :viewerId)
               AND p.deleted_at IS NULL
               AND p.visibility = 'PUBLIC'
               AND p.location IS NOT NULL
@@ -57,13 +59,14 @@ public class FeedPlaceQueryAdapter implements FeedPlaceQueryPort {
             JOIN places p       ON p.id = fp.place_id
             WHERE f.deleted_at IS NULL
               AND f.hidden_at IS NULL
-              AND f.visibility = 'PUBLIC'
               AND p.deleted_at IS NULL
               AND p.visibility = 'PUBLIC'
               AND p.location IS NOT NULL
-              AND f.user_id IN (
-                  SELECT fw.followee_id FROM follows fw WHERE fw.follower_id = :userId
-              )
+              -- 팔로잉 탭과 같은 기준: 내 글 전부 + 팔로우한 사람의 PUBLIC, FOLLOWERS
+              -- follows는 social 모듈 테이블이지만 query/ 아래 읽기 전용 SQL이라 JOIN 허용 (blueprint 6.1)
+              AND (f.user_id = :userId
+                   OR (f.visibility IN ('PUBLIC', 'FOLLOWERS')
+                       AND f.user_id IN (SELECT fw.followee_id FROM follows fw WHERE fw.follower_id = :userId)))
             ORDER BY f.created_at DESC
             LIMIT 500
             """;
@@ -75,8 +78,8 @@ public class FeedPlaceQueryAdapter implements FeedPlaceQueryPort {
     }
 
     @Override
-    public List<FeedPlaceSummary> findRecommendedFeedPlaces() {
-        return jdbc.query(RECOMMENDED_SQL, new MapSqlParameterSource(), rowMapper());
+    public List<FeedPlaceSummary> findRecommendedFeedPlaces(Long viewerId) {
+        return jdbc.query(RECOMMENDED_SQL, new MapSqlParameterSource("viewerId", viewerId), rowMapper());
     }
 
     @Override
