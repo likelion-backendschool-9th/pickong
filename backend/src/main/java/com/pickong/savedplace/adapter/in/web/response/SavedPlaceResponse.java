@@ -1,5 +1,6 @@
 package com.pickong.savedplace.adapter.in.web.response;
 
+import com.pickong.savedplace.adapter.in.web.SourceTypes;
 import com.pickong.savedplace.application.dto.SavedPlaceInfo;
 import com.pickong.savedplace.application.dto.SavedPlaceResult;
 import java.time.OffsetDateTime;
@@ -28,7 +29,7 @@ public record SavedPlaceResponse(
                 result.visitStatus(),
                 result.memo(),
                 result.savedAt(),
-                SourceResponse.from(result.source()));
+                SourceResponse.from(result.source(), result.sourceRefId(), result.sourceLabel()));
     }
 
     /**
@@ -71,19 +72,16 @@ public record SavedPlaceResponse(
     }
 
     /**
-     * 저장 출처. type은 프론트 SavedPlaceSourceType 값입니다.
+     * 저장 출처. type은 프론트 SavedPlaceSourceType 값입니다 (SourceTypes).
      *
-     * @param refId 원본의 공개 id를 아직 조회하지 않아 항상 null입니다.
+     * @param refId 게시물 출처면 게시물 공개 id, 링크 가져오기면 원문 URL. 없으면 null
+     * @param label 저장할 때 받은 문구. 없으면 종류별 기본 문구
      */
     public record SourceResponse(String type, String refId, String label) {
 
-        private static SourceResponse from(String source) {
-            return switch (source) {
-                case "FEED" -> new SourceResponse("POST", null, "게시물에서 저장");
-                case "COLLECTION_SNAPSHOT" -> new SourceResponse("COLLECTION", null, "컬렉션에서 저장");
-                case "AI_IMPORT" -> new SourceResponse("LINK_IMPORT", null, "링크에서 가져옴");
-                case null, default -> new SourceResponse("SEARCH", null, "직접 저장");
-            };
+        private static SourceResponse from(String source, String refId, String label) {
+            String type = SourceTypes.toApi(source);
+            return new SourceResponse(type, refId, label == null ? SourceTypes.defaultLabel(type) : label);
         }
     }
 }
