@@ -3,6 +3,8 @@ package com.pickong.feed.application.service;
 import com.pickong.common.domain.ViewerRelation;
 import com.pickong.common.domain.Visibility;
 import com.pickong.common.error.BusinessException;
+import com.pickong.media.application.port.in.MediaAttachmentUseCase;
+import com.pickong.media.domain.MediaErrorCode;
 import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.feed.application.dto.CreateFeedCommand;
 import com.pickong.feed.application.dto.FeedPage;
@@ -33,6 +35,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -51,6 +54,10 @@ class FeedServiceTest {
     // 관계를 정해 주지 않으면 null → 도메인이 ANONYMOUS로 판정 (PUBLIC 게시물만 통과)
     @Mock
     private RelationQueryUseCase relationQueryUseCase;
+
+    // 사진 확인(본인 · 업로드 확인 완료)은 media 모듈 몫이라 목으로 둠. 실제 확인은 FeedPhotoAttachIntegrationTest
+    @Mock
+    private MediaAttachmentUseCase mediaAttachmentUseCase;
 
     @InjectMocks
     private FeedService feedService;
@@ -94,6 +101,83 @@ class FeedServiceTest {
         assertThat(saved.getUserId()).isEqualTo(1L);
         assertThat(saved.getContent()).isEqualTo("테스트 게시물");
         assertThat(saved.getVisibility()).isEqualTo(Visibility.PUBLIC);
+    }
+
+    @Test
+    void createFeed_사진은_media_확인과_다른게시물_사용확인을_거침() {
+        CreateFeedCommand command = new CreateFeedCommand(1L, "사진 게시물", Visibility.PUBLIC, List.of(5L, 6L), List.of());
+        given(feedRepository.save(any(Feed.class))).willReturn(sampleFeed());
+
+        feedService.createFeed(command);
+
+        verify(mediaAttachmentUseCase).ensureAttachable(1L, List.of(5L, 6L));
+        // 새 게시물이라 제외할 게시물 없이(null) 모든 게시물에서 사용 여부를 봄
+        verify(feedRepository).existsPhotoInOtherFeed(List.of(5L, 6L), null);
+    }
+
+    @Test
+    void createFeed_사진이_없으면_사진_확인을_하지_않음() {
+        given(feedRepository.save(any(Feed.class))).willReturn(sampleFeed());
+
+        feedService.createFeed(new CreateFeedCommand(1L, "글만", Visibility.PUBLIC, null, List.of()));
+        feedService.createFeed(new CreateFeedCommand(1L, "글만", Visibility.PUBLIC, List.of(), List.of()));
+
+        verify(mediaAttachmentUseCase, never()).ensureAttachable(anyLong(), any());
+    }
+
+    @Test
+    void createFeed_같은사진_중복이면_400이고_저장하지_않음() {
+        CreateFeedCommand command = new CreateFeedCommand(1L, "중복", Visibility.PUBLIC, List.of(5L, 5L), List.of());
+
+        assertThatThrownBy(() -> feedService.createFeed(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(FeedErrorCode.FEED_PHOTO_DUPLICATED);
+        verify(mediaAttachmentUseCase, never()).ensureAttachable(anyLong(), any());
+        verify(feedRepository, never()).save(any());
+    }
+
+    @Test
+    void createFeed_media_확인이_실패하면_그_오류를_그대로_내고_저장하지_않음() {
+        CreateFeedCommand command = new CreateFeedCommand(1L, "남의 사진", Visibility.PUBLIC, List.of(7L), List.of());
+        willThrow(new BusinessException(MediaErrorCode.MEDIA_NOT_FOUND))
+                .given(mediaAttachmentUseCase).ensureAttachable(1L, List.of(7L));
+
+        assertThatThrownBy(() -> feedService.createFeed(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(MediaErrorCode.MEDIA_NOT_FOUND);
+        verify(feedRepository, never()).save(any());
+    }
+
+    @Test
+    void createFeed_다른게시물에서_쓰는_사진이면_409이고_저장하지_않음() {
+        CreateFeedCommand command = new CreateFeedCommand(1L, "재사용", Visibility.PUBLIC, List.of(5L), List.of());
+        given(feedRepository.existsPhotoInOtherFeed(List.of(5L), null)).willReturn(true);
+
+        assertThatThrownBy(() -> feedService.createFeed(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(FeedErrorCode.FEED_PHOTO_IN_USE);
+        verify(feedRepository, never()).save(any());
+    }
+
+    @Test
+    void updateFeed_사진_사용확인은_수정중인_게시물을_빼고_봄() {
+        given(feedRepository.findByIdForUpdate(1L)).willReturn(sampleFeed());
+        given(feedRepository.save(any(Feed.class))).willReturn(sampleFeed());
+
+        feedService.updateFeed(1L, 1L, new UpdateFeedCommand("수정", Visibility.PUBLIC, List.of(5L), List.of()));
+
+        verify(feedRepository).existsPhotoInOtherFeed(List.of(5L), 1L);
+    }
+
+    @Test
+    void updateFeed_남의_게시물이면_사진_확인보다_403이_먼저() {
+        given(feedRepository.findByIdForUpdate(1L)).willReturn(sampleFeed());
+
+        assertThatThrownBy(() -> feedService.updateFeed(1L, 99L,
+                new UpdateFeedCommand("수정", Visibility.PUBLIC, List.of(5L), List.of())))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(FeedErrorCode.FEED_NOT_OWNER);
+        verify(mediaAttachmentUseCase, never()).ensureAttachable(anyLong(), any());
     }
 
     @Test

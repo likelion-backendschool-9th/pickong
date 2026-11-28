@@ -13,6 +13,7 @@ import com.pickong.feed.application.port.out.FeedPlaceQueryPort;
 import com.pickong.feed.application.port.out.FeedRepository;
 import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.feed.domain.model.Feed;
+import com.pickong.media.application.port.in.MediaAttachmentUseCase;
 import com.pickong.social.application.port.in.RelationQueryUseCase;
 import com.pickong.user.application.port.in.UserQueryUseCase;
 import java.util.Arrays;
@@ -31,15 +32,19 @@ public class FeedService implements FeedUseCase {
     private final FeedPlaceQueryPort feedPlaceQueryPort;
     private final UserQueryUseCase userQueryUseCase;
     private final RelationQueryUseCase relationQueryUseCase;
+    // 게시물에 연결할 사진이 본인 것이고 업로드 확인이 끝났는지 확인함 (feed → media, blueprint 6.2)
+    private final MediaAttachmentUseCase mediaAttachmentUseCase;
 
     public FeedService(FeedRepository feedRepository,
                        FeedPlaceQueryPort feedPlaceQueryPort,
                        UserQueryUseCase userQueryUseCase,
-                       RelationQueryUseCase relationQueryUseCase) {
+                       RelationQueryUseCase relationQueryUseCase,
+                       MediaAttachmentUseCase mediaAttachmentUseCase) {
         this.feedRepository = feedRepository;
         this.feedPlaceQueryPort = feedPlaceQueryPort;
         this.userQueryUseCase = userQueryUseCase;
         this.relationQueryUseCase = relationQueryUseCase;
+        this.mediaAttachmentUseCase = mediaAttachmentUseCase;
     }
 
     @Override
@@ -81,6 +86,7 @@ public class FeedService implements FeedUseCase {
     @Transactional
     public Feed createFeed(CreateFeedCommand command) {
         // userId는 Controller에서 @CurrentUser로 꺼내 command에 담아 넘어옴
+        ensurePhotosAttachable(command.getUserId(), command.getMediaFileIds(), null);
         Feed feed = Feed.create(command.getUserId(), command.getContent(), command.getVisibility(),
                 command.getMediaFileIds(),
                 command.getPlaceIds());
@@ -96,6 +102,8 @@ public class FeedService implements FeedUseCase {
         if (!feed.getUserId().equals(userId)) {
             throw new BusinessException(FeedErrorCode.FEED_NOT_OWNER);
         }
+        // 3. 사진 확인 (본인 글인지 먼저 봐야 남의 글에 사진 오류로 응답하지 않음)
+        ensurePhotosAttachable(userId, command.getMediaFileIds(), feedId);
         feed.update(command.getContent(), command.getVisibility(), command.getMediaFileIds(), command.getPlaceIds());
         return feedRepository.save(feed);
     }
@@ -171,5 +179,20 @@ public class FeedService implements FeedUseCase {
         List<Feed> result = hasNext ? feeds.subList(0, limit) : feeds;
         Long nextCursor = hasNext ? result.get(result.size() - 1).getId() : null;
         return new FeedPage(result, nextCursor, hasNext);
+    }
+
+    // 게시물에 연결할 사진 확인: 1. 중복(400) → 2. 본인 · 업로드 확인 완료 사진인지(media, 사진 행 잠금) → 3. 다른 게시물에서 쓰는지(409)
+    // 2번에서 잠근 사진 행은 이 트랜잭션이 끝날 때까지 잠겨서, 같은 사진으로 동시에 들어온 다른 요청은 3번에서 막힘
+    private void ensurePhotosAttachable(Long userId, List<Long> mediaFileIds, Long exceptFeedId) {
+        if (mediaFileIds == null || mediaFileIds.isEmpty()) {
+            return;
+        }
+        if (mediaFileIds.stream().distinct().count() != mediaFileIds.size()) {
+            throw new BusinessException(FeedErrorCode.FEED_PHOTO_DUPLICATED);
+        }
+        mediaAttachmentUseCase.ensureAttachable(userId, mediaFileIds);
+        if (feedRepository.existsPhotoInOtherFeed(mediaFileIds, exceptFeedId)) {
+            throw new BusinessException(FeedErrorCode.FEED_PHOTO_IN_USE);
+        }
     }
 }

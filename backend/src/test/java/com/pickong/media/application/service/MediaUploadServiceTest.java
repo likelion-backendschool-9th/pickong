@@ -163,6 +163,7 @@ class MediaUploadServiceTest {
     }
 
     /** media_files 대신 메모리 Map. 저장할 때 id를 1부터 붙임 */
+    // 사진 연결 확인 테스트(MediaAttachmentServiceTest)도 같이 씀
     static class FakeMediaPersistence implements MediaPersistencePort {
         private final Map<Long, MediaFile> rows = new HashMap<>();
         private long nextId = 1;
@@ -182,6 +183,11 @@ class MediaUploadServiceTest {
         @Override
         public Optional<MediaFile> findByIdForUpdate(Long mediaId) {
             return Optional.ofNullable(rows.get(mediaId)).map(this::copy);
+        }
+
+        @Override
+        public java.util.List<MediaFile> findAllByIdsForUpdate(java.util.Collection<Long> mediaIds) {
+            return mediaIds.stream().distinct().sorted().map(rows::get).filter(java.util.Objects::nonNull).map(this::copy).toList();
         }
 
         MediaFile get(Long id) {

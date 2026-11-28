@@ -28,6 +28,9 @@ public interface FeedRepository {
 
     void deleteById(Long feedId);
 
+    // 사진 중 하나라도 다른 게시물(exceptFeedId 제외, 새 게시물이면 null)에 이미 연결됐는지
+    boolean existsPhotoInOtherFeed(java.util.Collection<Long> mediaFileIds, Long exceptFeedId);
+
     // 좋아요 수 증가 · 감소 (동시 요청 안전하게 DB에서 직접 연산)
     void incrementLikeCount(Long feedId);
     void decrementLikeCount(Long feedId);

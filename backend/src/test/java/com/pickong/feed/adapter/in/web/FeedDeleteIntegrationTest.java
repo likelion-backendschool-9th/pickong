@@ -66,7 +66,9 @@ class FeedDeleteIntegrationTest {
         jdbc.update("INSERT INTO comments (feed_id, user_id, content) VALUES (?, ?, '댓글')", feed, other);
         jdbc.update("INSERT INTO feed_likes (feed_id, user_id) VALUES (?, ?)", feed, other);
         jdbc.update("INSERT INTO feed_bookmarks (feed_id, user_id) VALUES (?, ?)", feed, other);
-        jdbc.update("INSERT INTO feed_photos (feed_id, media_file_id, sort_order) VALUES (?, 1, 0)", feed);
+        // feed_photos.media_file_id는 media_files FK(V25)라 실제 사진 행을 만들어 연결함
+        long media = jdbc.queryForObject("INSERT INTO media_files (user_id, status) VALUES (?, 'UPLOADED') RETURNING id", Long.class, author);
+        jdbc.update("INSERT INTO feed_photos (feed_id, media_file_id, sort_order) VALUES (?, ?, 0)", feed, media);
 
         mvc.perform(as(author, delete("/api/v1/feeds/" + feed))).andExpect(status().isNoContent());
         flush();

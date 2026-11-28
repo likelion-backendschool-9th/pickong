@@ -63,7 +63,7 @@
 1. 클라이언트 → POST /media/presigned           : Presigned PUT URL 발급             ✅ PR #168
 2. 클라이언트 → R2 직접 PUT                                                          ☐ #170 (프론트)
 3. 클라이언트 → POST /media/{mediaId}/confirm   : R2 HEAD로 크기와 Content-Type 검증  ✅ PR #168
-4. POST /feeds {mediaFileIds}                   : 본인 · UPLOADED · 1:1 참조 검증       ☐ #155
+4. POST /feeds {mediaFileIds}                   : 본인 · UPLOADED · 1:1 참조 검증       ✅ #212 (V25 FK · UNIQUE)
 5. 피드 응답 photos[].url                                                            ☐ #155
 ```
 
