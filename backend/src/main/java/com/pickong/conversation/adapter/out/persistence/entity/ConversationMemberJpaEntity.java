@@ -41,6 +41,21 @@ public class ConversationMemberJpaEntity {
     @Column(name = "joined_at", nullable = false)
     private OffsetDateTime joinedAt;
 
+    /** 알림 끄기 (값만 저장) */
+    @Column(name = "muted", nullable = false)
+    private boolean muted;
+
+    /** 그룹에 처음 들어오는 참여자 행 */
+    public static ConversationMemberJpaEntity joining(long conversationId, long userId, OffsetDateTime joinedAt,
+                                                      Long lastReadMessageId) {
+        ConversationMemberJpaEntity entity = new ConversationMemberJpaEntity();
+        entity.conversationId = conversationId;
+        entity.userId = userId;
+        entity.joinedAt = joinedAt;
+        entity.lastReadMessageId = lastReadMessageId;
+        return entity;
+    }
+
     /** 새 대화방의 참여자 행 */
     public static ConversationMemberJpaEntity of(long conversationId, ConversationMember member) {
         ConversationMemberJpaEntity entity = new ConversationMemberJpaEntity();
@@ -59,6 +74,7 @@ public class ConversationMemberJpaEntity {
                 .lastReadMessageId(lastReadMessageId)
                 .joinedAt(joinedAt)
                 .leftAt(leftAt)
+                .muted(muted)
                 .build();
     }
 }

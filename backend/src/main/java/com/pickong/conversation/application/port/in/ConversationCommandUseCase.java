@@ -1,10 +1,13 @@
 package com.pickong.conversation.application.port.in;
 
+import com.pickong.conversation.application.dto.ConversationSummaryResult;
 import com.pickong.conversation.application.dto.OpenDirectResult;
+import com.pickong.conversation.application.dto.UpdateConversationCommand;
+import java.util.List;
 
 /**
- * 대화방 열기 · 나가기. (blueprint 3장: POST /conversations/direct, DELETE /conversations/{id}/members/me)
- * 그룹 만들기는 별도 이슈입니다.
+ * 대화방 열기 · 만들기 · 바꾸기 · 초대 · 나가기 (blueprint 3장 conversation).
+ * 그룹은 방장이 없어 멤버 누구나 이름 변경 · 초대할 수 있고, 내보내기는 없습니다.
  */
 public interface ConversationCommandUseCase {
 
@@ -18,7 +21,32 @@ public interface ConversationCommandUseCase {
     OpenDirectResult openDirect(long userId, String partnerUsername);
 
     /**
-     * 대화방에서 나갑니다. 나간 뒤에는 목록 · 조회 · 읽음에서 404로 보입니다.
+     * 그룹을 만듭니다. 나를 포함해 3~10명이고, 만든 뒤 '만들기' 안내 메시지를 보냅니다.
+     *
+     * @param usernames 초대할 사람의 아이디 (대소문자 무시, 나 · 중복은 뺌)
+     * @throws com.pickong.common.error.BusinessException 400 INVALID_GROUP_TITLE, 404 USER_NOT_FOUND — 없거나 ACTIVE가 아닌 아이디,
+     *         400 GROUP_TOO_SMALL, 409 GROUP_FULL
+     */
+    ConversationSummaryResult createGroup(long userId, String title, List<String> usernames);
+
+    /**
+     * 그룹에 초대합니다(멤버 누구나). 나갔던 사람도 다시 들어오고, 초대된 사람은 이전 대화도 전부 봅니다.
+     * 이미 참여 중인 사람은 건너뛰고, 새로 들어온 사람이 있으면 '초대' 안내 메시지를 보냅니다.
+     *
+     * @throws com.pickong.common.error.BusinessException 404 CONVERSATION_NOT_FOUND, 400 NOT_A_GROUP,
+     *         404 USER_NOT_FOUND, 409 GROUP_FULL
+     */
+    ConversationSummaryResult invite(long userId, long conversationId, List<String> usernames);
+
+    /**
+     * 그룹 이름(그룹만, 멤버 누구나)과 내 알림 끄기를 바꿉니다. 이름이 실제로 바뀌면 '이름 변경' 안내 메시지를 보냅니다.
+     *
+     * @throws com.pickong.common.error.BusinessException 404 CONVERSATION_NOT_FOUND, 400 NOT_A_GROUP · INVALID_GROUP_TITLE
+     */
+    ConversationSummaryResult update(long userId, long conversationId, UpdateConversationCommand command);
+
+    /**
+     * 대화방에서 나갑니다. 나간 뒤에는 목록 · 조회 · 읽음에서 404로 보입니다. 그룹이면 '나가기' 안내 메시지를 보냅니다.
      *
      * @throws com.pickong.common.error.BusinessException 404 CONVERSATION_NOT_FOUND — 참여 중이 아님
      */

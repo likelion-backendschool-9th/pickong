@@ -39,16 +39,44 @@ public class StompMessagePushAdapter implements MessagePushPort {
     public void pushMessage(Collection<Long> recipientIds, SentMessage message) {
         List<Long> others = recipientIds.stream().filter(id -> id != message.senderId()).distinct().toList();
         afterCommit(() -> {
-            DmEventPayload mine = DmEventPayload.messageCreated(message, true);
+            DmEventPayload mine = mine(message);
             relay.sendLocal(message.senderId(), DM, mine);
             relay.publish(List.of(message.senderId()), DM, mine);
-            relay.publish(others, DM, DmEventPayload.messageCreated(message, false));
+            relay.publish(others, DM, others(message));
         });
     }
 
     @Override
     public void resendToSender(SentMessage message) {
-        afterCommit(() -> relay.sendLocal(message.senderId(), DM, DmEventPayload.messageCreated(message, true)));
+        afterCommit(() -> relay.sendLocal(message.senderId(), DM, mine(message)));
+    }
+
+    /** 안내 메시지: 받는 사람 모두에게 publish만 (보낸 사람의 전송 확인 없음). 그 일을 한 사람이 받으면 isMine=true */
+    @Override
+    public void pushSystemMessage(Collection<Long> recipientIds, SentMessage message) {
+        List<Long> recipients = recipientIds.stream().distinct().toList();
+        List<Long> others = recipients.stream().filter(id -> id != message.senderId()).toList();
+        boolean actorReceives = recipients.contains(message.senderId());
+        afterCommit(() -> {
+            if (actorReceives) {
+                relay.publish(List.of(message.senderId()), DM, mine(message));
+            }
+            relay.publish(others, DM, others(message));
+        });
+    }
+
+    @Override
+    public void pushConversationUpdated(Collection<Long> userIds, long conversationId) {
+        List<Long> recipients = userIds.stream().distinct().toList();
+        afterCommit(() -> relay.publish(recipients, DM, DmEventPayload.conversationUpdated(conversationId)));
+    }
+
+    private static DmEventPayload mine(SentMessage message) {
+        return DmEventPayload.messageCreated(message.message().withMine(true), message.clientMessageId(), true);
+    }
+
+    private static DmEventPayload others(SentMessage message) {
+        return DmEventPayload.messageCreated(message.message().withMine(false), message.clientMessageId(), false);
     }
 
     @Override

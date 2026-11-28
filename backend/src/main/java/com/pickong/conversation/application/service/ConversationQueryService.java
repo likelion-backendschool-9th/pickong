@@ -10,7 +10,9 @@ import com.pickong.conversation.application.port.in.ConversationQueryUseCase;
 import com.pickong.conversation.application.port.out.ConversationPersistencePort;
 import com.pickong.conversation.application.port.out.ConversationQueryPort;
 import com.pickong.conversation.domain.ConversationErrorCode;
+import com.pickong.conversation.domain.model.Conversation;
 import com.pickong.conversation.domain.model.ConversationMember;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -31,12 +33,12 @@ public class ConversationQueryService implements ConversationQueryUseCase {
 
     @Override
     public List<ConversationSummaryResult> myConversations(long userId) {
-        return queries.findDirectSummaries(userId);
+        return queries.findSummaries(userId);
     }
 
     @Override
     public ConversationSummaryResult getDetail(long userId, long conversationId) {
-        return queries.findDirectSummary(userId, conversationId)
+        return queries.findSummary(userId, conversationId)
                 .orElseThrow(() -> new BusinessException(ConversationErrorCode.CONVERSATION_NOT_FOUND));
     }
 
@@ -52,19 +54,21 @@ public class ConversationQueryService implements ConversationQueryUseCase {
         if (query.cursor() != null && query.after() != null) {
             throw new BusinessException(CommonErrorCode.INVALID_INPUT);
         }
-        ConversationMember me = conversations.findById(conversationId)
-                .orElseThrow(() -> new BusinessException(ConversationErrorCode.CONVERSATION_NOT_FOUND))
-                .ensureActiveMember(userId);
+        Conversation conversation = conversations.findById(conversationId)
+                .orElseThrow(() -> new BusinessException(ConversationErrorCode.CONVERSATION_NOT_FOUND));
+        ConversationMember me = conversation.ensureActiveMember(userId);
+        // 1:1은 참여 시각 이후, 그룹은 처음부터 (초대된 사람도 이전 대화를 전부 봄)
+        OffsetDateTime visibleFrom = conversation.visibleFrom(me);
         int size = query.size();
 
         if (query.after() != null) {
-            List<MessageResult> rows = queries.findMessagesAfter(userId, conversationId, me.getJoinedAt(), query.after(), size + 1);
+            List<MessageResult> rows = queries.findMessagesAfter(userId, conversationId, visibleFrom, query.after(), size + 1);
             boolean hasMore = rows.size() > size;
             List<MessageResult> items = hasMore ? rows.subList(0, size) : rows;
             return new MessagePageResult(List.copyOf(items), hasMore ? items.getLast().id() : null);
         }
 
-        List<MessageResult> rows = queries.findMessagesBefore(userId, conversationId, me.getJoinedAt(), query.cursor(), size + 1);
+        List<MessageResult> rows = queries.findMessagesBefore(userId, conversationId, visibleFrom, query.cursor(), size + 1);
         boolean hasMore = rows.size() > size;
         List<MessageResult> items = new ArrayList<>(hasMore ? rows.subList(0, size) : rows);
         Collections.reverse(items);

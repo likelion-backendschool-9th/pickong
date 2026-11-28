@@ -2,6 +2,8 @@ package com.pickong.conversation.domain.model;
 
 import com.pickong.common.error.BusinessException;
 import com.pickong.conversation.domain.ConversationErrorCode;
+import com.pickong.conversation.domain.vo.MessageType;
+import com.pickong.conversation.domain.vo.SystemEvent;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -10,7 +12,7 @@ import lombok.Builder;
 import lombok.Getter;
 
 /**
- * 메시지 애그리거트. soft delete. 지금은 본문만 보낼 수 있습니다(첨부는 별도 이슈).
+ * 메시지 애그리거트. soft delete. 회원이 보낸 글(TEXT)과 그룹 안내(SYSTEM)가 있고, 첨부는 아직 없습니다(별도 이슈).
  * <p>{@code clientMessageId}는 프론트가 메시지마다 만드는 UUID로, 같은 값이 다시 오면 새로 저장하지 않습니다.
  */
 @Getter
@@ -25,7 +27,11 @@ public class Message {
     private Long conversationId;
     private Long senderId;
     private UUID clientMessageId;
+    @Builder.Default
+    private MessageType type = MessageType.TEXT;
     private String content;
+    /** SYSTEM일 때만 */
+    private SystemEvent systemEvent;
     private OffsetDateTime deletedAt;
     private OffsetDateTime createdAt;
 
@@ -41,6 +47,20 @@ public class Message {
                 .senderId(senderId)
                 .clientMessageId(clientMessageId)
                 .content(text)
+                .createdAt(now)
+                .build();
+    }
+
+    /**
+     * 그룹 안내 메시지. 보낸 사람은 그 일을 한 사람이고, clientMessageId는 서버가 만듭니다.
+     */
+    public static Message system(long conversationId, long actorId, SystemEvent event, OffsetDateTime now) {
+        return Message.builder()
+                .conversationId(conversationId)
+                .senderId(actorId)
+                .clientMessageId(UUID.randomUUID())
+                .type(MessageType.SYSTEM)
+                .systemEvent(event)
                 .createdAt(now)
                 .build();
     }

@@ -37,4 +37,8 @@ public interface ConversationJpaRepository extends JpaRepository<ConversationJpa
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update ConversationJpaEntity c set c.updatedAt = :at where c.id = :id")
     int touch(@Param("id") long id, @Param("at") OffsetDateTime at);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update ConversationJpaEntity c set c.title = :title where c.id = :id and c.type = 'GROUP'")
+    int rename(@Param("id") long id, @Param("title") String title);
 }

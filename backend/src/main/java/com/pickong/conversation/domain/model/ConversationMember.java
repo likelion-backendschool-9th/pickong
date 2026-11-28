@@ -23,6 +23,8 @@ public class ConversationMember {
     private Long lastReadMessageId;
     private OffsetDateTime joinedAt;
     private OffsetDateTime leftAt;
+    /** 알림 끄기. 알림 기능이 생기기 전까지는 값만 저장합니다 */
+    private boolean muted;
 
     /** 새 참여자 (id는 저장할 때 DB가 채움) */
     public static ConversationMember join(long userId, OffsetDateTime now) {
