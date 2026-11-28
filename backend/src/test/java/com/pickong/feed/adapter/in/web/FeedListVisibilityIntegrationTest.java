@@ -207,8 +207,9 @@ class FeedListVisibilityIntegrationTest {
     private List<Long> placeFeedIds(MockHttpServletRequestBuilder request) throws Exception {
         String body = mvc.perform(request).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         String placePublicId = jdbc.queryForObject("SELECT CAST(public_id AS TEXT) FROM places WHERE id = ?", String.class, place);
-        List<List<Number>> groups = JsonPath.read(body, "$[?(@.place.id == '" + placePublicId + "')].feedIds");
-        return groups.stream().flatMap(List::stream).map(Number::longValue).toList();
+        // 응답은 FeedPlaceDto 모양이라 게시물 id가 문자열(postIds)
+        List<List<String>> groups = JsonPath.read(body, "$[?(@.place.id == '" + placePublicId + "')].postIds");
+        return groups.stream().flatMap(List::stream).map(Long::valueOf).toList();
     }
 
     private List<Long> feedIds(String... contents) {
