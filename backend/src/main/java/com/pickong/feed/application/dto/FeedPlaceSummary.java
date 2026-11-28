@@ -14,6 +14,7 @@ public class FeedPlaceSummary {
     private String placePublicId;  // UUID → String
     private String placeName;
     private String placeAddress;
+    private String placeRegion;
     private double lat;
     private double lng;
     private String category;
