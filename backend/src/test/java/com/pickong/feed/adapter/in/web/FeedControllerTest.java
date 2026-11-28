@@ -8,6 +8,9 @@ import com.pickong.common.error.GlobalExceptionHandler;
 import com.pickong.common.security.LoginUser;
 import com.pickong.common.web.CurrentUserArgumentResolver;
 import com.pickong.feed.application.port.in.FeedUseCase;
+import com.pickong.feed.application.port.in.FeedViewUseCase;
+import com.pickong.feed.application.dto.FeedAuthor;
+import com.pickong.feed.application.dto.FeedView;
 import com.pickong.feed.domain.model.Feed;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +41,12 @@ class FeedControllerTest {
     @Mock
     private FeedUseCase feedUseCase;
 
+    // 화면용 정보는 조회 SQL 없이 빈 값으로 붙임 (작성자 SQL은 FeedViewQueryAdapterIntegrationTest에서 확인)
+    private final FeedViewUseCase feedViewUseCase = (feeds, viewerId) -> feeds.stream()
+            .map(feed -> new FeedView(feed, new FeedAuthor("author-public-id", "writer", null, null, "서울"),
+                    List.of("https://cdn.example/a.jpg"), List.of(), false, false))
+            .toList();
+
     private MockMvc mockMvc;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -48,7 +57,7 @@ class FeedControllerTest {
                 new UsernamePasswordAuthenticationToken(new LoginUser(1L), null, List.of()));
 
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new FeedController(feedUseCase))
+                .standaloneSetup(new FeedController(feedUseCase, feedViewUseCase))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setCustomArgumentResolvers(new CurrentUserArgumentResolver())
                 .build();
@@ -84,8 +93,17 @@ class FeedControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.content").value("테스트 게시물"));
+                .andExpect(jsonPath("$.id").value("1"))
+                .andExpect(jsonPath("$.content").value("테스트 게시물"))
+                // PostDto 모양: 작성자는 공개 id로, 내부 순번 userId는 내보내지 않음
+                .andExpect(jsonPath("$.author.id").value("author-public-id"))
+                .andExpect(jsonPath("$.author.username").value("writer"))
+                .andExpect(jsonPath("$.author.nickname").value("writer"))
+                .andExpect(jsonPath("$.photos[0].url").value("https://cdn.example/a.jpg"))
+                .andExpect(jsonPath("$.isLiked").value(false))
+                .andExpect(jsonPath("$.isBookmarked").value(false))
+                .andExpect(jsonPath("$.userId").doesNotExist())
+                .andExpect(jsonPath("$.publicId").doesNotExist());
     }
 
     @Test
@@ -120,7 +138,7 @@ class FeedControllerTest {
         // when & then
         mockMvc.perform(get("/feeds/1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(1));
+                .andExpect(jsonPath("$.id").value("1"));
     }
 
     @Test

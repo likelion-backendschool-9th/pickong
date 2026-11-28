@@ -6,6 +6,7 @@ import com.pickong.feed.adapter.in.web.response.FeedPageResponse;
 import com.pickong.feed.adapter.in.web.response.FeedResponse;
 import com.pickong.feed.application.dto.FeedPage;
 import com.pickong.feed.application.port.in.FeedUseCase;
+import com.pickong.feed.application.port.in.FeedViewUseCase;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -25,9 +26,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserFeedController {
 
     private final FeedUseCase feedUseCase;
+    private final FeedViewUseCase feedViewUseCase;
 
-    public UserFeedController(FeedUseCase feedUseCase) {
+    public UserFeedController(FeedUseCase feedUseCase, FeedViewUseCase feedViewUseCase) {
         this.feedUseCase = feedUseCase;
+        this.feedViewUseCase = feedViewUseCase;
     }
 
     // 비로그인 또는 타인 → PUBLIC만 반환
@@ -41,7 +44,7 @@ public class UserFeedController {
         Long viewerUserId = viewer != null ? viewer.userId() : null;
         FeedPage page = feedUseCase.getUserFeeds(username, viewerUserId, cursor, limit);
         return FeedPageResponse.of(
-                page.getFeeds().stream().map(FeedResponse::from).toList(),
+                feedViewUseCase.viewsOf(page.getFeeds(), viewerUserId).stream().map(FeedResponse::from).toList(),
                 page.getNextCursor(),
                 page.isHasNext());
     }

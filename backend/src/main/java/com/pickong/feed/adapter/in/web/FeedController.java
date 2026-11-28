@@ -1,6 +1,7 @@
 package com.pickong.feed.adapter.in.web;
 
 import com.pickong.feed.application.port.in.FeedUseCase;
+import com.pickong.feed.application.port.in.FeedViewUseCase;
 
 import java.util.List;
 import jakarta.validation.Valid;
@@ -41,9 +42,12 @@ import com.pickong.feed.domain.FeedErrorCode;
 public class FeedController {
 
     private final FeedUseCase feedUseCase;
+    // 응답 직전에 작성자, 사진 주소, 장소, 좋아요 · 북마크 여부를 붙임 (공개 범위 검사는 feedUseCase가 먼저 끝냄)
+    private final FeedViewUseCase feedViewUseCase;
 
-    public FeedController(FeedUseCase feedUseCase) {
+    public FeedController(FeedUseCase feedUseCase, FeedViewUseCase feedViewUseCase) {
         this.feedUseCase = feedUseCase;
+        this.feedViewUseCase = feedViewUseCase;
     }
 
     // ----목록 조회는 임의로 최대 50까지 허용(필요 시 @Max()에서 수정 해주세요----
@@ -55,7 +59,8 @@ public class FeedController {
         boolean admin = authentication != null && authentication.isAuthenticated()
                 && authentication.getPrincipal() instanceof AdminPrincipal principal && principal.adminId() != null && principal.adminId() > 0
                 && authentication.getAuthorities().stream().anyMatch(role -> role.getAuthority().equals("ROLE_ADMIN"));
-        return FeedResponse.from(feedUseCase.getFeed(feedId, viewer == null ? null : viewer.userId(), admin));
+        Long viewerId = viewer == null ? null : viewer.userId();
+        return FeedResponse.from(feedViewUseCase.viewOf(feedUseCase.getFeed(feedId, viewerId, admin), viewerId));
     }
 
     // 피드 목록 조회. tab=recommended(추천) | tab=following(팔로잉). limit은 1~50 사이만 허용
@@ -76,7 +81,7 @@ public class FeedController {
                 ? feedUseCase.getFollowingFeeds(userId, cursor, limit)
                 : feedUseCase.getRecommendedFeeds(userId, cursor, limit);
         return FeedPageResponse.of(
-                page.getFeeds().stream().map(FeedResponse::from).toList(),
+                feedViewUseCase.viewsOf(page.getFeeds(), userId).stream().map(FeedResponse::from).toList(),
                 page.getNextCursor(),
                 page.isHasNext());
     }
@@ -97,7 +102,7 @@ public class FeedController {
     public FeedResponse createFeed(
             @CurrentUser LoginUser user,
             @Valid @RequestBody CreateFeedRequest request) {
-        return FeedResponse.from(feedUseCase.createFeed(request.toCommand(user.userId())));
+        return FeedResponse.from(feedViewUseCase.viewOf(feedUseCase.createFeed(request.toCommand(user.userId())), user.userId()));
     }
 
     // 피드 수정 — 로그인 필수, 본인 피드만 가능
@@ -106,7 +111,7 @@ public class FeedController {
             @PathVariable @Positive Long feedId,
             @CurrentUser LoginUser user,
             @Valid @RequestBody UpdateFeedRequest request) {
-        return FeedResponse.from(feedUseCase.updateFeed(feedId, user.userId(), request.toCommand()));
+        return FeedResponse.from(feedViewUseCase.viewOf(feedUseCase.updateFeed(feedId, user.userId(), request.toCommand()), user.userId()));
     }
 
     // 피드 삭제 — 로그인 필수, 본인 피드만 가능, 204 No Content (댓글 삭제와 같게). 하드 삭제라 댓글, 반응도 같이 지워짐
