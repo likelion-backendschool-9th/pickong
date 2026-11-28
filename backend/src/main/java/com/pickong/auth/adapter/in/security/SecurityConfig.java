@@ -133,9 +133,11 @@ public class SecurityConfig {
                         .requestMatchers(PUBLIC_PATHS).permitAll()
                         // 약관 전문: 가입 화면의 '보기'에서 로그인 전에 엽니다. 조회(GET)만 엽니다.
                         .requestMatchers(HttpMethod.GET, "/terms/**").permitAll()
+                        // 피드 지도는 피드 목록과 같게 로그인 필수 (앱 흐름: 시작하기 → 로그인 → 피드)
+                        // 바로 아래 /feeds/* 허용 규칙이 /feeds/places까지 열기 때문에 그보다 먼저 막아야 됨 (위에서부터 처음 맞는 규칙 적용)
+                        .requestMatchers(HttpMethod.GET, "/feeds/places").authenticated()
                         // 피드 단건 조회(공유 링크 미리보기) — 비로그인도 볼 수 있음
                         // 피드 목록·댓글·대댓글 조회·좋아요·북마크·댓글 작성·수정·삭제는 로그인 필요 (anyRequest 규칙 적용)
-                        // /feeds/* 는 /feeds/places 도 허용 (비로그인 가능)
                         .requestMatchers(HttpMethod.GET, "/feeds/*").permitAll()
                         // 프로필 피드 목록: 비로그인 시 PUBLIC만 반환하므로 열어 둠
                         .requestMatchers(HttpMethod.GET, "/users/*/feeds").permitAll()

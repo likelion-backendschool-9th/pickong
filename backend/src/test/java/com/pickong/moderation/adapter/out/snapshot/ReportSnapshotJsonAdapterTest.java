@@ -22,8 +22,8 @@ class ReportSnapshotJsonAdapterTest {
     void writesFullSnapshotWithoutNormalizing() {
         String post = "  첫 줄\r\n둘째 줄  ";
         String comment = "첫 줄\n\n마지막";
-        ReportSnapshot postSnapshot = ReportSnapshots.from(new ReportTargetLookup(ReportTargetType.FEED, 10L, 123L, post));
-        ReportSnapshot commentSnapshot = ReportSnapshots.from(new ReportTargetLookup(ReportTargetType.COMMENT, 11L, 456L, comment));
+        ReportSnapshot postSnapshot = ReportSnapshots.from(new ReportTargetLookup(ReportTargetType.FEED, 10L, 123L, post, 1L));
+        ReportSnapshot commentSnapshot = ReportSnapshots.from(new ReportTargetLookup(ReportTargetType.COMMENT, 11L, 456L, comment, 1L));
 
         JsonNode postJson = JSON.readTree(writer.write(postSnapshot));
         JsonNode commentJson = JSON.readTree(writer.write(commentSnapshot));
@@ -64,9 +64,9 @@ class ReportSnapshotJsonAdapterTest {
     @Test
     @DisplayName("회원, 컬렉션, 작성자 없음, 이미지는 전체 본문 스냅샷이 아니다")
     void rejectsTargetsThatAreNotFullPostsOrComments() {
-        assertThatThrownBy(() -> ReportSnapshots.from(new ReportTargetLookup(ReportTargetType.USER, 1L, 2L, "이름")))
+        assertThatThrownBy(() -> ReportSnapshots.from(new ReportTargetLookup(ReportTargetType.USER, 1L, 2L, "이름", 1L)))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> ReportSnapshots.from(new ReportTargetLookup(ReportTargetType.COLLECTION, 1L, 2L, "제목")))
+        assertThatThrownBy(() -> ReportSnapshots.from(new ReportTargetLookup(ReportTargetType.COLLECTION, 1L, 2L, "제목", 1L)))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> ReportSnapshot.full("본문", 0L)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new ReportSnapshot("본문", "https://example.test/a.jpg", 1L, "FULL"))

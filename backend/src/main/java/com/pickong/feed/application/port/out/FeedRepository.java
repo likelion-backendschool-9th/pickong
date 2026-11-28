@@ -1,17 +1,22 @@
 package com.pickong.feed.application.port.out;
 
+import com.pickong.common.domain.Visibility;
 import com.pickong.feed.domain.model.Feed;
 import java.util.List;
+import java.util.Set;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 public interface FeedRepository {
     Feed save(Feed feed);
 
-    // cursor 이후의 피드를 limit+1개 조회 (hasNext 판별용)
-    List<Feed> findRecommendedFeeds(Long userId, Long cursor, int limit);
+    // 아래 목록 조회는 모두 cursor 이후를 최신순으로 limit개 (서비스가 hasNext 판별용으로 limit+1을 넘김)
 
-    List<Feed> findFollowingFeeds(Long userId, Long cursor, int limit);
+    /** 추천 탭: 다른 사람의 PUBLIC 게시물. viewerId의 글은 빼고, null이면 PUBLIC 전체 */
+    List<Feed> findRecommendedFeeds(Long viewerId, Long cursor, int limit);
+
+    /** 팔로잉 탭: viewerId의 글 전부 + followeeIds의 PUBLIC, FOLLOWERS 게시물 */
+    List<Feed> findFollowingFeeds(Long viewerId, List<Long> followeeIds, Long cursor, int limit);
 
     Feed findById(Long feedId);
 
@@ -31,6 +36,6 @@ public interface FeedRepository {
     void incrementBookmarkCount(Long feedId);
     void decrementBookmarkCount(Long feedId);
 
-    // 특정 사용자의 피드 목록 (isOwner=true면 모든 visibility, false면 PUBLIC만)
-    List<Feed> findByOwner(Long ownerUserId, boolean isOwner, Long cursor, int limit);
+    /** 프로필 피드: ownerUserId의 게시물 중 공개 범위가 visibilities에 드는 것 */
+    List<Feed> findByOwner(Long ownerUserId, Set<Visibility> visibilities, Long cursor, int limit);
 }

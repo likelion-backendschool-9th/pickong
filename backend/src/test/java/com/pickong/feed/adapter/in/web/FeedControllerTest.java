@@ -179,10 +179,10 @@ class FeedControllerTest {
     }
 
     @Test
-    void deleteFeed_성공_200반환() throws Exception {
-        // when & then: 정상 삭제 → 200
+    void deleteFeed_성공_204반환() throws Exception {
+        // when & then: 정상 삭제 → 204 No Content (댓글 삭제와 같게)
         mockMvc.perform(delete("/feeds/1"))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
     }
 
     @Test

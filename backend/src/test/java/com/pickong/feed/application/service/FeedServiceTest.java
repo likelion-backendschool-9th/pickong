@@ -1,5 +1,6 @@
 package com.pickong.feed.application.service;
 
+import com.pickong.common.domain.ViewerRelation;
 import com.pickong.common.domain.Visibility;
 import com.pickong.common.error.BusinessException;
 import com.pickong.feed.domain.FeedErrorCode;
@@ -20,6 +21,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.time.OffsetDateTime;
+import java.util.Set;
 
 import org.mockito.ArgumentCaptor;
 
@@ -30,7 +33,6 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.willDoNothing;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -123,16 +125,47 @@ class FeedServiceTest {
     }
 
     @Test
-    void deleteFeed_성공() {
+    void deleteFeed_성공_하드삭제() {
         // given: 피드가 존재하고 본인 피드
         given(feedRepository.findByIdForUpdate(1L)).willReturn(sampleFeed());
-        willDoNothing().given(feedRepository).deleteById(1L);
 
         // when
         feedService.deleteFeed(1L, 1L);
 
-        // then: deleteById()가 호출됐는지 확인
+        // then: 본인이 지우는 게시물은 행을 실제로 삭제함
         verify(feedRepository).deleteById(1L);
+    }
+
+    // deleted_at은 탈퇴 회원 게시물을 소프트 삭제할 때 채워짐 (#103). 그런 게시물은 다시 지울 수 없음
+    @Test
+    void deleteFeed_소프트삭제된피드_404_삭제안함() {
+        given(feedRepository.findByIdForUpdate(1L)).willReturn(
+                Feed.builder().id(1L).userId(1L).deletedAt(OffsetDateTime.now()).build());
+
+        assertThatThrownBy(() -> feedService.deleteFeed(1L, 1L))
+                .extracting("errorCode").isEqualTo(FeedErrorCode.FEED_NOT_FOUND);
+        verify(feedRepository, never()).deleteById(1L);
+    }
+
+    @Test
+    void deleteFeed_타인의소프트삭제된피드_403이아니라404() {
+        // 삭제된 글이면 작성자가 아니어도 FEED_NOT_OWNER 대신 없는 글과 같은 404
+        given(feedRepository.findByIdForUpdate(1L)).willReturn(
+                Feed.builder().id(1L).userId(1L).deletedAt(OffsetDateTime.now()).build());
+
+        assertThatThrownBy(() -> feedService.deleteFeed(1L, 99L))
+                .extracting("errorCode").isEqualTo(FeedErrorCode.FEED_NOT_FOUND);
+    }
+
+    @Test
+    void updateFeed_소프트삭제된피드_404() {
+        given(feedRepository.findByIdForUpdate(1L)).willReturn(
+                Feed.builder().id(1L).userId(1L).deletedAt(OffsetDateTime.now()).build());
+
+        assertThatThrownBy(() -> feedService.updateFeed(1L, 1L,
+                new UpdateFeedCommand("수정", Visibility.PUBLIC, List.of(), List.of())))
+                .extracting("errorCode").isEqualTo(FeedErrorCode.FEED_NOT_FOUND);
+        verify(feedRepository, never()).save(any());
     }
 
     @Test
@@ -195,8 +228,10 @@ class FeedServiceTest {
     }
 
     @Test
-    void getFollowingFeeds_성공() {
-        given(feedRepository.findFollowingFeeds(1L, null, 11))
+    void getFollowingFeeds_팔로우목록을_social에서_받아_넘김() {
+        // 팔로우 목록은 feed가 follows 테이블을 읽지 않고 social in-port로 받아야 됨
+        given(relationQueryUseCase.getFollowingIds(1L)).willReturn(List.of(2L, 3L));
+        given(feedRepository.findFollowingFeeds(1L, List.of(2L, 3L), null, 11))
                 .willReturn(List.of(sampleFeed()));
         FeedPage page = feedService.getFollowingFeeds(1L, null, 10);
 
@@ -225,7 +260,7 @@ class FeedServiceTest {
         // given: 장소 2개가 연결된 피드 행 반환
         FeedPlaceSummary row1 = new FeedPlaceSummary(1L, "uuid-1", "카페A", "서울", 37.1, 127.1, "CAFE", "MANUAL", 10L);
         FeedPlaceSummary row2 = new FeedPlaceSummary(2L, "uuid-2", "식당B", "부산", 35.1, 129.1, "RESTAURANT", "MANUAL", 11L);
-        given(feedPlaceQueryPort.findRecommendedFeedPlaces()).willReturn(List.of(row1, row2));
+        given(feedPlaceQueryPort.findRecommendedFeedPlaces(null)).willReturn(List.of(row1, row2));
 
         // when
         List<FeedPlaceGroup> result = feedService.getFeedPlaces("recommended", null);
@@ -248,7 +283,7 @@ class FeedServiceTest {
         // given: 같은 장소(placeId=1)에 피드 2개 연결
         FeedPlaceSummary row1 = new FeedPlaceSummary(1L, "uuid-1", "카페A", "서울", 37.1, 127.1, "CAFE", "MANUAL", 10L);
         FeedPlaceSummary row2 = new FeedPlaceSummary(1L, "uuid-1", "카페A", "서울", 37.1, 127.1, "CAFE", "MANUAL", 11L);
-        given(feedPlaceQueryPort.findRecommendedFeedPlaces()).willReturn(List.of(row1, row2));
+        given(feedPlaceQueryPort.findRecommendedFeedPlaces(null)).willReturn(List.of(row1, row2));
 
         // when
         List<FeedPlaceGroup> result = feedService.getFeedPlaces("recommended", null);
@@ -272,47 +307,49 @@ class FeedServiceTest {
     }
 
     @Test
-    void getUserFeeds_본인이면_전체_visibility_조회() {
-        // given: 본인(viewerUserId=1) 조회 → isOwner=true → findByOwner(1L, true, ...)
+    void getUserFeeds_본인이면_모든_공개범위() {
         given(userQueryUseCase.findIdByUsername("user1")).willReturn(1L);
-        given(feedRepository.findByOwner(eq(1L), eq(true), any(), anyInt()))
-                .willReturn(List.of(sampleFeed()));
+        given(relationQueryUseCase.relationOf(1L, 1L)).willReturn(ViewerRelation.OWNER);
+        given(feedRepository.findByOwner(eq(1L), any(), any(), anyInt())).willReturn(List.of(sampleFeed()));
 
-        // when
         FeedPage page = feedService.getUserFeeds("user1", 1L, null, 10);
 
-        // then
         assertThat(page.getFeeds()).hasSize(1);
-        verify(feedRepository).findByOwner(eq(1L), eq(true), any(), anyInt());
+        verify(feedRepository).findByOwner(eq(1L),
+                eq(Set.of(Visibility.PUBLIC, Visibility.FOLLOWERS, Visibility.PRIVATE)), any(), anyInt());
     }
 
     @Test
-    void getUserFeeds_타인이면_PUBLIC만_조회() {
-        // given: 타인(viewerUserId=99) 조회 → isOwner=false → findByOwner(1L, false, ...)
+    void getUserFeeds_팔로워면_PUBLIC과_FOLLOWERS() {
         given(userQueryUseCase.findIdByUsername("user1")).willReturn(1L);
-        given(feedRepository.findByOwner(eq(1L), eq(false), any(), anyInt()))
-                .willReturn(List.of(sampleFeed()));
+        given(relationQueryUseCase.relationOf(7L, 1L)).willReturn(ViewerRelation.FOLLOWER);
+        given(feedRepository.findByOwner(eq(1L), any(), any(), anyInt())).willReturn(List.of());
 
-        // when
-        FeedPage page = feedService.getUserFeeds("user1", 99L, null, 10);
+        feedService.getUserFeeds("user1", 7L, null, 10);
 
-        // then
-        assertThat(page.getFeeds()).hasSize(1);
-        verify(feedRepository).findByOwner(eq(1L), eq(false), any(), anyInt());
+        verify(feedRepository).findByOwner(eq(1L), eq(Set.of(Visibility.PUBLIC, Visibility.FOLLOWERS)), any(), anyInt());
     }
 
     @Test
-    void getUserFeeds_비로그인이면_PUBLIC만_조회() {
-        // given: 비로그인(viewerUserId=null) → isOwner=false
+    void getUserFeeds_타인이면_PUBLIC만() {
         given(userQueryUseCase.findIdByUsername("user1")).willReturn(1L);
-        given(feedRepository.findByOwner(eq(1L), eq(false), any(), anyInt()))
-                .willReturn(List.of());
+        given(relationQueryUseCase.relationOf(99L, 1L)).willReturn(ViewerRelation.OTHER);
+        given(feedRepository.findByOwner(eq(1L), any(), any(), anyInt())).willReturn(List.of());
 
-        // when
+        feedService.getUserFeeds("user1", 99L, null, 10);
+
+        verify(feedRepository).findByOwner(eq(1L), eq(Set.of(Visibility.PUBLIC)), any(), anyInt());
+    }
+
+    @Test
+    void getUserFeeds_비로그인이면_PUBLIC만() {
+        given(userQueryUseCase.findIdByUsername("user1")).willReturn(1L);
+        given(relationQueryUseCase.relationOf(null, 1L)).willReturn(ViewerRelation.ANONYMOUS);
+        given(feedRepository.findByOwner(eq(1L), any(), any(), anyInt())).willReturn(List.of());
+
         FeedPage page = feedService.getUserFeeds("user1", null, null, 10);
 
-        // then
-        verify(feedRepository).findByOwner(eq(1L), eq(false), any(), anyInt());
+        verify(feedRepository).findByOwner(eq(1L), eq(Set.of(Visibility.PUBLIC)), any(), anyInt());
         assertThat(page.getFeeds()).isEmpty();
     }
 }
