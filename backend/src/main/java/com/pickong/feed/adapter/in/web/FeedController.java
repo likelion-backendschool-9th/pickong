@@ -9,12 +9,14 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -107,8 +109,9 @@ public class FeedController {
         return FeedResponse.from(feedUseCase.updateFeed(feedId, user.userId(), request.toCommand()));
     }
 
-    // 피드 삭제 — 로그인 필수, 본인 피드만 가능
+    // 피드 삭제 — 로그인 필수, 본인 피드만 가능, 204 No Content (댓글 삭제와 같게). 하드 삭제라 댓글, 반응도 같이 지워짐
     @DeleteMapping("/{feedId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteFeed(
             @PathVariable @Positive Long feedId,
             @CurrentUser LoginUser user) {

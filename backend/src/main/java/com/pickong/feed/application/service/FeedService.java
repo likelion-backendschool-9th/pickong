@@ -109,6 +109,9 @@ public class FeedService implements FeedUseCase {
         if (!feed.getUserId().equals(userId)) {
             throw new BusinessException(FeedErrorCode.FEED_NOT_OWNER);
         }
+        // 본인이 직접 지우는 게시물은 하드 삭제함. 댓글, 반응, 사진과 장소 연결은 V4의 ON DELETE CASCADE로 같이 지워짐
+        // 신고된 게시물은 신고 접수 때 저장한 스냅샷이 남아 관리자가 내용을 확인할 수 있음
+        // 탈퇴 회원의 게시물은 30일 유예 뒤 소프트 삭제(deleted_at)하는 별도 정책 (#103)
         feedRepository.deleteById(feedId);
     }
 

@@ -456,7 +456,7 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 | GET | `/feeds?tab=following\|recommended` | `FeedQueryUseCase.feed` | 로그인 필수(비로그인 401). 두 탭 모두 같음 |
 | GET | `/feeds/places?tab=` | `FeedQueryUseCase.feedPlaces` | 로그인 필수(비로그인 401). SecurityConfig에서 `/feeds/*` 허용보다 먼저 막음 |
 | POST | `/feeds` | `FeedCommandUseCase.write` | |
-| GET · PUT · DELETE | `/feeds/{feedId}` | `FeedQueryUseCase.getDetail` / `FeedCommandUseCase.update / delete` | feedId = `feeds.public_id` |
+| GET · PUT · DELETE | `/feeds/{feedId}` | `FeedQueryUseCase.getDetail` / `FeedCommandUseCase.update / delete` | feedId = `feeds.public_id`. 본인 삭제는 하드 삭제(204)라 댓글 · 반응 · 사진 · 장소 연결이 CASCADE로 함께 지워짐(신고는 접수 때 스냅샷이 남음). 탈퇴 회원의 게시물은 30일 유예 뒤 소프트 삭제(`deleted_at`)하는 별도 정책(#103). R2 사진 파일 정리는 #171 |
 | GET | `/feeds/{feedId}/comments` | `CommentQueryUseCase.list` | 댓글 + 대댓글 일부 |
 | GET | `/feeds/{feedId}/comments/{commentId}/replies` | `CommentQueryUseCase.replies` | |
 | POST · PUT · DELETE | `/feeds/{feedId}/comments/**` | `CommentCommandUseCase.write / edit / delete` | |
