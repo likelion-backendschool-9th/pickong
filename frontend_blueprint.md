@@ -20,6 +20,7 @@
 | 클라이언트 전역 상태 | Zustand | **초기에는 사용하지 않음.** 도입 조건은 8장 |
 | 지도 | Naver Maps JS SDK | `shared/map` 안에서만 SDK를 직접 사용 (`shared/map/naver/`) |
 | 폼 | React Hook Form + Zod | 스키마는 폼 옆에 둠 |
+| 실시간 | `@stomp/stompjs` | DM · 그룹 채팅. 연결은 `shared/realtime`에서만 (8.8) |
 | Mock | MSW 기반 독립 mock 서버 (제안) | API 주소만 바꿔서 실제 백엔드로 전환 |
 | 테스트 | Vitest + Testing Library, Playwright (제안) | 순수 로직 단위 테스트 우선 |
 | 구조 검사 | ESLint + `eslint-plugin-boundaries` (제안) | 계층 의존 규칙을 리뷰가 아닌 lint로 강제 |
@@ -782,6 +783,7 @@ export async function getFeed(id: Id): Promise<Feed> {
 | `API_BASE_URL` | 브라우저의 `/api/*`를 전달할 기본 주소. 개발은 mock, 배포는 백엔드 |
 | `BACKEND_URL` | 개발 전용. 정하면 `BACKEND_PATHS`의 경로만 이 백엔드로 보냄 |
 | `API_INTERNAL_URL` | 서버 → 백엔드(또는 mock) 주소. 서버 전용 |
+| `NEXT_PUBLIC_WS_URL` | WebSocket 주소. 로컬 `ws://localhost:8080/api/v1/ws`, 운영 `wss://{프론트 도메인}/api/v1/ws` (Next rewrites를 거치지 않음, 8.8) |
 | `NEXT_PUBLIC_NAVER_MAP_CLIENT_ID` | 네이버 지도 Client ID (`ncpKeyId`, Web 서비스 URL·Dynamic Map 설정) |
 | `NEXT_PUBLIC_NAVER_MAP_STYLE_ID` | (선택) Map Style Editor My Style ID. 설정 시 GL + 커스텀 스타일 |
 | `NEXT_PUBLIC_NAVER_MAP_GL` | (선택) `true`면 Style ID 없이 GL 벡터맵만 사용 |
@@ -795,6 +797,21 @@ export async function getFeed(id: Id): Promise<Feed> {
 - **지도 제공자 인터페이스(`MapProvider` 등)는 만들지 않습니다.** 구현이 하나뿐인 인터페이스는 형식적인 추상화입니다. 컴포넌트 props가 이미 경계 역할을 합니다.
 - 제공자를 바꾸게 되면 `shared/map/kakao/` 같은 폴더를 추가하고 `Map.tsx`가 그것을 쓰도록 바꿉니다. 페이지는 수정하지 않습니다.
 - 마커 안의 카테고리 핀 모양은 도메인 정보이므로 `entities/place/ui/PlacePin`이 담당하고, `MapMarker`의 children으로 넘깁니다.
+
+### 8.8 실시간 연결 (STOMP)
+
+메시지 형식은 [common_blueprint.md](common_blueprint.md) 5.9가 기준입니다. 아직 구현 전이며, 지금 DM 화면은 5초 폴링 + HTTP 보내기(mock)입니다.
+
+| 위치 | 하는 일 | 모르는 것 |
+| --- | --- | --- |
+| `shared/realtime/` | STOMP 연결 하나(탭당 하나), heartbeat, 재연결 간격, `TOKEN_EXPIRED`이면 `shared/api`의 재발급을 거친 뒤 재연결, 연결 · 재연결 알림. CONNECTED 전 실패는 브라우저가 상태를 알려 주지 않으므로 주입받은 확인 요청(대화에서는 `GET /conversations/unread-count`)을 `shared/api`로 보내 401 재발급 · 403 기존 오류 처리(재연결 안 함)로 나눕니다 (common 5.9) | 대화 · 메시지 같은 도메인 |
+| `entities/conversation/api/realtime.ts` | `/user/queue/dm` · `/user/queue/errors` 구독, 이벤트를 `setQueryData`로 `conversationKeys` 캐시에 반영, `/app/dm.send` · `/app/dm.read` 보내기, (재)연결 시 목록 · 열린 대화방(`?after=`, `nextCursor`가 null이 될 때까지 다시 `after`로) 다시 불러오기 | 연결 관리 |
+
+- `@stomp/stompjs`는 `shared/realtime/` 밖에서 import하지 않습니다 (지도 SDK와 같은 경계 규칙, 8.7).
+- 컴포넌트는 지금처럼 `useMessages` · `useSendMessage` 같은 훅만 씁니다. 이벤트를 컴포넌트에서 직접 구독하지 않습니다.
+- 보내는 중인 메시지는 `clientMessageId`로 캐시에 먼저 넣고, 같은 `clientMessageId`의 `MESSAGE_CREATED`를 받으면 확정합니다. 메시지 목록은 `id` 순으로 정렬하고 `id`로 중복을 없앱니다.
+- 연결은 로그인한 화면에서만 엽니다(로그인 레이아웃 안의 Client Component). 연결이 생기면 `refetchInterval` 폴링을 없앱니다.
+- 열 결정: mock 서버는 STOMP를 지원하지 않습니다. mock에 최소한의 STOMP를 추가할지, `NEXT_PUBLIC_WS_URL`이 없을 때 지금의 폴링을 유지할지는 프론트 연동 이슈에서 정합니다 (`USE_MOCK` 같은 코드 분기는 만들지 않습니다, 8.6).
 
 ---
 
@@ -995,8 +1012,8 @@ entities/plan/model/            # React import 금지. 입력 → 출력만 있�
 | `/plans/[planId]` | 일정 상세 · 편집 · 점검 | 로그인 | Server 조회 + 편집기(Client) | 껍데기 |
 | `/users/[username]` | 프로필 | 공개 | Server + 팔로우(Client) | 껍데기 |
 | `/users/[username]/followers`, `/following` | 팔로워 · 팔로잉 | 공개 | Server + 팔로우(Client) | 1차 |
-| `/messages` | DM 대화 목록 | 로그인 | Client (주기적 갱신) | 껍데기 |
-| `/messages/[conversationId]` | DM 대화방 | 로그인 | Client (주기적 갱신) | 껍데기 |
+| `/messages` | DM 대화 목록 | 로그인 | Client (주기적 갱신 → 연동 후 실시간 구독, 8.8) | 껍데기 |
+| `/messages/[conversationId]` | DM 대화방 | 로그인 | Client (주기적 갱신 → 연동 후 실시간 구독, 8.8) | 껍데기 |
 | `/notifications` | 알림 | 로그인 | Server | 3차 |
 | `/settings`, `/settings/profile` | 설정 · 프로필 편집 (아이디 변경 · 이름 · 소개 · 활동 지역) | 로그인 | 폼(Client) | 1차 |
 | `/settings/login-methods` | 로그인 수단 관리: 카카오 · Google 연결 · 해제 | 로그인 | Client | 껍데기 |

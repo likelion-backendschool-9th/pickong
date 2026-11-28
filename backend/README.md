@@ -103,6 +103,8 @@ http://localhost:8081/api/v1/actuator/health 가 `"status":"UP"`이면 정상입
 | `FRONTEND_BASE_URL` | `http://localhost:3000`. 소셜 로그인 콜백 주소 · 로그인 후 이동할 화면의 기준 |
 | `KAKAO_CLIENT_ID` · `KAKAO_CLIENT_SECRET` | 없으면 앱은 뜨지만 카카오 로그인만 실패. **값이 빈 줄(`KAKAO_CLIENT_ID=`)은 "없음"이 아니라 빈 값이라 앱이 시작하지 않으니** 키가 없으면 줄을 주석으로 둡니다 |
 | `GOOGLE_CLIENT_ID` · `GOOGLE_CLIENT_SECRET` | 위와 같음 (없으면 Google 로그인만 실패, 빈 줄은 시작 실패) |
+| `R2_ACCOUNT_ID` · `R2_ACCESS_KEY_ID` · `R2_SECRET_ACCESS_KEY` · `R2_BUCKET` | 없거나 빈 값이면 앱은 뜨고 사진 업로드만 실패. 계정 ID는 32자만 넣음 (`.env.example` 설명 참고) |
+| `R2_PUBLIC_BASE_URL` | 사진 공개 주소. 로컬은 r2.dev 주소, 운영은 버킷에 연결한 도메인 (r2.dev는 요청 수 제한이 있는 개발용) |
 
 ### 처음 실행할 때: `backend/.env`
 
