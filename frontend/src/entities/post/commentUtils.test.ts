@@ -1,11 +1,23 @@
+import { describe, expect, it } from "vitest";
+import type { User } from "@/entities/user";
 import { removeComment } from "./commentUtils";
 import type { PostComment } from "./model";
 
-const BASE_AUTHOR = {
+const BASE_AUTHOR: User = {
   id: "u1",
   username: "user1",
-  displayName: "User1",
+  nickname: "user1",
+  name: null,
   profileImageUrl: null,
+  bio: "",
+  region: "",
+  postCount: 0,
+  followerCount: 0,
+  followingCount: 0,
+  isFollowing: false,
+  isMe: false,
+  isCreator: false,
+  usernameChangeableAt: null,
 };
 
 function makeComment(overrides: Partial<PostComment>): PostComment {

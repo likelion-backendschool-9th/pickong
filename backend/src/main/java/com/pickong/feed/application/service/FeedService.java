@@ -1,5 +1,7 @@
 package com.pickong.feed.application.service;
 
+import com.pickong.common.domain.ViewerRelation;
+import com.pickong.common.domain.Visibility;
 import com.pickong.common.error.BusinessException;
 import com.pickong.feed.application.dto.CreateFeedCommand;
 import com.pickong.feed.application.dto.FeedPage;
@@ -13,9 +15,11 @@ import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.feed.domain.model.Feed;
 import com.pickong.social.application.port.in.RelationQueryUseCase;
 import com.pickong.user.application.port.in.UserQueryUseCase;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -56,6 +60,7 @@ public class FeedService implements FeedUseCase {
     @Override
     @Transactional(readOnly = true)
     public FeedPage getRecommendedFeeds(Long userId, Long cursor, int limit) {
+        // 추천 탭은 처음 보는 사람의 글을 발견하는 곳이라 다른 사람의 PUBLIC만 (팔로워 공개 글은 팔로잉 탭에서만 보임)
         // limit+1개 조회해서 hasNext 판별
         List<Feed> feeds = feedRepository.findRecommendedFeeds(userId, cursor, limit + 1);
         return toPage(feeds, limit);
@@ -64,7 +69,11 @@ public class FeedService implements FeedUseCase {
     @Override
     @Transactional(readOnly = true)
     public FeedPage getFollowingFeeds(Long userId, Long cursor, int limit) {
-        List<Feed> feeds = feedRepository.findFollowingFeeds(userId, cursor, limit + 1);
+        // 1. 팔로우 목록은 social in-port로 받음 (follows 테이블을 feed가 직접 읽지 않음, blueprint 6.1)
+        // → 2. 내 글 전부 + 팔로우한 사람의 PUBLIC, FOLLOWERS를 최신순으로
+        // 요청마다 새로 받아서 팔로우를 끊으면 다음 요청부터 바로 빠짐
+        List<Long> followeeIds = relationQueryUseCase.getFollowingIds(userId);
+        List<Feed> feeds = feedRepository.findFollowingFeeds(userId, followeeIds, cursor, limit + 1);
         return toPage(feeds, limit);
     }
 
@@ -119,7 +128,7 @@ public class FeedService implements FeedUseCase {
         // 탭별로 피드-장소 조인 행 목록 조회 (크로스모듈 쿼리 → FeedPlaceQueryPort 경유)
         List<FeedPlaceSummary> rows = tab.equals("following")
                 ? feedPlaceQueryPort.findFollowingFeedPlaces(userId)
-                : feedPlaceQueryPort.findRecommendedFeedPlaces();
+                : feedPlaceQueryPort.findRecommendedFeedPlaces(userId);
 
         // placeId 기준으로 그룹핑 → 장소별 피드 ID 목록 생성 (LinkedHashMap으로 최신 피드 순서 유지)
         Map<Long, List<FeedPlaceSummary>> grouped = rows.stream()
@@ -143,9 +152,13 @@ public class FeedService implements FeedUseCase {
         // username으로 사용자 id 조회 — 없으면 UserQueryUseCase가 404 던짐
         Long ownerUserId = userQueryUseCase.findIdByUsername(username);
 
-        // 본인이면 모든 visibility, 타인이면 PUBLIC만
-        boolean isOwner = ownerUserId.equals(viewerUserId);
-        List<Feed> feeds = feedRepository.findByOwner(ownerUserId, isOwner, cursor, limit + 1);
+        // 보는 사람과의 관계로 보여 줄 공개 범위를 고름 (단건 열람과 같은 Visibility.allows 규칙)
+        // 본인 OWNER → 전체, 팔로워 FOLLOWER → PUBLIC과 FOLLOWERS, 그 외와 비로그인 → PUBLIC
+        ViewerRelation relation = relationQueryUseCase.relationOf(viewerUserId, ownerUserId);
+        Set<Visibility> visible = Arrays.stream(Visibility.values())
+                .filter(visibility -> visibility.allows(relation))
+                .collect(Collectors.toUnmodifiableSet());
+        List<Feed> feeds = feedRepository.findByOwner(ownerUserId, visible, cursor, limit + 1);
         return toPage(feeds, limit);
     }
 

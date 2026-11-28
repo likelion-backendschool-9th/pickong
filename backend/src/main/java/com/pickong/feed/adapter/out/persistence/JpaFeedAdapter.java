@@ -12,8 +12,11 @@ import com.pickong.feed.application.port.out.FeedRepository;
 import com.pickong.feed.domain.model.Feed;
 import com.pickong.feed.domain.model.FeedPhoto;
 import com.pickong.feed.domain.model.FeedPlace;
+import com.pickong.common.domain.Visibility;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.PageRequest;
@@ -64,22 +67,22 @@ public class JpaFeedAdapter implements FeedRepository {
     }
 
     @Override
-    public List<Feed> findRecommendedFeeds(Long userId, Long cursor, int limit) {
-        // userId는 추천 피드에서 사용 안 함 — PUBLIC 피드 최신순 조회
-        List<FeedJpaEntity> entities = feedJpaRepository.findRecommendedFeeds(
-                cursor, PageRequest.of(0, limit));
-        return toDomain(entities);
+    public List<Feed> findRecommendedFeeds(Long viewerId, Long cursor, int limit) {
+        return toDomain(feedJpaRepository.findRecommendedFeeds(viewerId, cursor, PageRequest.of(0, limit)));
     }
 
     @Override
-    public List<Feed> findFollowingFeeds(Long userId, Long cursor, int limit) {
-        // userId가 null이면(비로그인) 빈 리스트 반환
-        if (userId == null) {
+    public List<Feed> findFollowingFeeds(Long viewerId, List<Long> followeeIds, Long cursor, int limit) {
+        // 비로그인이면 볼 팔로잉 피드가 없음
+        if (viewerId == null) {
             return List.of();
         }
-        List<FeedJpaEntity> entities = feedJpaRepository.findFollowingFeeds(
-                userId, cursor, PageRequest.of(0, limit));
-        return toDomain(entities);
+        // 아무도 팔로우하지 않으면 빈 IN 조건을 만들 수 없어서 내 글만 조회 (본인은 모든 공개 범위)
+        if (followeeIds == null || followeeIds.isEmpty()) {
+            return toDomain(feedJpaRepository.findByOwnerAndVisibilities(
+                    viewerId, names(EnumSet.allOf(Visibility.class)), cursor, PageRequest.of(0, limit)));
+        }
+        return toDomain(feedJpaRepository.findFollowingFeeds(viewerId, followeeIds, cursor, PageRequest.of(0, limit)));
     }
 
     @Override
@@ -148,12 +151,14 @@ public class JpaFeedAdapter implements FeedRepository {
     }
 
     @Override
-    public List<Feed> findByOwner(Long ownerUserId, boolean isOwner, Long cursor, int limit) {
-        // 본인이면 모든 visibility, 타인이면 PUBLIC만 조회
-        List<FeedJpaEntity> entities = isOwner
-                ? feedJpaRepository.findAllByOwner(ownerUserId, cursor, PageRequest.of(0, limit))
-                : feedJpaRepository.findPublicByOwner(ownerUserId, cursor, PageRequest.of(0, limit));
-        return toDomain(entities);
+    public List<Feed> findByOwner(Long ownerUserId, Set<Visibility> visibilities, Long cursor, int limit) {
+        return toDomain(feedJpaRepository.findByOwnerAndVisibilities(
+                ownerUserId, names(visibilities), cursor, PageRequest.of(0, limit)));
+    }
+
+    // feeds.visibility 컬럼은 문자열이라 enum 이름으로 바꿔서 넘김
+    private static List<String> names(Set<Visibility> visibilities) {
+        return visibilities.stream().map(Visibility::name).toList();
     }
 
     /** 사진 · 태그 장소를 게시물 id 묶음으로 한 번에 읽어 N+1 조회를 피합니다. */
