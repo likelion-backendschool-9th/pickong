@@ -32,27 +32,33 @@ public interface FeedJpaRepository extends JpaRepository<FeedJpaEntity, Long> {
 
     List<FeedJpaEntity> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
-    // PUBLIC 피드를 최신순으로 조회 (삭제·숨김 제외, cursor 없으면 첫 페이지)
+    // 추천 탭: 다른 사람의 PUBLIC 게시물 최신순 (내 글 제외, 삭제·숨김 제외, cursor 없으면 첫 페이지)
+    // viewerId가 null이면 제외할 사람 없이 PUBLIC 전체
     @Query("SELECT f FROM FeedJpaEntity f " +
            "WHERE f.visibility = 'PUBLIC' " +
+           "AND (:viewerId IS NULL OR f.userId <> :viewerId) " +
            "AND f.deletedAt IS NULL " +
            "AND f.hiddenAt IS NULL " +
            "AND (:cursor IS NULL OR f.id < :cursor) " +
            "ORDER BY f.id DESC")
     List<FeedJpaEntity> findRecommendedFeeds(
+            @Param("viewerId") Long viewerId,
             @Param("cursor") Long cursor,
             Pageable pageable);
 
-    // 팔로잉한 사용자의 PUBLIC 피드를 최신순으로 조회 (삭제·숨김 제외)
+    // 팔로잉 탭: 내 글 전부 + 팔로우한 사람의 PUBLIC, FOLLOWERS 게시물 최신순 (삭제·숨김 제외)
+    // 팔로우 목록(followeeIds)은 서비스가 social in-port로 받아 넘김. follows 테이블과 social 엔티티를 직접 읽지 않음 (blueprint 6.1)
+    // followeeIds가 비면 IN 조건을 만들 수 없어서 어댑터가 findByOwnerAndVisibilities로 내 글만 조회함
     @Query("SELECT f FROM FeedJpaEntity f " +
-           "WHERE f.userId IN (SELECT fw.followeeId FROM FollowJpaEntity fw WHERE fw.followerId = :userId) " +
-           "AND f.visibility = 'PUBLIC' " +
+           "WHERE (f.userId = :viewerId " +
+           "    OR (f.userId IN :followeeIds AND f.visibility IN ('PUBLIC', 'FOLLOWERS'))) " +
            "AND f.deletedAt IS NULL " +
            "AND f.hiddenAt IS NULL " +
            "AND (:cursor IS NULL OR f.id < :cursor) " +
            "ORDER BY f.id DESC")
     List<FeedJpaEntity> findFollowingFeeds(
-            @Param("userId") Long userId,
+            @Param("viewerId") Long viewerId,
+            @Param("followeeIds") List<Long> followeeIds,
             @Param("cursor") Long cursor,
             Pageable pageable);
 
@@ -74,28 +80,18 @@ public interface FeedJpaRepository extends JpaRepository<FeedJpaEntity, Long> {
     @Query("UPDATE FeedJpaEntity f SET f.bookmarkCount = f.bookmarkCount - 1 WHERE f.id = :feedId AND f.bookmarkCount > 0")
     void decrementBookmarkCount(@Param("feedId") Long feedId);
 
-    // 특정 사용자의 모든 피드 최신순 조회 (본인 — visibility 제한 없음, 삭제·숨김 제외)
+    // 프로필 피드: 특정 사용자의 게시물 중 공개 범위가 visibilities에 드는 것만 최신순 (삭제·숨김 제외)
+    // visibilities는 보는 사람과의 관계로 서비스가 고름 (본인 전체, 팔로워 PUBLIC과 FOLLOWERS, 그 외 PUBLIC)
     @Query("SELECT f FROM FeedJpaEntity f " +
            "WHERE f.userId = :ownerUserId " +
+           "AND f.visibility IN :visibilities " +
            "AND f.deletedAt IS NULL " +
            "AND f.hiddenAt IS NULL " +
            "AND (:cursor IS NULL OR f.id < :cursor) " +
            "ORDER BY f.id DESC")
-    List<FeedJpaEntity> findAllByOwner(
+    List<FeedJpaEntity> findByOwnerAndVisibilities(
             @Param("ownerUserId") Long ownerUserId,
-            @Param("cursor") Long cursor,
-            Pageable pageable);
-
-    // 특정 사용자의 PUBLIC 피드 최신순 조회 (타인 — PUBLIC만, 삭제·숨김 제외)
-    @Query("SELECT f FROM FeedJpaEntity f " +
-           "WHERE f.userId = :ownerUserId " +
-           "AND f.visibility = 'PUBLIC' " +
-           "AND f.deletedAt IS NULL " +
-           "AND f.hiddenAt IS NULL " +
-           "AND (:cursor IS NULL OR f.id < :cursor) " +
-           "ORDER BY f.id DESC")
-    List<FeedJpaEntity> findPublicByOwner(
-            @Param("ownerUserId") Long ownerUserId,
+            @Param("visibilities") List<String> visibilities,
             @Param("cursor") Long cursor,
             Pageable pageable);
 }
