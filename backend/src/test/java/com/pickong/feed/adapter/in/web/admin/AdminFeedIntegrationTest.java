@@ -122,7 +122,11 @@ class AdminFeedIntegrationTest {
         report("FEED", id, false);
         report("FEED", id, true);
         for (String type : List.of("USER", "COMMENT", "COLLECTION")) report(type, id, false);
-        jdbc.update("INSERT INTO feed_photos(feed_id,media_file_id,sort_order) VALUES (?,10,0),(?,20,1)", id, id);
+        // feed_photos.media_file_id는 media_files FK(V25)라 실제 사진 행 2개를 만들어 연결함
+        jdbc.update("""
+                WITH m AS (INSERT INTO media_files(user_id,status) VALUES (?,'UPLOADED'),(?,'UPLOADED') RETURNING id)
+                INSERT INTO feed_photos(feed_id,media_file_id,sort_order) SELECT ?, id, row_number() OVER (ORDER BY id) - 1 FROM m
+                """, authorId, authorId, id);
         jdbc.update("INSERT INTO comments(feed_id,user_id,content) VALUES (?,?,'댓글1'),(?,?,'댓글2')", id, authorId, id, reporterId);
         List<JsonNode> rows = list(prefix);
         assertThat(rows).hasSize(1);

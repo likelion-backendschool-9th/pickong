@@ -69,6 +69,8 @@ class FeedModerationIntegrationTest {
     private long admin;
     private long secondAdmin;
     private long feed;
+    // 게시물에 연결된 사진 (feed_photos.media_file_id는 media_files FK, V25)
+    private long media;
     private long comment;
     private long report;
     private UUID publicId;
@@ -88,7 +90,8 @@ class FeedModerationIntegrationTest {
         jdbc.update("INSERT INTO feed_likes(feed_id,user_id) VALUES (?,?)", feed, owner);
         jdbc.update("INSERT INTO feed_bookmarks(feed_id,user_id) VALUES (?,?)", feed, owner);
         jdbc.update("INSERT INTO comment_likes(comment_id,user_id) VALUES (?,?)", comment, owner);
-        jdbc.update("INSERT INTO feed_photos(feed_id,media_file_id,sort_order) VALUES (?,101,0)", feed);
+        media = jdbc.queryForObject("INSERT INTO media_files(user_id,status,url) VALUES (?,'UPLOADED','https://cdn.example/m.jpg') RETURNING id", Long.class, owner);
+        jdbc.update("INSERT INTO feed_photos(feed_id,media_file_id,sort_order) VALUES (?,?,0)", feed, media);
         jdbc.update("INSERT INTO feed_places(feed_id,place_id) VALUES (?,201)", feed);
         report = jdbc.queryForObject("INSERT INTO reports(reporter_id,target_type,target_id,reason,snapshot) VALUES (?,'FEED',?,'SPAM','original snapshot') RETURNING id", Long.class, other, feed);
     }
@@ -99,6 +102,8 @@ class FeedModerationIntegrationTest {
         jdbc.update("DELETE FROM admin_action_logs WHERE admin_id IN (?,?)", admin, secondAdmin);
         jdbc.update("DELETE FROM reports WHERE id=?", report);
         jdbc.update("DELETE FROM feeds WHERE id=?", feed);
+        // 게시물을 지워 feed_photos가 지워진 뒤에 사진 행을 지워야 됨 (RESTRICT FK), 사진 행은 users를 가리켜서 회원보다 먼저
+        jdbc.update("DELETE FROM media_files WHERE user_id IN (?,?)", owner, other);
         jdbc.update("DELETE FROM user_terms_agreements WHERE user_id IN (?,?)", owner, other);
         jdbc.update("DELETE FROM users WHERE id IN (?,?)", owner, other);
         jdbc.update("DELETE FROM admins WHERE id IN (?,?)", admin, secondAdmin);
@@ -253,7 +258,7 @@ class FeedModerationIntegrationTest {
     @Test
     void editingHiddenContentDoesNotUnhideItOrOverwriteReactionCounters() throws Exception {
         patchState(true, "사유").andExpect(status().isOk());
-        feeds.updateFeed(feed, owner, new UpdateFeedCommand("수정 본문", Visibility.FOLLOWERS, List.of(101L), List.of(201L)));
+        feeds.updateFeed(feed, owner, new UpdateFeedCommand("수정 본문", Visibility.FOLLOWERS, List.of(media), List.of(201L)));
         assertThat(hiddenAt()).isEqualTo(NOW);
         assertThat(jdbc.queryForObject("SELECT like_count FROM feeds WHERE id=?", Long.class, feed)).isEqualTo(1);
         assertThat(logs()).isEqualTo(1);
@@ -294,7 +299,7 @@ class FeedModerationIntegrationTest {
     @Test
     void editingAndHidingSerializeOnSameFeedAndRefreshStaleManagedRow() throws Exception {
         race(() -> moderation.setHidden(publicId, true, "숨김", admin),
-                () -> feeds.updateFeed(feed, owner, new UpdateFeedCommand("동시 수정", Visibility.PRIVATE, List.of(101L), List.of(201L))));
+                () -> feeds.updateFeed(feed, owner, new UpdateFeedCommand("동시 수정", Visibility.PRIVATE, List.of(media), List.of(201L))));
         assertThat(hiddenAt()).isEqualTo(NOW);
         assertThat(jdbc.queryForObject("SELECT content FROM feeds WHERE id=?", String.class, feed)).isEqualTo("동시 수정");
         new TransactionTemplate(transactions).executeWithoutResult(status -> {
