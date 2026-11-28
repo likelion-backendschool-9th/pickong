@@ -815,6 +815,7 @@ export async function getFeed(id: Id): Promise<Feed> {
 - 메시지 캐시는 `MessageThread { items(오래된 순), olderCursor }`이고 `staleTime: Infinity`입니다(실시간으로 받은 메시지 · 보내는 중 말풍선을 덮어쓰지 않게). 이전 내역은 '이전 메시지 보기'로 앞에 붙입니다.
 - 조회만으로는 읽음이 되지 않으므로, 대화방이 보이는 동안 상대가 보낸 마지막 메시지까지 `PATCH /read`를 보냅니다(`useMarkReadWhileVisible`).
 - 실패한 메시지는 말풍선에 '다시 보내기'가 남고, 같은 `clientMessageId`로 다시 보냅니다(서버가 두 번 저장하지 않음). 첨부는 백엔드가 아직 받지 않아 보내면 서버 오류 문구가 뜹니다.
+- **그룹 채팅 (#202):** 1:1과 같은 `entities/conversation`을 씁니다(`type: DIRECT | GROUP`). DM 목록에 그룹도 최근 순으로 섞여 나오고, 대화방은 같은 `ChatScreen`에서 그룹이면 말풍선마다 보낸 사람 아이디 · 사진, 안내 메시지(만들기 · 초대 · 나가기 · 이름 변경, `systemText`)를 가운데에 보여 줍니다. 방장이 없어 이름 변경 · 초대는 멤버 누구나, 내보내기 UI는 없습니다. 사람 검색 API가 없어 초대는 아이디 입력 → `GET /users/{username}`으로 확인합니다(`messages/groups/_components/UsernamePicker`). 인원(나 포함 3~10) · 이름(1~20자) 규칙 상수는 `@/entities/conversation`에 있습니다. `CONVERSATION_UPDATED`를 받으면 목록 · 상세를 다시 불러옵니다.
 - **mock 결정 (2026-11-28):** mock 서버에 의존성 없는 최소 WebSocket · STOMP(`mocks/realtime.ts`, `ws://localhost:4000/api/v1/ws`)를 넣어 mock과 백엔드가 같은 코드로 동작합니다. `USE_MOCK` 같은 분기는 없고 주소(`NEXT_PUBLIC_WS_URL`)만 바꿉니다(8.6). mock의 보내기 규칙 · 오류 코드 · 중복 처리도 백엔드와 같습니다.
 
 ---
@@ -1031,7 +1032,7 @@ entities/plan/model/            # React import 금지. 입력 → 출력만 있�
 | `/creator`, `/creator/apply`, `/creator/account`, `/creator/earnings` | 크리에이터 홈(심사 결과) · 신청 · 정산 계좌 · 수익 내역 | 로그인 | Client | 껍데기 |
 | `/checkout/[collectionId]` | 유료 컬렉션 카드 결제 (지금은 mock 결제창) | 로그인 | Client | 껍데기 |
 | `/purchases`, `/purchases/[purchaseId]/refund` | 구매 내역 · 환불 신청 | 로그인 | Client | 껍데기 |
-| `/messages/groups`, `/messages/groups/new`, `/messages/groups/[groupId]` | 그룹 채팅 목록 · 만들기 · 관리 (대화방 화면은 아직 없음) | 로그인 | Client | 껍데기 |
+| `/messages/groups`, `/messages/groups/new`, `/messages/groups/[groupId]` | 그룹 채팅 목록(DM 목록에서 그룹만) · 만들기(아이디로 초대) · 설정(이름 변경 · 초대 · 알림 끄기 · 나가기). 그룹 대화방은 `/messages/[conversationId]`(ChatScreen 재사용) | 로그인 | Client | 백엔드 연동 (#202) |
 | `/admin/**` | 관리자: 신고 처리 · 사용자 제재 · 게시물 관리 API 연결. 기타 관리 화면은 mock | 관리자 계정 | Client | 관리자 로그인·컬렉션 등은 후속 |
 
 **하단 탭 (모바일 우선):** 홈(`/feed`) · 내 지도(`/map`, `/collections`) · ➕ · DM(`/messages`) · 프로필(`/users/[username]`, 일정 탭 포함).

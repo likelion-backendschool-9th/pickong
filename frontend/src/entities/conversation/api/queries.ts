@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef } from "react";
 import { latestServerMessage, mergeMessages } from "../messageList";
-import type { Message, MessageAttachment, MessageThread, OutgoingAttachment } from "../model";
+import type { Conversation, Message, MessageAttachment, MessageThread, OutgoingAttachment } from "../model";
 import { conversationApi } from "./conversationApi";
 import { conversationKeys } from "./keys";
 import { sendMessage, type SendInput } from "./realtime";
@@ -106,6 +106,42 @@ function toOutgoing(attachment: MessageAttachment | null): OutgoingAttachment | 
   if (attachment?.type === "IMAGE") return { type: "IMAGE", url: attachment.url };
   if (attachment?.type === "PLACE" && attachment.place) return { type: "PLACE", placeId: attachment.place.id };
   return null;
+}
+
+/** 대화방 정보를 바꾸는 요청: 응답(최신 대화방)으로 상세 캐시를 바로 바꾸고 목록을 다시 불러옵니다. */
+function useConversationMutation<T>(fn: (input: T) => Promise<Conversation>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: (c) => {
+      qc.setQueryData(conversationKeys.detail(c.id), c);
+      qc.invalidateQueries({ queryKey: conversationKeys.list() });
+    },
+  });
+}
+
+/** 그룹 만들기 (나 포함 3~10명) */
+export const useCreateGroup = () => useConversationMutation(conversationApi.createGroup);
+
+/** 그룹 이름(멤버 누구나) · 내 알림 끄기 */
+export const useUpdateConversation = (id: string) =>
+  useConversationMutation((input: { title?: string; muted?: boolean }) => conversationApi.update(id, input));
+
+/** 그룹 초대(멤버 누구나, 아이디로) */
+export const useInviteMembers = (id: string) => useConversationMutation((usernames: string[]) => conversationApi.invite(id, usernames));
+
+/** 나가기: 이 대화방의 캐시를 지우고 목록 · 안 읽은 수를 다시 불러옵니다. */
+export function useLeaveConversation(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => conversationApi.leave(id),
+    onSuccess: () => {
+      qc.removeQueries({ queryKey: conversationKeys.detail(id) });
+      qc.removeQueries({ queryKey: conversationKeys.messages(id) });
+      qc.invalidateQueries({ queryKey: conversationKeys.list() });
+      qc.invalidateQueries({ queryKey: conversationKeys.unread() });
+    },
+  });
 }
 
 export function useStartConversation() {

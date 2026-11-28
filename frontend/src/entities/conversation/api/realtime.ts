@@ -55,8 +55,9 @@ function handleEvent(qc: QueryClient, event: DmEventDto) {
     updateThread(qc, message.conversationId, (items) => upsertMessage(items, message));
     if (message.isMine && message.clientMessageId) pending.get(message.clientMessageId)?.resolve(message);
     refreshSummaries(qc, message.conversationId);
-  } else if (event.type === "READ_UPDATED") {
-    const { conversationId } = (event as Extract<DmEventDto, { type: "READ_UPDATED" }>).data;
+  } else if (event.type === "READ_UPDATED" || event.type === "CONVERSATION_UPDATED") {
+    // 읽음 · 대화방 정보(이름 · 참여자, 나간 대화방) 변경: 목록 · 안 읽은 수 · 상세를 다시 불러옵니다
+    const { conversationId } = event.data as { conversationId: string };
     refreshSummaries(qc, conversationId);
   }
 }
@@ -153,8 +154,11 @@ export function sendMessage(
     id: pendingId(clientMessageId),
     conversationId,
     senderId: "",
+    sender: null,
     isMine: true,
+    type: "TEXT",
     text: input.text,
+    system: null,
     attachment: input.preview ?? null,
     createdAt: new Date().toISOString(),
     clientMessageId,

@@ -36,7 +36,8 @@ function Picker({ onDone }: { onDone: () => void }) {
   const toast = useToast();
 
   const people = (query.trim() ? found : following).filter((u) => !u.isMe);
-  const talkingWith = new Map(conversations.map((c) => [c.partner.id, c.id]));
+  // 1:1로 이미 대화 중인 사람은 그 대화방으로 (그룹은 빼고)
+  const talkingWith = new Map(conversations.flatMap((c) => (c.partner ? [[c.partner.id, c.id] as const] : [])));
 
   const open = (username: string, id: string) => {
     const existing = talkingWith.get(id);

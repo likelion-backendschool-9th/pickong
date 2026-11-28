@@ -8,7 +8,7 @@
 import { createHash } from "node:crypto";
 import type { IncomingMessage, Server } from "node:http";
 import type { Duplex } from "node:stream";
-import { markRead, messageDto, sendDirectMessage } from "./handlers/messages.ts";
+import { markRead, messageDto, sendMessage, systemListeners } from "./handlers/messages.ts";
 import { ME_ID } from "./db.ts";
 import { HttpError } from "./router.ts";
 
@@ -18,6 +18,12 @@ const DM = "/user/queue/dm";
 const ERRORS = "/user/queue/errors";
 
 const sessions = new Set<StompSession>();
+
+// HTTP로 만든 그룹 안내 메시지(만들기 · 초대 · 이름 변경)도 열린 연결에 보냅니다 (백엔드와 같음)
+systemListeners.push((message) => {
+  const event = { type: "MESSAGE_CREATED", data: { ...messageDto(message), clientMessageId: null } };
+  sessions.forEach((s) => s.push(DM, event));
+});
 
 export function attachStomp(server: Server) {
   server.on("upgrade", (req: IncomingMessage, socket: Duplex) => {
@@ -156,7 +162,7 @@ class StompSession {
     const clientMessageId = typeof body.clientMessageId === "string" ? body.clientMessageId : null;
     try {
       if (destination === "/app/dm.send") {
-        const { message, created } = sendDirectMessage(body);
+        const { message, created } = sendMessage(body);
         const event = { type: "MESSAGE_CREATED", data: { ...messageDto(message), clientMessageId } };
         // 새 메시지는 내 모든 탭에, 다시 보낸 것은 보낸 연결에만 (백엔드와 같음)
         if (created) sessions.forEach((s) => s.push(DM, event));

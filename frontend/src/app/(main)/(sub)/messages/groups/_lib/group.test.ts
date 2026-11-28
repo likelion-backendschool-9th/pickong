@@ -1,24 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { groupNameError, remainingSeats, toggleId } from "./group";
+import { normalizeUsername, pickError, remainingSeats } from "./group";
 
-describe("groupNameError", () => {
-  it("공백만 있거나 20자를 넘으면 오류", () => {
-    expect(groupNameError("  ")).not.toBeNull();
-    expect(groupNameError("가".repeat(21))).not.toBeNull();
-    expect(groupNameError(" 성수 카페 투어 ")).toBeNull();
+describe("normalizeUsername", () => {
+  it("앞뒤 공백 · 맨 앞 @를 지우고 소문자로", () => {
+    expect(normalizeUsername("  @JiMin ")).toBe("jimin");
+    expect(normalizeUsername("minsu")).toBe("minsu");
   });
 });
 
-describe("toggleId", () => {
-  it("있으면 빼고 없으면 넣는다", () => {
-    expect(toggleId(["a", "b"], "a")).toEqual(["b"]);
-    expect(toggleId(["a"], "b")).toEqual(["a", "b"]);
+describe("pickError", () => {
+  it("빈 아이디 · 이미 고른 사람 · 자리 없음", () => {
+    expect(pickError("", [], 5)).toBe("아이디를 입력해 주세요.");
+    expect(pickError("jimin", ["jimin"], 5)).toBe("이미 추가한 사람이에요.");
+    expect(pickError("haeun", [], 0)).toBe("그룹 채팅은 10명까지 참여할 수 있어요.");
+    expect(pickError("haeun", ["jimin"], 1)).toBeNull();
   });
 });
 
 describe("remainingSeats", () => {
-  it("30명에서 지금 인원을 뺀다", () => {
-    expect(remainingSeats(4)).toBe(26);
-    expect(remainingSeats(31)).toBe(0);
+  it("나 포함 10명까지", () => {
+    expect(remainingSeats(1)).toBe(9);
+    expect(remainingSeats(10)).toBe(0);
+    expect(remainingSeats(12)).toBe(0);
   });
 });

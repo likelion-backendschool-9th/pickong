@@ -11,7 +11,6 @@ import { adminRoutes } from "./handlers/admin.ts";
 import { authRoutes } from "./handlers/auth.ts";
 import { creatorRoutes } from "./handlers/creator.ts";
 import { discoverRoutes } from "./handlers/discover.ts";
-import { groupChatRoutes } from "./handlers/groupChats.ts";
 import { importRoutes } from "./handlers/imports.ts";
 import { messageRoutes } from "./handlers/messages.ts";
 import { myPlaceRoutes } from "./handlers/myPlaces.ts";
@@ -40,7 +39,6 @@ const handle = createRouter([
   ...myPlaceRoutes,
   ...creatorRoutes,
   ...paymentRoutes,
-  ...groupChatRoutes,
   ...adminRoutes,
 ]);
 
