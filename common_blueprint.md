@@ -346,7 +346,7 @@ API 명세서에서 **'보류'**로 표시한 기능입니다. 프론트·백엔
   - API: `GET/POST /api/conversations`, `GET /api/conversations/unread-count`(하단바 배지), `GET /api/conversations/:id`, `GET/POST /api/conversations/:id/messages` (목록 조회 시 읽음 처리, 보낼 때 `attachment: { type: "IMAGE", url } | { type: "PLACE", placeId }`). 사진은 업로드 API 연결 전까지 브라우저 임시 URL
   - **백엔드 연동 완료 (1:1, #188 · #190 · #192):** 대화방 열기 `POST /conversations/direct`, 메시지 내역 커서 페이지(`{ items, nextCursor }`), 읽음 `PATCH /conversations/{id}/read`(조회만으로는 읽지 않음), 보내기 · 새 메시지 · 읽음은 STOMP(5.9). 폴링은 없앴고, mock도 같은 계약 · 최소 STOMP로 동작합니다. 경로 · 형식은 [backend_blueprint.md](backend_blueprint.md) 3장 conversation
   - 그룹 채팅 백엔드(#201): 방장 없음, 멤버 누구나 이름 변경 · 초대, 내보내기 없음, 나 포함 3~10명, 초대된 사람도 이전 대화 전부, 만들기 · 초대 · 나가기 · 이름 변경 안내 메시지. 같은 `/conversations` 자원 (backend 3장 conversation)
-  - 남은 것: 첨부 보내기(백엔드 미지원, 보내면 서버 오류 안내), 사람 검색 API(대화 상대 검색은 아직 mock), 그룹 채팅 프론트(#202)
+  - 남은 것: 첨부 보내기(백엔드 미지원, 보내면 서버 오류 안내), 사람 검색 API(대화 상대 검색은 아직 mock), 그룹 채팅 프론트는 #202에서 연결 (DM 목록에 그룹 통합, 같은 대화방 화면, 아이디로 초대)
 - [껍데기] 팔로우 / 언팔로우, 팔로워·팔로잉 목록
 - 프로필 편집: 아이디(바꾸면 프로필 주소도 바뀜) · 이름 · 소개 · 활동 지역 (`PATCH /me` `{ username, name, bio, region }`, 보낸 항목만 변경). 사진은 업로드 API 연결 후
   - 아이디는 14일에 한 번만 바꿀 수 있음(가입 후 첫 변경은 바로). 아직 바꿀 수 없으면 입력칸을 잠그고 `usernameChangeableAt`으로 다음 변경 가능 날짜를 보여 줌. 지금과 같은 아이디를 보내는 것은 변경으로 치지 않음
