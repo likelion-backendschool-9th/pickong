@@ -48,14 +48,12 @@
 
 ## 미완성 항목
 
-### ☐ 1. likedByMe / bookmarkedByMe 응답 필드 (issue #91)
+### ✅ 1. 게시물 응답을 프론트 PostDto 모양으로 (#206)
 
-현재 `FeedResponse`에 없음. 로그인 사용자 기준 좋아요·북마크 여부 추가 필요.
-
-- `feed_likes`, `feed_bookmarks` LEFT JOIN 후 EXISTS 계산
-- `FeedResponse`, `FeedPageResponse` 둘 다 수정 필요
-- JOIN SQL은 `adapter/out/persistence/query/` 하위 QueryAdapter에서 처리 (blueprint 6.1)
-- 비로그인 시 `likedByMe = false`, `bookmarkedByMe = false`
+- `author`(공개 id · 아이디 · 표시 이름 · 프로필 사진 · 지역), `photos[].url`, `places[]`, `isLiked` · `isBookmarked`
+- 내부 `userId`는 내보내지 않음
+- 조회 SQL은 `query/FeedViewQueryAdapter` (blueprint 6.1), 목록도 종류별 IN 조회 한 번씩
+- 남은 것: 댓글 작성자 #207, 피드 지도 응답 #208, 게시물 id를 `public_id`로 #200, 사진별 장소 #155
 
 ### ◐ 2. 사진 업로드 — Cloudflare R2 연동
 

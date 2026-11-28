@@ -480,6 +480,13 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
   - 추천 탭: 다른 사람의 PUBLIC만. 처음 보는 사람의 글을 발견하는 탭이라 팔로워 공개 글은 팔로잉 탭에서만 보입니다(`_local/algorithm-plan.md` 6단계, 프론트 mock과 같음).
   - 프로필 피드: `relationOf`로 관계를 구한 뒤 `Visibility.allows`가 허용하는 공개 범위만(본인은 삭제 · 숨김을 제외한 전체, 팔로워 PUBLIC · FOLLOWERS, 그 외와 비로그인 PUBLIC). 컬렉션 탭과 같은 방식입니다.
   - 피드 지도: 탭과 같은 기준. SQL이 `query/FeedPlaceQueryAdapter`에 있어 `follows`를 읽기 전용으로 JOIN합니다.
+- 게시물 응답은 프론트 `PostDto` 모양입니다(#206). 목록 · 상세 · 작성 · 수정 · 프로필 피드가 같은 `FeedResponse`를 씁니다.
+  - 컨트롤러가 `FeedUseCase`로 볼 수 있는 게시물을 받은 뒤, `FeedViewUseCase`로 화면용 정보를 붙입니다. 공개 범위 검사는 앞 단계에서 끝나고 이 단계는 붙이기만 합니다.
+  - 다른 모듈 테이블은 `query/FeedViewQueryAdapter`의 SQL로 읽습니다(6.1). 작성자는 `users`, 사진 주소는 `media_files.url`, 장소는 `places`, 좋아요 · 북마크 여부는 `feed_likes` · `feed_bookmarks`입니다. 목록이어도 종류별로 한 번씩 IN 조회해서 쿼리 수가 게시물 수와 무관합니다.
+  - 작성자는 `author.id = users.public_id`이고 내부 순번 `userId`는 내보내지 않습니다. 표시 이름(`nickname`)은 이름 ?? 아이디로 프로필 응답과 같습니다.
+  - 사진은 확인이 끝난 것(`UPLOADED` · `PROCESSED`)만 `sort_order` 순서로 냅니다. 장소는 삭제된 것을 빼고, 비공개 장소는 그 장소의 주인이 볼 때만 냅니다.
+  - 사진별 장소는 아직 저장하지 않습니다(`feed_places`는 게시물 단위, #155). 장소가 1개면 모든 사진의 `placeId`에 그 장소를 넣고, 여러 개면 `null`입니다.
+  - 게시물 `id`는 경로가 아직 숫자 id를 받아서 숫자 id의 문자열입니다. `public_id`로 바꾸는 작업은 #200입니다.
 
 ### collection
 | 메서드 | 경로 | 입력 포트 · 메서드 | 비고 |
