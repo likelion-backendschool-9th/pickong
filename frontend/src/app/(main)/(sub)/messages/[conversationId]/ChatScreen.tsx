@@ -4,6 +4,8 @@ import { ArrowUp, ImagePlus, MapPin, Plus, X } from "lucide-react";
 import Link from "next/link";
 import { Fragment, useEffect, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from "react";
 import {
+  ConversationAvatar,
+  systemText,
   useConversation,
   useConversationRealtime,
   useLoadOlderMessages,
@@ -42,14 +44,22 @@ export function ChatScreen({ id }: { id: string }) {
     if (lastId) bottomRef.current?.scrollIntoView({ block: "end" });
   }, [lastId]);
 
-  const partner = conversation?.partner;
+  const partner = conversation?.partner ?? null;
+  const isGroup = conversation?.type === "GROUP";
 
   return (
     <div className="flex min-h-dvh flex-col">
       <TopBar
         backHref={routes.messages()}
         title={
-          partner ? (
+          isGroup && conversation ? (
+            // 그룹: 이름 · 인원을 누르면 채팅방 설정(이름 변경 · 초대 · 알림 · 나가기)
+            <Link href={routes.groupChat(conversation.id)} className="inline-flex min-w-0 items-center gap-2">
+              <ConversationAvatar conversation={conversation} size={28} />
+              <span className="truncate">{conversation.title}</span>
+              <span className="shrink-0 text-[13px] font-normal text-ink-faint tabular-nums">{conversation.memberCount}</span>
+            </Link>
+          ) : partner ? (
             <Link href={routes.user(partner.username)} className="inline-flex items-center gap-2">
               <Avatar src={partner.profileImageUrl} name={partner.username} size={28} />
               {partner.username}
@@ -72,7 +82,9 @@ export function ChatScreen({ id }: { id: string }) {
         ) : isError ? (
           <ErrorState message={errorMessage(error)} onRetry={() => refetch()} />
         ) : !messages || messages.length === 0 ? (
-          <p className="pt-10 text-center text-[13px] text-ink-faint">{partner ? `${partner.username}님에게 첫 메시지를 보내 보세요.` : ""}</p>
+          <p className="pt-10 text-center text-[13px] text-ink-faint">
+            {isGroup ? "첫 메시지를 보내 보세요." : partner ? `${partner.username}님에게 첫 메시지를 보내 보세요.` : ""}
+          </p>
         ) : (
           <ol className="space-y-1.5">
             {thread.olderCursor && (
@@ -91,9 +103,10 @@ export function ChatScreen({ id }: { id: string }) {
               const prev = messages[i - 1];
               const next = messages[i + 1];
               const newDay = !prev || localYmd(prev.createdAt) !== localYmd(m.createdAt);
-              // 같은 사람이 같은 분에 보낸 연속 메시지는 마지막에만 시각 표시
-              const showTime = !next || next.isMine !== m.isMine || formatClock(next.createdAt) !== formatClock(m.createdAt);
-              const showAvatar = !m.isMine && (!prev || prev.isMine || newDay);
+              // 같은 사람이 같은 분에 이어 보낸 글은 마지막에만 시각, 처음에만 사진(그룹은 아이디도). 안내 메시지에서 끊깁니다
+              const sameSender = (a?: Message) => !!a && a.type === "TEXT" && a.senderId === m.senderId && a.isMine === m.isMine;
+              const showTime = !sameSender(next) || formatClock(next!.createdAt) !== formatClock(m.createdAt);
+              const showAvatar = !m.isMine && (!sameSender(prev) || newDay);
               return (
                 <Fragment key={m.id}>
                   {newDay && (
@@ -101,7 +114,17 @@ export function ChatScreen({ id }: { id: string }) {
                       {formatLongDate(localYmd(m.createdAt))}
                     </li>
                   )}
-                  <MessageItem id={id} message={m} showTime={showTime} avatar={showAvatar ? partner : undefined} />
+                  {m.type === "SYSTEM" && m.system ? (
+                    <li className="py-2 text-center text-[12px] text-ink-faint">{systemText(m.system)}</li>
+                  ) : (
+                    <MessageItem
+                      id={id}
+                      message={m}
+                      showTime={showTime}
+                      avatar={showAvatar ? (m.sender ?? partner ?? undefined) : undefined}
+                      senderName={isGroup && showAvatar ? m.sender?.username : undefined}
+                    />
+                  )}
                 </Fragment>
               );
             })}
@@ -120,16 +143,20 @@ function MessageItem({
   message: m,
   showTime,
   avatar,
+  senderName,
 }: {
   id: string;
   message: Message;
   showTime: boolean;
   avatar?: { username: string; profileImageUrl: string | null };
+  /** 그룹에서 다른 사람의 연속 글 첫 말풍선 위에 보여 줄 아이디 */
+  senderName?: string;
 }) {
   return (
     <li className={cn("flex items-end gap-1.5", m.isMine ? "flex-row-reverse" : "flex-row", m.status === "sending" && "opacity-60")}>
       {!m.isMine && <span className="w-7 shrink-0">{avatar && <Avatar src={avatar.profileImageUrl} name={avatar.username} size={28} />}</span>}
       <div className={cn("flex max-w-[75%] flex-col gap-1", m.isMine ? "items-end" : "items-start")}>
+        {senderName && <span className="px-1 text-[12px] text-ink-sub">{senderName}</span>}
         {m.attachment && <AttachmentCard attachment={m.attachment} />}
         {m.text && (
           <p

@@ -1,10 +1,12 @@
 "use client";
 
-import { SquarePen, Users } from "lucide-react";
+import { BellOff, SquarePen, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
+  ConversationAvatar,
+  conversationName,
   matchesConversation,
   messagePreview,
   useConversations,
@@ -24,7 +26,7 @@ import { useToast } from "@/shared/ui/Toast";
 import { NewMessageSheet } from "./NewMessageSheet";
 
 /**
- * DM 대화 목록: 최근 메시지 순, 안 읽은 대화는 굵게 + 개수 배지.
+ * DM 대화 목록: 1:1과 그룹을 함께 최근 메시지 순으로, 안 읽은 대화는 굵게 + 개수 배지.
  * 검색하면 대화(상대 이름 · 마지막 메시지)를 거르고, 아직 대화하지 않은 사람도 찾아서 바로 메시지를 보낼 수 있습니다.
  */
 export function MessagesScreen() {
@@ -94,7 +96,7 @@ function SearchResults({ query, debounced, conversations }: { query: string; deb
   const matched = conversations.filter((c) => matchesConversation(c, query));
   const { data: users, isFetching } = useUserSearch(debounced);
   // 이미 대화 중인 사람과 나는 ‘새 메시지’에서 뺍니다.
-  const talking = new Set(conversations.map((c) => c.partner.id));
+  const talking = new Set(conversations.flatMap((c) => (c.partner ? [c.partner.id] : [])));
   const others = (users ?? []).filter((u) => !u.isMe && !talking.has(u.id));
   const waiting = debounced !== query || isFetching;
 
@@ -167,14 +169,17 @@ function ConversationList({ conversations }: { conversations: Conversation[] }) 
         return (
           <li key={c.id}>
             <Link href={routes.conversation(c.id)} className="flex items-center gap-3 px-5 py-3 active:bg-fill">
-              <Avatar src={c.partner.profileImageUrl} name={c.partner.username} size={48} />
+              <ConversationAvatar conversation={c} size={48} />
               <div className="min-w-0 flex-1">
-                <div className="flex items-baseline gap-2">
-                  <span className="truncate text-[15px] font-bold">{c.partner.username}</span>
-                  <span className="shrink-0 text-[12px] text-ink-faint">{formatRelative(c.updatedAt)}</span>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="truncate text-[15px] font-bold">{conversationName(c)}</span>
+                  {c.type === "GROUP" && <span className="shrink-0 text-[13px] text-ink-faint tabular-nums">{c.memberCount}</span>}
+                  {c.muted && <BellOff size={12} className="shrink-0 self-center text-ink-faint" aria-label="알림 꺼짐" />}
+                  <span className="ml-auto shrink-0 text-[12px] text-ink-faint">{formatRelative(c.updatedAt)}</span>
                 </div>
                 <p className={cn("mt-0.5 truncate text-[13px]", unread ? "font-bold text-ink" : "text-ink-sub")}>
-                  {c.lastMessage?.isMine && "나: "}
+                  {c.lastMessage?.type === "TEXT" &&
+                    (c.lastMessage.isMine ? "나: " : c.type === "GROUP" && c.lastMessage.sender ? `${c.lastMessage.sender.username}: ` : "")}
                   {messagePreview(c.lastMessage)}
                 </p>
               </div>

@@ -4,12 +4,15 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import { useState } from "react";
 import {
+  ConversationAvatar,
   conversationApi,
   conversationKeys,
+  conversationName,
   matchesConversation,
   sendMessage,
   useConversationRealtime,
   useConversations,
+  type Conversation,
 } from "@/entities/conversation";
 import { useUserSearch } from "@/entities/user";
 import { useDebounced } from "@/shared/lib/useDebounced";
@@ -20,10 +23,15 @@ import { Input } from "@/shared/ui/form";
 import { useToast } from "@/shared/ui/Toast";
 
 interface Target {
-  username: string;
+  /** 목록 키 · 보내는 중 표시용 */
+  key: string;
+  /** 보여 줄 이름 (1:1은 아이디, 그룹은 이름) */
+  label: string;
+  /** 아직 대화하지 않은 사람: 대화방을 열 아이디 */
+  username?: string;
   profileImageUrl: string | null;
-  /** 이미 대화 중이면 대화방 id */
-  conversationId?: string;
+  /** 이미 있는 대화방 (1:1 · 그룹) */
+  conversation?: Conversation;
 }
 
 /**
@@ -50,23 +58,29 @@ function Picker({ text, onDone }: { text: string; onDone: () => void }) {
 
   const send = useMutation({
     mutationFn: async (target: Target) => {
-      const id = target.conversationId ?? (await conversationApi.start(target.username)).id;
+      const id = target.conversation?.id ?? (await conversationApi.start(target.username!)).id;
       await sendMessage(qc, id, { text });
     },
     onSuccess: (_r, target) => {
       qc.invalidateQueries({ queryKey: conversationKeys.all });
-      toast({ message: `${target.username}님에게 보냈어요` });
+      toast({ message: target.conversation?.type === "GROUP" ? `‘${target.label}’에 보냈어요` : `${target.label}님에게 보냈어요` });
       onDone();
     },
     onError: (e) => toast({ message: errorMessage(e) }),
   });
 
-  const talking = new Set(conversations.map((c) => c.partner.id));
+  // 1:1로 이미 대화 중인 사람은 검색 결과에서 빼고, 그 대화방으로 보냅니다.
+  const talking = new Set(conversations.flatMap((c) => (c.partner ? [c.partner.id] : [])));
   const targets: Target[] = [
     ...conversations
       .filter((c) => matchesConversation(c, query))
-      .map((c) => ({ ...c.partner, conversationId: c.id })),
-    ...(query.trim() ? (users ?? []).filter((u) => !u.isMe && !talking.has(u.id)) : []),
+      .map((c) => ({ key: c.id, label: conversationName(c), profileImageUrl: c.partner?.profileImageUrl ?? null, conversation: c })),
+    ...(query.trim() ? (users ?? []).filter((u) => !u.isMe && !talking.has(u.id)) : []).map((u) => ({
+      key: `user:${u.username}`,
+      label: u.username,
+      username: u.username,
+      profileImageUrl: u.profileImageUrl,
+    })),
   ];
 
   return (
@@ -95,10 +109,14 @@ function Picker({ text, onDone }: { text: string; onDone: () => void }) {
       ) : (
         <ul>
           {targets.map((t) => (
-            <li key={t.username} className="flex items-center gap-3 py-2">
-              <Avatar src={t.profileImageUrl} name={t.username} size={40} />
+            <li key={t.key} className="flex items-center gap-3 py-2">
+              {t.conversation ? (
+                <ConversationAvatar conversation={t.conversation} size={40} />
+              ) : (
+                <Avatar src={t.profileImageUrl} name={t.label} size={40} />
+              )}
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[14px] font-bold">{t.username}</span>
+                <span className="block truncate text-[14px] font-bold">{t.label}</span>
               </span>
               <button
                 type="button"
@@ -106,7 +124,7 @@ function Picker({ text, onDone }: { text: string; onDone: () => void }) {
                 onClick={() => send.mutate(t)}
                 className="h-8 shrink-0 rounded-full bg-primary px-3.5 text-[13px] font-bold text-on-primary disabled:bg-fill disabled:text-ink-faint"
               >
-                {send.isPending && send.variables?.username === t.username ? "보내는 중" : "보내기"}
+                {send.isPending && send.variables?.key === t.key ? "보내는 중" : "보내기"}
               </button>
             </li>
           ))}
