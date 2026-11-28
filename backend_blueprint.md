@@ -453,8 +453,8 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 ### feed
 | 메서드 | 경로 | 입력 포트 · 메서드 | 비고 |
 | --- | --- | --- | --- |
-| GET | `/feeds?tab=following\|recommended` | `FeedQueryUseCase.feed` | 추천은 비로그인 허용 |
-| GET | `/feeds/places?tab=` | `FeedQueryUseCase.feedPlaces` | |
+| GET | `/feeds?tab=following\|recommended` | `FeedQueryUseCase.feed` | 로그인 필수(비로그인 401). 두 탭 모두 같음 |
+| GET | `/feeds/places?tab=` | `FeedQueryUseCase.feedPlaces` | 로그인 필수(비로그인 401). SecurityConfig에서 `/feeds/*` 허용보다 먼저 막음 |
 | POST | `/feeds` | `FeedCommandUseCase.write` | |
 | GET · PUT · DELETE | `/feeds/{feedId}` | `FeedQueryUseCase.getDetail` / `FeedCommandUseCase.update / delete` | feedId = `feeds.public_id` |
 | GET | `/feeds/{feedId}/comments` | `CommentQueryUseCase.list` | 댓글 + 대댓글 일부 |
@@ -473,7 +473,13 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 - 반응 추가와 댓글 작성(`ensureAcceptsInteraction`)은 여기에 더해 작성자도 숨김 글에는 할 수 없습니다.
 - 취소 · 수정 · 삭제도 먼저 판정합니다. 볼 수 없는 게시물에서 `LIKE_NOT_FOUND` · `COMMENT_NOT_OWNER` · `FEED_NOT_OWNER` 같은 다른 오류가 나가면 게시물이 있다는 사실이 드러나기 때문입니다.
 - 그래서 게시물이 PRIVATE로 바뀌면 다른 회원이 전에 남긴 좋아요 · 북마크 · 댓글은 남고, 그 회원도 취소하거나 지울 수 없습니다.
-- 목록(팔로잉 탭, 프로필 피드, 피드 지도)은 아직 PUBLIC만 보여 줍니다. FOLLOWERS 게시물을 목록에 넣는 것은 후속입니다.
+- 목록도 같은 공개 범위 규칙을 따릅니다(#91). 목록에 보이는 게시물은 상세로 열 수 있어야 하기 때문입니다.
+  - 접근: 피드 목록 · 피드 지도는 로그인 필수입니다(앱 흐름: 시작하기 → 로그인 → 피드). 비로그인은 게시물 상세(공유 링크)와 프로필 피드만 볼 수 있습니다.
+  - 모든 목록은 삭제 · 숨김 게시물을 뺍니다. 숨김 게시물은 작성자도 목록에서는 보이지 않고 상세로만 볼 수 있습니다(목록에 숨김 표시 UI가 없음).
+  - 팔로잉 탭: 삭제 · 숨김을 제외한 내 게시물 전부 + 팔로우한 사람의 PUBLIC · FOLLOWERS. 팔로우 목록은 social의 `RelationQueryUseCase.getFollowingIds`로 받고, feed는 `follows` 테이블을 읽지 않습니다(6.1).
+  - 추천 탭: 다른 사람의 PUBLIC만. 처음 보는 사람의 글을 발견하는 탭이라 팔로워 공개 글은 팔로잉 탭에서만 보입니다(`_local/algorithm-plan.md` 6단계, 프론트 mock과 같음).
+  - 프로필 피드: `relationOf`로 관계를 구한 뒤 `Visibility.allows`가 허용하는 공개 범위만(본인은 삭제 · 숨김을 제외한 전체, 팔로워 PUBLIC · FOLLOWERS, 그 외와 비로그인 PUBLIC). 컬렉션 탭과 같은 방식입니다.
+  - 피드 지도: 탭과 같은 기준. SQL이 `query/FeedPlaceQueryAdapter`에 있어 `follows`를 읽기 전용으로 JOIN합니다.
 
 ### collection
 | 메서드 | 경로 | 입력 포트 · 메서드 | 비고 |
@@ -1783,7 +1789,7 @@ class ArchitectureTest {
 | 4 | 보류 테이블(tags 등)을 Flyway 초기 스크립트에 포함할지 (제안: 보류를 풀 때 마이그레이션 추가) |
 | 5 | R2 파일 접근 방식: 공개 버킷이면 비공개 게시물 · 유료 컬렉션 사진이 URL만으로 열림 → 비공개 버킷 + 서명 URL(GET) 여부. **게시물 사진은 공개 버킷 + 랜덤 UUID 파일 이름으로 시작함(PR #168, #155).** 이름을 추측할 수는 없지만, 볼 권한이 있던 사람이 주소를 퍼뜨리면 비공개 글의 사진도 열리는 한계가 있음. 유료 컬렉션 사진은 비공개 버킷 + 서명 GET을 따로 정함 |
 | 6 | DM으로 공유한 FOLLOWERS 게시물을 팔로워가 아닌 상대가 볼 수 있는지 (제안: 열람 시점에 공개 범위 다시 확인) |
-| 7 | 피드 단건 접근(상세, 댓글, 반응, 수정 · 삭제)은 공개 범위를 검사합니다(이슈 #175, 위 feed 절). 신고 접수는 여전히 다른 회원에게 `PUBLIC`만 허용합니다. 팔로워는 이제 `FOLLOWERS` 게시물을 상세로 볼 수 있지만 신고할 수 없습니다. 피드 목록이 팔로워 글을 보여 주면(후속) 신고 조건을 같은 기준으로 맞춥니다 |
+| 7 | 피드 단건 접근(상세, 댓글, 반응, 수정 · 삭제)은 공개 범위를 검사합니다(이슈 #175, 위 feed 절). 신고 접수는 여전히 다른 회원에게 `PUBLIC`만 허용합니다. 팔로워는 이제 `FOLLOWERS` 게시물을 상세와 목록(#91)에서 볼 수 있지만 신고할 수 없습니다. 신고 조건을 같은 기준으로 맞추는 작업은 #178입니다 |
 
 ---
 
