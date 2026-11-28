@@ -204,6 +204,40 @@ class DmStompIntegrationTest {
     }
 
     @Test
+    @DisplayName("그룹: 만들기 안내가 모두에게, 글은 보낸 사람 정보와 함께 모두에게, 나가면 남은 사람에게 안내 · 나간 사람에게 CONVERSATION_UPDATED")
+    void groupDelivery() throws Exception {
+        String cName = randomUsername();
+        long c = insertUser(cName);
+        Client me = connect(a);
+        Client partner = connect(b);
+        Client third = connect(c);
+
+        long group = conversations.createGroup(a, "모임", List.of(bName, cName)).id();
+        for (Client client : List.of(me, partner, third)) {
+            Map<String, Object> created = data(client.nextEvent());
+            assertThat(created.get("type")).isEqualTo("SYSTEM");
+            assertThat(((Map<?, ?>) created.get("system")).get("event")).isEqualTo("CREATED");
+        }
+
+        me.session.send("/app/dm.send", sendBody(group, UUID.randomUUID().toString(), "다들 안녕"));
+        for (Client client : List.of(partner, third)) {
+            Map<String, Object> text = data(client.nextEvent());
+            assertThat(text.get("text")).isEqualTo("다들 안녕");
+            assertThat(text.get("isMine")).isEqualTo(false);
+            assertThat(((Map<?, ?>) text.get("sender")).get("username")).isEqualTo(usernameOf(a));
+        }
+        me.drainEvents();
+
+        conversations.leave(c, group);
+        for (Client client : List.of(me, partner)) {
+            assertThat(((Map<?, ?>) data(client.nextEvent()).get("system")).get("event")).isEqualTo("LEFT");
+        }
+        Map<String, Object> updated = third.nextEvent();
+        assertThat(updated.get("type")).isEqualTo("CONVERSATION_UPDATED");
+        assertThat(data(updated).get("conversationId")).isEqualTo(String.valueOf(group));
+    }
+
+    @Test
     @DisplayName("허용되지 않은 목적지 구독 · 다른 회원 큐로 직접 보내기는 ERROR(FORBIDDEN_DESTINATION) 후 연결 종료")
     void forbiddenDestinations() throws Exception {
         Client subscriber = connect(a);

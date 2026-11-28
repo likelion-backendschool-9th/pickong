@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 
 import com.pickong.common.error.BusinessException;
 import com.pickong.common.error.CommonErrorCode;
+import com.pickong.conversation.application.dto.ConversationPartner;
 import com.pickong.conversation.application.dto.MessagePageQuery;
 import com.pickong.conversation.application.dto.MessagePageResult;
 import com.pickong.conversation.application.dto.MessageResult;
@@ -21,6 +22,8 @@ import com.pickong.conversation.application.port.out.ConversationQueryPort;
 import com.pickong.conversation.domain.ConversationErrorCode;
 import com.pickong.conversation.domain.model.Conversation;
 import com.pickong.conversation.domain.model.ConversationMember;
+import com.pickong.conversation.domain.vo.ConversationType;
+import com.pickong.conversation.domain.vo.MessageType;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -45,6 +48,7 @@ class ConversationQueryServiceTest {
     void member() {
         when(conversations.findById(CONVERSATION)).thenReturn(Optional.of(Conversation.builder()
                 .id(CONVERSATION)
+                .type(ConversationType.DIRECT)
                 .members(List.of(ConversationMember.join(ME, JOINED), ConversationMember.join(2, JOINED)))
                 .build()));
     }
@@ -118,7 +122,8 @@ class ConversationQueryServiceTest {
     /** from에서 to까지 (내림차순이면 from > to) */
     private static List<MessageResult> messages(long from, long to) {
         LongStream ids = from > to ? LongStream.rangeClosed(to, from).map(i -> from + to - i) : LongStream.rangeClosed(from, to);
-        return ids.mapToObj(id -> new MessageResult(id, CONVERSATION, UUID.randomUUID(), false, "m" + id, JOINED.plusMinutes(id)))
-                .toList();
+        ConversationPartner sender = new ConversationPartner(UUID.randomUUID(), "jimin", null, null);
+        return ids.mapToObj(id -> new MessageResult(id, CONVERSATION, sender, false, MessageType.TEXT, "m" + id, null,
+                JOINED.plusMinutes(id))).toList();
     }
 }

@@ -13,6 +13,8 @@ import static org.mockito.Mockito.when;
 
 import com.pickong.common.error.BusinessException;
 import com.pickong.common.error.CommonErrorCode;
+import com.pickong.conversation.application.dto.ConversationPartner;
+import com.pickong.conversation.application.dto.MessageResult;
 import com.pickong.conversation.application.dto.ReadReceipt;
 import com.pickong.conversation.application.dto.SendMessageCommand;
 import com.pickong.conversation.application.dto.SentMessage;
@@ -25,6 +27,7 @@ import com.pickong.conversation.domain.ConversationErrorCode;
 import com.pickong.conversation.domain.model.Conversation;
 import com.pickong.conversation.domain.model.ConversationMember;
 import com.pickong.conversation.domain.vo.ConversationType;
+import com.pickong.conversation.domain.vo.MessageType;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -185,7 +188,9 @@ class MessageServiceTest {
     }
 
     private static SentMessage sent(long id) {
-        return new SentMessage(id, CONVERSATION, ME, UUID.randomUUID(), CLIENT_ID, "안녕", NOW);
+        MessageResult message = new MessageResult(id, CONVERSATION, new ConversationPartner(UUID.randomUUID(), "me", null, null),
+                true, MessageType.TEXT, "안녕", null, NOW);
+        return new SentMessage(message, ME, CLIENT_ID);
     }
 
     @Test
