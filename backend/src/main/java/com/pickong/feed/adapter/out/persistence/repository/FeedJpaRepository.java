@@ -30,14 +30,6 @@ public interface FeedJpaRepository extends JpaRepository<FeedJpaEntity, Long> {
     int updateHiddenAt(@Param("id") long id, @Param("previous") OffsetDateTime previous,
             @Param("hiddenAt") OffsetDateTime hiddenAt, @Param("now") OffsetDateTime now);
 
-    // 행을 지우지 않고 삭제 시각만 채움. 물리 삭제하면 V4의 ON DELETE CASCADE로 댓글, 반응까지 사라짐
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
-    @Query(value = """
-            UPDATE feeds SET deleted_at = now(), updated_at = now()
-             WHERE id = :id AND deleted_at IS NULL
-            """, nativeQuery = true)
-    int softDelete(@Param("id") long id);
-
     List<FeedJpaEntity> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
     // PUBLIC 피드를 최신순으로 조회 (삭제·숨김 제외, cursor 없으면 첫 페이지)

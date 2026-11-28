@@ -123,31 +123,31 @@ class FeedServiceTest {
     }
 
     @Test
-    void deleteFeed_성공() {
+    void deleteFeed_성공_하드삭제() {
         // given: 피드가 존재하고 본인 피드
         given(feedRepository.findByIdForUpdate(1L)).willReturn(sampleFeed());
-        given(feedRepository.softDelete(1L)).willReturn(true);
 
         // when
         feedService.deleteFeed(1L, 1L);
 
-        // then: 행을 지우지 않고 소프트 삭제만 호출됐는지 확인
-        verify(feedRepository).softDelete(1L);
+        // then: 본인이 지우는 게시물은 행을 실제로 삭제함
+        verify(feedRepository).deleteById(1L);
     }
 
+    // deleted_at은 탈퇴 회원 게시물을 소프트 삭제할 때 채워짐 (#103). 그런 게시물은 다시 지울 수 없음
     @Test
-    void deleteFeed_이미삭제된피드_404_소프트삭제안함() {
+    void deleteFeed_소프트삭제된피드_404_삭제안함() {
         given(feedRepository.findByIdForUpdate(1L)).willReturn(
                 Feed.builder().id(1L).userId(1L).deletedAt(OffsetDateTime.now()).build());
 
         assertThatThrownBy(() -> feedService.deleteFeed(1L, 1L))
                 .extracting("errorCode").isEqualTo(FeedErrorCode.FEED_NOT_FOUND);
-        verify(feedRepository, never()).softDelete(1L);
+        verify(feedRepository, never()).deleteById(1L);
     }
 
     @Test
-    void deleteFeed_타인의삭제된피드_403이아니라404() {
-        // 이미 삭제된 글이면 작성자가 아니어도 FEED_NOT_OWNER 대신 없는 글과 같은 404
+    void deleteFeed_타인의소프트삭제된피드_403이아니라404() {
+        // 삭제된 글이면 작성자가 아니어도 FEED_NOT_OWNER 대신 없는 글과 같은 404
         given(feedRepository.findByIdForUpdate(1L)).willReturn(
                 Feed.builder().id(1L).userId(1L).deletedAt(OffsetDateTime.now()).build());
 
@@ -156,16 +156,7 @@ class FeedServiceTest {
     }
 
     @Test
-    void deleteFeed_소프트삭제가반영안되면_404() {
-        given(feedRepository.findByIdForUpdate(1L)).willReturn(sampleFeed());
-        given(feedRepository.softDelete(1L)).willReturn(false);
-
-        assertThatThrownBy(() -> feedService.deleteFeed(1L, 1L))
-                .extracting("errorCode").isEqualTo(FeedErrorCode.FEED_NOT_FOUND);
-    }
-
-    @Test
-    void updateFeed_삭제된피드_404() {
+    void updateFeed_소프트삭제된피드_404() {
         given(feedRepository.findByIdForUpdate(1L)).willReturn(
                 Feed.builder().id(1L).userId(1L).deletedAt(OffsetDateTime.now()).build());
 

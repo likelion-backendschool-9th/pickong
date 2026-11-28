@@ -83,7 +83,6 @@ public class FeedService implements FeedUseCase {
     public Feed updateFeed(Long feedId, Long userId, UpdateFeedCommand command) {
         Feed feed = feedRepository.findByIdForUpdate(feedId);
         // 1. 볼 수 있는 글인지 → 2. 본인 글인지. 1번이 없으면 남의 비공개 글에 403이 나가서 글이 있다는 게 드러남
-        // 소프트 삭제된 글은 행이 남아 있지만 1번에서 404로 막힘 (수정해서 되살릴 수 없음)
         feed.ensureReadable(relationQueryUseCase.relationOf(userId, feed.getUserId()), false);
         if (!feed.getUserId().equals(userId)) {
             throw new BusinessException(FeedErrorCode.FEED_NOT_OWNER);
@@ -95,17 +94,16 @@ public class FeedService implements FeedUseCase {
     @Override
     @Transactional
     public void deleteFeed(Long feedId, Long userId) {
-        // 1. 행 잠금 → 2. 볼 수 있는 글인지 (이미 삭제됨, 남의 숨김 글, 공개 범위 밖이면 모두 404)
-        // → 3. 본인 글인지 → 4. deleted_at만 채움. 숨김 글도 작성자는 볼 수 있어서 삭제할 수 있음
         Feed feed = feedRepository.findByIdForUpdate(feedId);
+        // 수정과 같은 순서: 볼 수 있는 글인지 → 본인 글인지
         feed.ensureReadable(relationQueryUseCase.relationOf(userId, feed.getUserId()), false);
         if (!feed.getUserId().equals(userId)) {
             throw new BusinessException(FeedErrorCode.FEED_NOT_OWNER);
         }
-        // 행을 잠그고 읽어서 동시에 두 번 삭제해도 여기는 한 번만 true. 그래도 false면 이미 삭제된 것으로 봄
-        if (!feedRepository.softDelete(feedId)) {
-            throw new BusinessException(FeedErrorCode.FEED_NOT_FOUND);
-        }
+        // 본인이 직접 지우는 게시물은 하드 삭제함. 댓글, 반응, 사진과 장소 연결은 V4의 ON DELETE CASCADE로 같이 지워짐
+        // 신고된 게시물은 신고 접수 때 저장한 스냅샷이 남아 관리자가 내용을 확인할 수 있음
+        // 탈퇴 회원의 게시물은 30일 유예 뒤 소프트 삭제(deleted_at)하는 별도 정책 (#103)
+        feedRepository.deleteById(feedId);
     }
 
     @Override

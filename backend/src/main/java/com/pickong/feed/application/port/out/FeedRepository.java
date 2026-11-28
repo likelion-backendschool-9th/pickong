@@ -21,11 +21,7 @@ public interface FeedRepository {
 
     boolean updateHiddenAt(long feedId, OffsetDateTime previous, OffsetDateTime hiddenAt, OffsetDateTime now);
 
-    /**
-     * 소프트 삭제: deleted_at을 채우고 행은 남김. 댓글, 반응, 사진, 장소 연결도 지우지 않음
-     * 이미 삭제된 게시물이면 바꾸지 않고 false
-     */
-    boolean softDelete(long feedId);
+    void deleteById(Long feedId);
 
     // 좋아요 수 증가 · 감소 (동시 요청 안전하게 DB에서 직접 연산)
     void incrementLikeCount(Long feedId);

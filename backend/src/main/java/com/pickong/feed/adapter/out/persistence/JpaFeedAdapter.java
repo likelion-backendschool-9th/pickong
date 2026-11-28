@@ -115,11 +115,16 @@ public class JpaFeedAdapter implements FeedRepository {
         return feedJpaRepository.updateHiddenAt(feedId, previous, hiddenAt, now) == 1;
     }
 
-    // 서비스가 행을 잠그고 소유자를 확인한 같은 트랜잭션에서만 부르게 함
     @Override
-    @Transactional(propagation = Propagation.MANDATORY)
-    public boolean softDelete(long feedId) {
-        return feedJpaRepository.softDelete(feedId) == 1;
+    @Transactional
+    public void deleteById(Long feedId) {
+        // 존재하지 않는 feedId 삭제 시 404 반환
+        if (!feedJpaRepository.existsById(feedId)) {
+            throw new BusinessException(FeedErrorCode.FEED_NOT_FOUND);
+        }
+        feedPhotoJpaRepository.deleteAllByFeedId(feedId);
+        feedPlaceJpaRepository.deleteAllByFeedId(feedId);
+        feedJpaRepository.deleteById(feedId);
     }
 
     @Override

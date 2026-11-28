@@ -3,7 +3,7 @@
 > **이 파일이 피드 작업의 단일 소스**입니다.  
 > `_local/feed-backend-tasks.md`는 더 이상 사용하지 않습니다.  
 > 기준: `backend_blueprint.md` 3장 feed API 목록  
-> 마지막 갱신: 2026-11-27, 실제 코드 + PR 기준 (PR #159 · #176 머지, #168 · #185 리뷰 중)
+> 마지막 갱신: 2026-11-28, 실제 코드 + PR 기준 (PR #159 · #168 · #176 머지, #185 · #186 · #187 리뷰 중)
 
 ---
 
@@ -18,7 +18,7 @@
 | ✅ | POST | `/feeds` | `FeedUseCase.write` | |
 | ✅ | GET | `/feeds/{feedId}` | `FeedUseCase.getDetail` | 공개 범위 검사 (PR #176) |
 | ✅ | PUT | `/feeds/{feedId}` | `FeedUseCase.update` | |
-| ✅ | DELETE | `/feeds/{feedId}` | `FeedUseCase.delete` | 소프트 삭제, 204 (PR #185 리뷰 중) |
+| ✅ | DELETE | `/feeds/{feedId}` | `FeedUseCase.delete` | 본인 삭제는 하드 삭제, 204 (PR #185 리뷰 중). 탈퇴 시 소프트 삭제는 #103 |
 | ✅ | GET | `/users/{username}/feeds` | `FeedUseCase.getUserFeeds` | `UserFeedController` |
 | ☐ | GET | `/me/bookmarked-feeds` | `FeedQueryUseCase.myBookmarks` | 미구현 |
 | ☐ | GET | `/users/{username}/visits` | `FeedQueryUseCase.visitedPlacesOf` | 기준 미정 (blueprint 8.3 #3) |
@@ -81,7 +81,8 @@
 
 ### ☐ 2-2. 오늘 검토에서 찾은 문제 (2026-11-27)
 
-- ◐ 게시물 삭제가 물리 삭제 → `deleted_at` 소프트 삭제: PR #185 (리뷰 중)
+- ✅ 게시물 삭제 정책 결정 (2026-11-28): **본인 삭제는 하드 삭제 유지**, 탈퇴 회원 게시물은 30일 유예 뒤 소프트 삭제(#103). PR #185는 삭제 응답 204와 삭제 테스트만 반영
+  - 하드 삭제 시 R2 사진 파일도 지워야 함 (#171)
 - ☐ 카운터 미동기화: 게시물 작성 · 삭제 시 `users.feed_count` #184, 댓글 작성 · 삭제 시 `feeds.comment_count` (이슈 없음)
 - ☐ 프론트 `PostDto`와 백엔드 `FeedResponse` 응답 계약 불일치 (작성자, `isLiked` · `isBookmarked`, 사진 URL, 내부 id 노출) — #155에서 처리
 - ☐ `CreateFeedRequest` 입력 검증 (`content` 길이, `placeIds` 존재 확인)

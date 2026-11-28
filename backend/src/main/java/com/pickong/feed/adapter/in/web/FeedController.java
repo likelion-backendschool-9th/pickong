@@ -111,7 +111,7 @@ public class FeedController {
         return FeedResponse.from(feedUseCase.updateFeed(feedId, user.userId(), request.toCommand()));
     }
 
-    // 피드 삭제 — 로그인 필수, 본인 피드만 가능, 204 No Content (댓글 삭제와 같게). 소프트 삭제라 댓글, 반응은 남음
+    // 피드 삭제 — 로그인 필수, 본인 피드만 가능, 204 No Content (댓글 삭제와 같게). 하드 삭제라 댓글, 반응도 같이 지워짐
     @DeleteMapping("/{feedId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteFeed(
