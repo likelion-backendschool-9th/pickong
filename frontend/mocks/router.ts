@@ -117,7 +117,12 @@ async function readBody(req: IncomingMessage) {
   for await (const chunk of req) chunks.push(chunk as Buffer);
   if (chunks.length === 0) return undefined;
   const text = Buffer.concat(chunks).toString("utf8");
-  return text ? JSON.parse(text) : undefined;
+  if (!text) return undefined;
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new HttpError(400, "INVALID_INPUT", "요청 형식을 확인해 주세요.");
+  }
 }
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

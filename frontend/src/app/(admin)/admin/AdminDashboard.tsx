@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { BadgeCheck, ChevronRight, EyeOff, Flag, Landmark, LogOut, MapPinPlus, ReceiptText, UserX } from "lucide-react";
+import { BadgeCheck, ChevronRight, EyeOff, Flag, Landmark, LogOut, Map, MapPinPlus, ReceiptText, UserX } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
@@ -51,6 +51,7 @@ export function AdminDashboard() {
           <Menu href={routes.adminUsers()} icon={<UserX size={18} />} label="사용자 제재" desc="경고 · 기간 정지 · 영구 정지" count={data?.sanctionedUsers} countLabel="제재 중" />
           <Menu href={routes.adminContents()} icon={<EyeOff size={18} />} label="콘텐츠 관리" desc="게시물 · 컬렉션 숨김" count={data?.hiddenContents} countLabel="숨김" />
           <Menu href={routes.adminPlaceSubmissions()} icon={<MapPinPlus size={18} />} label="제보 관리" desc="사용자가 직접 등록한 장소 심사" count={pendingSubmissions} />
+          <Menu href={routes.adminPlaces()} icon={<Map size={18} />} label="지도 관리" desc="공용 장소 조회 및 관리" />
         </ul>
 
         <h2 className="mt-7 mb-2 text-[13px] font-bold text-ink-faint">크리에이터 · 결제</h2>

@@ -355,6 +355,36 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 
 제보 상태 전이는 대기 → 승인 또는 대기 → 반려만입니다. 승인하면 `places` 행을 만들고 `place_submissions.place_id`를 같은 트랜잭션에서 연결합니다. 반려는 사유 · 심사자 · 처리 시각만 남기고 장소는 만들지 않습니다. 이미 처리한 제보의 재심사는 409입니다. 관리자 API는 비로그인 401, 회원 403입니다. 관리자 로그인과 `admin_action_logs` 기록은 만들지 않았고, 심사자 id는 제보 행의 `reviewer_admin_id`에 남습니다. 승인된 장소에는 `visibility` · `owner_id`를 두지 않습니다. 이 두 컬럼의 일반 규칙은 8.3에 그대로 열려 있습니다.
 
+**관리자 장소 관리 (이후 구현, 이슈 #165 · #166 · #167):** 아래는 프론트·Mock이 쓰는 경로를 백엔드에 붙일 때의 설계 후보입니다. Java 컨트롤러, DB 연동, Flyway 변경은 없습니다. 클래스 이름은 확정이 아니므로 예시입니다. 회원 `POST /places`나 제보 API와 다른 흐름이고, 관리자 등록이 `saved_places`를 만들지는 않습니다.
+
+| 메서드 | 경로 | 상태 |
+| --- | --- | --- |
+| GET | `/admin/places` | 이후 구현. 공용 장소 목록 후보 |
+| GET | `/admin/places/{placeId}` | 이후 구현. `{placeId}`는 장소 `public_id` UUID 후보. 제보 bigint와 다름 |
+| POST | `/admin/places` | 이후 구현. SYSTEM · PUBLIC은 서버가 정하는 후보 |
+| PATCH | `/admin/places/{placeId}` | 이후 구현. 바뀐 필드만 보내는 후보 |
+| DELETE | `/admin/places/{placeId}` | 이후 구현. 삭제 방식은 미정 |
+
+배치 후보도 place 모듈의 `adapter/in/web/admin`입니다. admin 모듈이 place의 JPA 리포지토리나 엔티티를 직접 고치지 않습니다. 사진 저장은 media 모듈 경계를 유지합니다. 조회·등록·수정·삭제 UseCase, 응용 서비스, 리포지토리 포트, 영속 어댑터, 요청·응답 DTO는 그 안에 둘 후보입니다.
+
+이미 있는 것: 제보 심사의 관리자 컨트롤러, `AdminPrincipal`, 테스트의 `ROLE_ADMIN`. 없는 것: 이 다섯 API, 이 API의 인가, 관리자 로그인 화면, 브라우저 E2E. 로그인 전체를 완료로 적지 않습니다. 비로그인·회원·관리자 구분과 CSRF는 기존 `/admin/**` 규칙을 재사용하는 방향만 검토합니다. `admin_action_logs` 연결도 이후입니다.
+
+프론트·Mock이 제안하는 본문(백엔드 계약 확정 전):
+
+- 목록은 `id` · `name` · `address` · `category` · `sourceType` · `imageUrl`. 상세는 `visibility` · `lat` · `lng` · `businessHours` · `hoursExceptions`를 더합니다.
+- 등록은 이름 · 주소 · 카테고리 · 좌표 · 영업시간 · 예외 · 선택 `imageUrl`. `sourceType` · `visibility`는 서버 값 후보(SYSTEM · PUBLIC).
+- 수정은 생략한 필드를 유지하고, 영업시간·예외의 빈 배열은 해당 묶음 제거, `imageUrl: null`은 대표 사진 제거 후보입니다. `sourceType` · `visibility` 변경은 제한하는 쪽을 검토합니다. 동시 수정 충돌(낙관적 잠금 포함)은 정하지 않았습니다.
+- 좌표는 PostGIS `places.location` 저장을 검토합니다. 주소 문자와 좌표를 서버가 맞춰 주지는 않습니다.
+- 오류 후보는 400 `INVALID_INPUT`, 404 `PLACE_NOT_FOUND`, 409 `PLACE_NOT_MANAGEABLE`입니다. 응답에 `status`를 포함하는 공통 형식(common 5.2)을 따릅니다. Mock의 `{ code, message }`만으로 공통 계약을 바꾸지 않습니다. 401·403은 기존 인증 규칙입니다. 이 코드들은 아직 이 API에 구현되지 않았습니다.
+
+영업시간: `place_business_hours`, `place_hours_exceptions`는 place 모듈 소유로 적혀 있고 JPA 엔티티가 있습니다. 이 저장소의 Flyway에는 두 테이블 생성이 없습니다. 이슈 #165의 `place_outs_exception`은 저장소 이름 `place_hours_exceptions`와 다릅니다. 이름은 바꾸지 않습니다. 요일 0=일요일 … 6=토요일, 정기 휴무 `0,0,closed true`, 24시간 `0~1440`, 익일 종료는 1440 초과, 예외 휴무는 시간 null이 프론트·Mock 후보입니다. 요일당 한 구간, 날짜당 한 예외, 브레이크 없음은 화면 제한이고 DB 제약으로 확정하지 않았습니다. 등록·수정은 장소와 영업시간을 한 트랜잭션으로 다룰지를 구현 때 정합니다.
+
+사진: 화면은 대표 한 장입니다. 실제 업로드는 기존 media의 발급·확인·R2를 재사용할지, `places.image_url`과 `image_media_id` 중 무엇을 쓸지, 관리자 주체를 `media_files.user_id`(현재 NOT NULL)에 어떻게 둘지 팀 합의가 필요합니다. 교체·제거 뒤 쓰이지 않는 파일, 장소 저장이 실패했을 때의 업로드분, 여러 장과 순서는 정하지 않았습니다. Mock의 `/admin/places/mock-media`는 백엔드 경로가 아닙니다.
+
+삭제: Mock은 `deletedAt`으로 관리자 목록·상세에서 빼며 연관 데이터를 지우지 않습니다. 이것이 소프트 삭제 결정은 아닙니다. 물리 삭제, 복구, 저장 장소·컬렉션·피드·제보와의 관계, FK, 사진 정리, 작업 로그, 삭제 후 회원 지도 노출은 검토 항목입니다. cascade를 이 문서에서 정하지 않습니다.
+
+구현 순서 후보: (1) API 계약과 SYSTEM 밖 권한·삭제·영업시간·사진 정책 합의 (2) place 도메인과 실제 DB 검토 (3) 필요한 Flyway (4) 도메인과 포트 (5) 영속 어댑터 (6) 목록 (7) 상세 (8) 등록 (9) 영업시간·예외 저장 (10) media 연동 (11) 수정 (12) 삭제 (13) 인가와 작업 로그 (14) 프론트를 이 API에 연결 (15) 회원 지도와의 데이터 일치 (16) 통합·회귀 테스트. 이 순서는 계획입니다.
+
 ### route
 | 메서드 | 경로 | 입력 포트 · 메서드 |
 | --- | --- | --- |
