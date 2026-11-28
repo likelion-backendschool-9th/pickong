@@ -152,6 +152,59 @@ class ReportServiceIntegrationTest {
         assertThat(count).isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("팔로워는 FOLLOWERS 게시물과 그 댓글을 신고할 수 있고, 팔로우를 끊으면 다음 신고부터 404 (상세 열람과 같은 기준)")
+    void followerCanReportFollowersOnlyContent() {
+        long feedAuthor = insertUser();
+        long commentAuthor = insertUser();
+        long follower = insertUser();
+        long stranger = insertUser();
+        jdbc.update("INSERT INTO follows (follower_id, followee_id) VALUES (?, ?)", follower, feedAuthor);
+        long followersFeed = insertFeed(feedAuthor, "service-it-팔로워글", "FOLLOWERS");
+        long comment = insertComment(followersFeed, commentAuthor, "service-it-팔로워글댓글");
+
+        ReportReceipt feedReport = reports.report(new ReportCommand(follower, ReportTargetType.FEED, followersFeed, "SPAM", null));
+        ReportReceipt commentReport = reports.report(new ReportCommand(follower, ReportTargetType.COMMENT, comment, "ABUSE", null));
+        assertThat(feedReport.status()).isEqualTo("PENDING");
+        assertThat(commentReport.status()).isEqualTo("PENDING");
+
+        assertRejected(stranger, ReportTargetType.FEED, followersFeed, ModerationErrorCode.REPORT_TARGET_NOT_FOUND, "팔로워글");
+        assertRejected(stranger, ReportTargetType.COMMENT, comment, ModerationErrorCode.REPORT_TARGET_NOT_FOUND, "팔로워글댓글");
+
+        jdbc.update("DELETE FROM follows WHERE follower_id = ? AND followee_id = ?", follower, feedAuthor);
+        jdbc.update("DELETE FROM reports WHERE reporter_id = ?", follower);
+        assertRejected(follower, ReportTargetType.FEED, followersFeed, ModerationErrorCode.REPORT_TARGET_NOT_FOUND, "팔로워글");
+    }
+
+    @Test
+    @DisplayName("팔로워가 신고한 FOLLOWERS 게시물 · 댓글은 신고 당시 본문이 스냅샷에 남고, 게시물을 고치거나 지워도 그대로다")
+    void followerReportKeepsSnapshotAfterEditAndDelete() {
+        long feedAuthor = insertUser();
+        long follower = insertUser();
+        jdbc.update("INSERT INTO follows (follower_id, followee_id) VALUES (?, ?)", follower, feedAuthor);
+        long feed = insertFeed(feedAuthor, "service-it-팔로워원문", "FOLLOWERS");
+        long comment = insertComment(feed, feedAuthor, "service-it-팔로워댓글원문");
+
+        ReportReceipt feedReport = reports.report(new ReportCommand(follower, ReportTargetType.FEED, feed, "SPAM", null));
+        ReportReceipt commentReport = reports.report(new ReportCommand(follower, ReportTargetType.COMMENT, comment, "ABUSE", null));
+        String feedSnapshot = snapshotOf(feedReport.id());
+        String commentSnapshot = snapshotOf(commentReport.id());
+        assertThat(feedSnapshot).contains("service-it-팔로워원문");
+        assertThat(commentSnapshot).contains("service-it-팔로워댓글원문");
+
+        jdbc.update("UPDATE feeds SET content = 'service-it-수정됨' WHERE id = ?", feed);
+        assertThat(snapshotOf(feedReport.id())).isEqualTo(feedSnapshot);
+
+        // 본인 삭제는 하드 삭제라 게시물과 댓글 행이 사라져도 신고와 스냅샷은 남아야 됨 (reports는 게시물을 FK로 가리키지 않음)
+        jdbc.update("DELETE FROM feeds WHERE id = ?", feed);
+        assertThat(snapshotOf(feedReport.id())).isEqualTo(feedSnapshot);
+        assertThat(snapshotOf(commentReport.id())).isEqualTo(commentSnapshot);
+    }
+
+    private String snapshotOf(long reportId) {
+        return jdbc.queryForObject("SELECT snapshot FROM reports WHERE id = ?", String.class, reportId);
+    }
+
     private void assertRejected(
             long reporterId, ReportTargetType type, long targetId, ModerationErrorCode code, String secret) {
         assertThatThrownBy(() -> reports.report(new ReportCommand(reporterId, type, targetId, "SPAM", null)))
