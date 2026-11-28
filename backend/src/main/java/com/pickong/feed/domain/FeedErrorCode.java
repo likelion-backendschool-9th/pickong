@@ -12,6 +12,10 @@ public enum FeedErrorCode implements ErrorCode {
     FEED_MODERATION_REASON_TOO_LONG(400, "사유는 200자까지 쓸 수 있어요."),
     FEED_STATE_CONFLICT(409, "게시물 상태가 변경되었어요. 다시 확인해 주세요."),
     INVALID_TAB(400, "tab은 recommended 또는 following만 허용됩니다"),
+    // 같은 사진 id를 한 게시물에 두 번 보냄
+    FEED_PHOTO_DUPLICATED(400, "같은 사진을 두 번 올릴 수 없어요."),
+    // 사진 한 장은 게시물 하나에만 연결함 (한 게시물을 지우면 다른 게시물의 사진이 깨지지 않게)
+    FEED_PHOTO_IN_USE(409, "이미 다른 게시물에 올린 사진이에요. 사진을 새로 올려 주세요."),
     COMMENT_NOT_FOUND(404, "댓글을 찾을 수 없습니다"),
     COMMENT_REPLY_DEPTH_EXCEEDED(400, "대댓글에는 답글을 달 수 없습니다"),
     COMMENT_FEED_MISMATCH(400, "댓글이 해당 피드에 속하지 않습니다"),

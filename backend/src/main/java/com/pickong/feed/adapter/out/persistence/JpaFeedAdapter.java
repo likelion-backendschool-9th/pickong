@@ -119,6 +119,11 @@ public class JpaFeedAdapter implements FeedRepository {
     }
 
     @Override
+    public boolean existsPhotoInOtherFeed(java.util.Collection<Long> mediaFileIds, Long exceptFeedId) {
+        return !mediaFileIds.isEmpty() && feedPhotoJpaRepository.existsInOtherFeed(mediaFileIds, exceptFeedId);
+    }
+
+    @Override
     @Transactional
     public void deleteById(Long feedId) {
         // 존재하지 않는 feedId 삭제 시 404 반환
