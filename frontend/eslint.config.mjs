@@ -10,6 +10,11 @@ const sliceInternals = {
   group: ["@/entities/*/*", "@/features/*/*", "@/widgets/*/*"],
   message: "슬라이스 내부 경로 대신 공개 API(index.ts)로 import하세요. 예: @/entities/place",
 };
+/** STOMP 클라이언트는 shared/realtime 안에서만 (지도 SDK 경계와 같은 규칙, frontend_blueprint 8.8) */
+const stompOnlyInRealtime = {
+  name: "@stomp/stompjs",
+  message: "STOMP 클라이언트는 shared/realtime 안에서만 씁니다. 대화는 @/entities/conversation의 훅을 쓰세요.",
+};
 const sharedUiBarrel = {
   name: "@/shared/ui",
   message: "shared/ui는 파일 경로로 import하세요. 예: @/shared/ui/Button",
@@ -22,11 +27,23 @@ const eslintConfig = defineConfig([
   {
     files: ["src/**/*.{ts,tsx}"],
     rules: {
-      "no-restricted-imports": ["error", { paths: [sharedUiBarrel], patterns: [sliceInternals] }],
+      "no-restricted-imports": ["error", { paths: [sharedUiBarrel, stompOnlyInRealtime], patterns: [sliceInternals] }],
     },
   },
   {
     files: ["src/shared/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [stompOnlyInRealtime],
+          patterns: [layer(["@/entities*", "@/features*", "@/widgets*", "@/app*"], "shared는 상위 계층을 import할 수 없어요.")],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/shared/realtime/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -40,7 +57,7 @@ const eslintConfig = defineConfig([
       "no-restricted-imports": [
         "error",
         {
-          paths: [sharedUiBarrel],
+          paths: [sharedUiBarrel, stompOnlyInRealtime],
           patterns: [sliceInternals, layer(["@/features*", "@/widgets*", "@/app*"], "entities는 features·widgets·app을 import할 수 없어요.")],
         },
       ],
@@ -52,7 +69,7 @@ const eslintConfig = defineConfig([
       "no-restricted-imports": [
         "error",
         {
-          paths: [sharedUiBarrel],
+          paths: [sharedUiBarrel, stompOnlyInRealtime],
           patterns: [sliceInternals, layer(["@/features*", "@/widgets*", "@/app*"], "feature끼리 import하지 말고 위 계층(widgets·app)에서 조합하세요.")],
         },
       ],
@@ -63,7 +80,7 @@ const eslintConfig = defineConfig([
     rules: {
       "no-restricted-imports": [
         "error",
-        { paths: [sharedUiBarrel], patterns: [sliceInternals, layer(["@/widgets*", "@/app*"], "widgets는 다른 widget·app을 import할 수 없어요.")] },
+        { paths: [sharedUiBarrel, stompOnlyInRealtime], patterns: [sliceInternals, layer(["@/widgets*", "@/app*"], "widgets는 다른 widget·app을 import할 수 없어요.")] },
       ],
     },
   },

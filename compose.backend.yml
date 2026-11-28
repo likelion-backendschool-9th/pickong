@@ -4,6 +4,8 @@ services:
   frontend:
     environment:
       API_BASE_URL: http://backend:8080
+      # 채팅 STOMP. 브라우저가 호스트에서 바로 연결하므로 localhost 주소입니다 (Next rewrites는 WebSocket을 전달하지 않음)
+      NEXT_PUBLIC_WS_URL: ws://localhost:8080/api/v1/ws
     # override의 mock 의존을 백엔드로 바꿉니다.
     depends_on: !override
       backend:

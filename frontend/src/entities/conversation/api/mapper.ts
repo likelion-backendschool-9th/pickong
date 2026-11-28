@@ -18,6 +18,7 @@ export const toMessage = (dto: MessageDto): Message => ({
   text: dto.text,
   attachment: toAttachment(dto.attachment),
   createdAt: dto.createdAt,
+  ...(dto.clientMessageId ? { clientMessageId: dto.clientMessageId } : {}),
 });
 
 export const toConversation = (dto: ConversationDto): Conversation => ({

@@ -6,6 +6,8 @@ services:
     environment:
       NODE_ENV: development
       API_BASE_URL: http://mock:4000
+      # 채팅 STOMP. 브라우저가 호스트에서 바로 연결하므로 localhost 주소입니다 (Next rewrites는 WebSocket을 전달하지 않음)
+      NEXT_PUBLIC_WS_URL: ws://localhost:4000/api/v1/ws
     ports:
       - "127.0.0.1:3000:3000"
     volumes:

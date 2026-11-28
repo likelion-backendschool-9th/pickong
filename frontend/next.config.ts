@@ -27,6 +27,9 @@ const BACKEND_PATHS = [
   // 프로필 상단(사용자 정보)과 컬렉션 탭. 게시물 · 방문 탭은 아직 mock입니다.
   "/api/v1/users/:username",
   "/api/v1/users/:username/collections",
+  // 1:1 DM (목록 · 열기 · 내역 · 읽음). 보내기 · 실시간은 rewrites를 거치지 않는 WebSocket(NEXT_PUBLIC_WS_URL)입니다.
+  "/api/v1/conversations",
+  "/api/v1/conversations/:path*",
   // 장소 제보 화면은 관리자 로그인이 없어 mock에 둡니다. 백엔드로 보내면 목록이 비거나 로그인으로 이동합니다.
 ];
 

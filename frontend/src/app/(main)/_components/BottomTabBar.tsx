@@ -4,7 +4,7 @@ import { House, Map as MapIcon, Plus, Send, UserRound } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { useUnreadMessageCount } from "@/entities/conversation";
+import { useConversationRealtime, useUnreadMessageCount } from "@/entities/conversation";
 import { useMe } from "@/entities/user";
 import { routes } from "@/shared/config/routes";
 import { cn } from "@/shared/lib/cn";
@@ -19,6 +19,8 @@ export function BottomTabBar() {
   /** 이미 피드 목록을 보고 있을 때 홈을 누르면: 이동 대신 맨 위로 + 새로고침 */
   const onFeedList = pathname === routes.feed() && params.get("view") !== "map";
   const [composeOpen, setComposeOpen] = useState(false);
+  // 탭 화면에 있는 동안 실시간 연결을 유지해 새 메시지 배지 · 대화 목록이 바로 바뀌게 합니다.
+  useConversationRealtime();
   const unread = useUnreadMessageCount();
   const profileHref = me ? routes.user(me.username) : routes.settings();
 

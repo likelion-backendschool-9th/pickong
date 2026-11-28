@@ -342,9 +342,8 @@ API 명세서에서 **'보류'**로 표시한 기능입니다. 프론트·백엔
   - 일정: 곧 떠나는 하루 + 지난 일정(방문 기록). 본인만 조회. `/plans`는 내 프로필 일정 탭으로 이동
 - [껍데기] DM (1:1 메시지): 대화 목록(`/messages`, 대화 · 사람 검색) · 대화방(`/messages/[conversationId]`), 게시물 · 장소 공유 카드, 입력창 + 버튼으로 사진 · 장소 첨부, 프로필의 ‘메시지’ 버튼이나 검색으로 시작
   - API: `GET/POST /api/conversations`, `GET /api/conversations/unread-count`(하단바 배지), `GET /api/conversations/:id`, `GET/POST /api/conversations/:id/messages` (목록 조회 시 읽음 처리, 보낼 때 `attachment: { type: "IMAGE", url } | { type: "PLACE", placeId }`). 사진은 업로드 API 연결 전까지 브라우저 임시 URL
-  - 실시간 연결 전까지 열린 대화방은 5초마다 새 메시지를 확인
-  - 백엔드 HTTP API는 구현됨(#188, 1:1만): 경로 · 형식은 [backend_blueprint.md](backend_blueprint.md) 3장 conversation의 구현 현황. mock과 다른 점은 대화방 열기 `POST /conversations/direct`, 메시지 내역 커서 페이지(`{ items, nextCursor }`), 조회만으로는 읽지 않음
-  - 백엔드 연동 시: 보내기는 STOMP `/app/dm.send`로 바뀌고 `POST …/messages`는 없습니다. 읽음은 목록 조회가 아니라 `PATCH /conversations/{id}/read` 또는 `/app/dm.read`로 따로 처리합니다. 새 메시지 · 읽음은 폴링 대신 `/user/queue/dm` 이벤트로 받습니다 (5.9)
+  - **백엔드 연동 완료 (1:1, #188 · #190 · #192):** 대화방 열기 `POST /conversations/direct`, 메시지 내역 커서 페이지(`{ items, nextCursor }`), 읽음 `PATCH /conversations/{id}/read`(조회만으로는 읽지 않음), 보내기 · 새 메시지 · 읽음은 STOMP(5.9). 폴링은 없앴고, mock도 같은 계약 · 최소 STOMP로 동작합니다. 경로 · 형식은 [backend_blueprint.md](backend_blueprint.md) 3장 conversation
+  - 남은 것: 첨부 보내기(백엔드 미지원, 보내면 서버 오류 안내), 사람 검색 API(대화 상대 검색은 아직 mock), 그룹 채팅
 - [껍데기] 팔로우 / 언팔로우, 팔로워·팔로잉 목록
 - 프로필 편집: 아이디(바꾸면 프로필 주소도 바뀜) · 이름 · 소개 · 활동 지역 (`PATCH /me` `{ username, name, bio, region }`, 보낸 항목만 변경). 사진은 업로드 API 연결 후
   - 아이디는 14일에 한 번만 바꿀 수 있음(가입 후 첫 변경은 바로). 아직 바꿀 수 없으면 입력칸을 잠그고 `usernameChangeableAt`으로 다음 변경 가능 날짜를 보여 줌. 지금과 같은 아이디를 보내는 것은 변경으로 치지 않음

@@ -3,7 +3,14 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import { useState } from "react";
-import { conversationApi, conversationKeys, matchesConversation, useConversations } from "@/entities/conversation";
+import {
+  conversationApi,
+  conversationKeys,
+  matchesConversation,
+  sendMessage,
+  useConversationRealtime,
+  useConversations,
+} from "@/entities/conversation";
 import { useUserSearch } from "@/entities/user";
 import { useDebounced } from "@/shared/lib/useDebounced";
 import { errorMessage } from "@/shared/api/errors";
@@ -32,6 +39,8 @@ export function SendDmSheet({ open, onClose, text, title = "DM으로 보내기" 
 }
 
 function Picker({ text, onDone }: { text: string; onDone: () => void }) {
+  // 게시물 · 장소 화면처럼 하단바가 없는 곳에서도 열리므로, 보내기 확인을 받을 연결을 여기서도 켭니다.
+  useConversationRealtime();
   const [query, setQuery] = useState("");
   const debounced = useDebounced(query.trim());
   const { data: conversations = [] } = useConversations();
@@ -42,7 +51,7 @@ function Picker({ text, onDone }: { text: string; onDone: () => void }) {
   const send = useMutation({
     mutationFn: async (target: Target) => {
       const id = target.conversationId ?? (await conversationApi.start(target.username)).id;
-      await conversationApi.send(id, { text });
+      await sendMessage(qc, id, { text });
     },
     onSuccess: (_r, target) => {
       qc.invalidateQueries({ queryKey: conversationKeys.all });
