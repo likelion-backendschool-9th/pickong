@@ -453,8 +453,8 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 ### feed
 | 메서드 | 경로 | 입력 포트 · 메서드 | 비고 |
 | --- | --- | --- | --- |
-| GET | `/feeds?tab=following\|recommended` | `FeedQueryUseCase.feed` | 추천은 비로그인 허용 |
-| GET | `/feeds/places?tab=` | `FeedQueryUseCase.feedPlaces` | |
+| GET | `/feeds?tab=following\|recommended` | `FeedQueryUseCase.feed` | 로그인 필수(비로그인 401). 두 탭 모두 같음 |
+| GET | `/feeds/places?tab=` | `FeedQueryUseCase.feedPlaces` | 로그인 필수(비로그인 401). SecurityConfig에서 `/feeds/*` 허용보다 먼저 막음 |
 | POST | `/feeds` | `FeedCommandUseCase.write` | |
 | GET · PUT · DELETE | `/feeds/{feedId}` | `FeedQueryUseCase.getDetail` / `FeedCommandUseCase.update / delete` | feedId = `feeds.public_id` |
 | GET | `/feeds/{feedId}/comments` | `CommentQueryUseCase.list` | 댓글 + 대댓글 일부 |
@@ -474,9 +474,11 @@ ERD와 API 명세서('보류' 제외)를 기준으로 정리한 **백엔드 아�
 - 취소 · 수정 · 삭제도 먼저 판정합니다. 볼 수 없는 게시물에서 `LIKE_NOT_FOUND` · `COMMENT_NOT_OWNER` · `FEED_NOT_OWNER` 같은 다른 오류가 나가면 게시물이 있다는 사실이 드러나기 때문입니다.
 - 그래서 게시물이 PRIVATE로 바뀌면 다른 회원이 전에 남긴 좋아요 · 북마크 · 댓글은 남고, 그 회원도 취소하거나 지울 수 없습니다.
 - 목록도 같은 공개 범위 규칙을 따릅니다(#91). 목록에 보이는 게시물은 상세로 열 수 있어야 하기 때문입니다.
-  - 팔로잉 탭: 내 게시물 전부 + 팔로우한 사람의 PUBLIC · FOLLOWERS. 팔로우 목록은 social의 `RelationQueryUseCase.getFollowingIds`로 받고, feed는 `follows` 테이블을 읽지 않습니다(6.1).
+  - 접근: 피드 목록 · 피드 지도는 로그인 필수입니다(앱 흐름: 시작하기 → 로그인 → 피드). 비로그인은 게시물 상세(공유 링크)와 프로필 피드만 볼 수 있습니다.
+  - 모든 목록은 삭제 · 숨김 게시물을 뺍니다. 숨김 게시물은 작성자도 목록에서는 보이지 않고 상세로만 볼 수 있습니다(목록에 숨김 표시 UI가 없음).
+  - 팔로잉 탭: 삭제 · 숨김을 제외한 내 게시물 전부 + 팔로우한 사람의 PUBLIC · FOLLOWERS. 팔로우 목록은 social의 `RelationQueryUseCase.getFollowingIds`로 받고, feed는 `follows` 테이블을 읽지 않습니다(6.1).
   - 추천 탭: 다른 사람의 PUBLIC만. 처음 보는 사람의 글을 발견하는 탭이라 팔로워 공개 글은 팔로잉 탭에서만 보입니다(`_local/algorithm-plan.md` 6단계, 프론트 mock과 같음).
-  - 프로필 피드: `relationOf`로 관계를 구한 뒤 `Visibility.allows`가 허용하는 공개 범위만(본인 전체, 팔로워 PUBLIC · FOLLOWERS, 그 외와 비로그인 PUBLIC). 컬렉션 탭과 같은 방식입니다.
+  - 프로필 피드: `relationOf`로 관계를 구한 뒤 `Visibility.allows`가 허용하는 공개 범위만(본인은 삭제 · 숨김을 제외한 전체, 팔로워 PUBLIC · FOLLOWERS, 그 외와 비로그인 PUBLIC). 컬렉션 탭과 같은 방식입니다.
   - 피드 지도: 탭과 같은 기준. SQL이 `query/FeedPlaceQueryAdapter`에 있어 `follows`를 읽기 전용으로 JOIN합니다.
 
 ### collection
