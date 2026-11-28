@@ -3,6 +3,7 @@ package com.pickong.feed.application.service;
 import com.pickong.common.error.BusinessException;
 import com.pickong.feed.application.port.in.FeedAccessQueryUseCase;
 import com.pickong.feed.application.port.out.FeedRepository;
+import com.pickong.feed.domain.FeedErrorCode;
 import com.pickong.feed.domain.model.Feed;
 import com.pickong.social.application.port.in.RelationQueryUseCase;
 import org.springframework.stereotype.Service;
@@ -31,9 +32,13 @@ public class FeedAccessQueryService implements FeedAccessQueryUseCase {
             Feed feed = feedRepository.findById(feedId);
             feed.ensureReadable(relationQueryUseCase.relationOf(viewerId, feed.getUserId()), false);
             return true;
-        } catch (BusinessException notReadable) {
-            // 없는 게시물(findById)과 볼 수 없는 게시물(ensureReadable) 모두 FEED_NOT_FOUND
-            return false;
+        } catch (BusinessException exception) {
+            // 없는 게시물(findById)과 볼 수 없는 게시물(ensureReadable)은 모두 FEED_NOT_FOUND라 이것만 false로 바꿈
+            // 그 밖의 업무 오류(예: 관계 조회 실패)까지 false로 바꾸면 원인이 신고 API의 404로 가려져서 그대로 던짐
+            if (exception.getErrorCode() == FeedErrorCode.FEED_NOT_FOUND) {
+                return false;
+            }
+            throw exception;
         }
     }
 }
