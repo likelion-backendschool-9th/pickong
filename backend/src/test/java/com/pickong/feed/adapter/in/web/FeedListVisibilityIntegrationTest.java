@@ -125,14 +125,77 @@ class FeedListVisibilityIntegrationTest {
     }
 
     @Test
-    @DisplayName("피드 지도 추천: 추천 탭과 같게 다른 사람의 PUBLIC만, 비로그인이면 PUBLIC 전체")
+    @DisplayName("피드 지도 추천: 추천 탭과 같게 다른 사람의 PUBLIC만")
     void feedPlacesRecommended() throws Exception {
         assertThat(placeFeedIds(as(me, get("/api/v1/feeds/places").param("tab", "recommended"))))
                 .contains(feedId("followee-PUBLIC"), feedId("stranger-PUBLIC"))
                 .doesNotContain(feedId("me-PUBLIC"), feedId("followee-FOLLOWERS"));
-        assertThat(placeFeedIds(api(get("/api/v1/feeds/places").param("tab", "recommended"))))
-                .contains(feedId("me-PUBLIC"), feedId("followee-PUBLIC"), feedId("stranger-PUBLIC"))
-                .doesNotContain(feedId("followee-FOLLOWERS"));
+    }
+
+    @Test
+    @DisplayName("피드 목록과 피드 지도는 로그인 필수 (비로그인 401), 프로필 피드와 게시물 상세만 비로그인 허용")
+    void feedListAndMapRequireLogin() throws Exception {
+        for (String tab : List.of("following", "recommended")) {
+            mvc.perform(api(get("/api/v1/feeds").param("tab", tab).param("limit", "10"))).andExpect(status().isUnauthorized());
+            mvc.perform(api(get("/api/v1/feeds/places").param("tab", tab))).andExpect(status().isUnauthorized());
+        }
+        mvc.perform(api(get("/api/v1/users/" + followeeName + "/feeds").param("limit", "10"))).andExpect(status().isOk());
+        mvc.perform(api(get("/api/v1/feeds/" + feedId("followee-PUBLIC")))).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("삭제·숨김 게시물은 내 글이어도 네 목록 모두에서 빠짐 (숨김 글은 작성자가 상세로만 볼 수 있음)")
+    void deletedAndHiddenAreExcludedEverywhere() throws Exception {
+        for (String owner : List.of("me", "followee")) {
+            jdbc.update("UPDATE feeds SET deleted_at = now() WHERE id = ?", feedId(owner + "-PUBLIC"));
+            jdbc.update("UPDATE feeds SET hidden_at = now() WHERE id = ?", feedId(owner + "-FOLLOWERS"));
+        }
+        jdbc.update("UPDATE feeds SET deleted_at = now() WHERE id = ?", feedId("stranger-PUBLIC"));
+        List<String> gone = List.of("me-PUBLIC", "me-FOLLOWERS", "followee-PUBLIC", "followee-FOLLOWERS", "stranger-PUBLIC");
+
+        assertThat(contents(as(me, get("/api/v1/feeds").param("tab", "following").param("limit", "50"))))
+                .containsExactlyInAnyOrder("me-PRIVATE")
+                .doesNotContainAnyElementsOf(gone);
+        assertThat(contents(as(me, get("/api/v1/feeds").param("tab", "recommended").param("limit", "50"))))
+                .doesNotContainAnyElementsOf(gone);
+        assertThat(contents(as(followee, get("/api/v1/users/" + followeeName + "/feeds").param("limit", "50"))))
+                .containsExactly("followee-PRIVATE");
+        for (String tab : List.of("following", "recommended")) {
+            assertThat(placeFeedIds(as(me, get("/api/v1/feeds/places").param("tab", tab))))
+                    .doesNotContainAnyElementsOf(feedIds(gone.toArray(String[]::new)));
+        }
+    }
+
+    @Test
+    @DisplayName("다음 페이지(cursor)에서도 공개 범위 필터가 유지됨: 1개씩 끝까지 넘겨도 결과가 한 번에 받은 것과 같음")
+    void filterHoldsAcrossPages() throws Exception {
+        assertThat(allPages(me, "following"))
+                .containsExactlyInAnyOrder("me-PUBLIC", "me-FOLLOWERS", "me-PRIVATE",
+                        "followee-PUBLIC", "followee-FOLLOWERS");
+        assertThat(allPages(me, "recommended"))
+                .contains("followee-PUBLIC", "stranger-PUBLIC")
+                .doesNotContain("me-PUBLIC", "followee-FOLLOWERS", "stranger-FOLLOWERS", "followee-PRIVATE");
+    }
+
+    // limit=1로 nextCursor를 따라가며 마지막 페이지까지 모음 (다른 테스트 데이터가 섞이지 않게 이 테스트의 사람 글만)
+    private List<String> allPages(long viewer, String tab) throws Exception {
+        List<String> collected = new java.util.ArrayList<>();
+        Object cursor = null;
+        for (int page = 0; page < 500; page++) {
+            MockHttpServletRequestBuilder request = get("/api/v1/feeds").param("tab", tab).param("limit", "1");
+            if (cursor != null) {
+                request.param("cursor", cursor.toString());
+            }
+            String body = mvc.perform(as(viewer, request)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+            List<String> contents = JsonPath.read(body, "$.feeds[*].content");
+            contents.stream().filter(c -> c.startsWith("me-") || c.startsWith("followee-") || c.startsWith("stranger-"))
+                    .forEach(collected::add);
+            cursor = JsonPath.read(body, "$.nextCursor");
+            if (!Boolean.TRUE.equals(JsonPath.read(body, "$.hasNext"))) {
+                return collected;
+            }
+        }
+        throw new AssertionError("페이지가 끝나지 않음");
     }
 
     private List<String> contents(MockHttpServletRequestBuilder request) throws Exception {
