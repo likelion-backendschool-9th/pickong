@@ -53,7 +53,8 @@
 - `author`(공개 id · 아이디 · 표시 이름 · 프로필 사진 · 지역), `photos[].url`, `places[]`, `isLiked` · `isBookmarked`
 - 내부 `userId`는 내보내지 않음
 - 조회 SQL은 `query/FeedViewQueryAdapter` (blueprint 6.1), 목록도 종류별 IN 조회 한 번씩
-- 남은 것: 댓글 작성자 #207, 피드 지도 응답 #208, 게시물 id를 `public_id`로 #200, 사진별 장소 #155
+- 댓글 응답도 `author` · `postId` (#207, `CommentViewUseCase`)
+- 남은 것: 피드 지도 응답 #208, 게시물 id를 `public_id`로 #200, 사진별 장소 #155
 
 ### ◐ 2. 사진 업로드 — Cloudflare R2 연동
 
